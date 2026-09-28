@@ -1,0 +1,102 @@
+/* Section 2.5.3: the badge row, 12px icons and 12px --text-muted text. */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.badge {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 0;
+  font-size: var(--fs-meta);
+  line-height: 16px;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+}
+
+.badge svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.text {
+  white-space: nowrap;
+}
+
+/*
+ * Section 2.5.3: the due badge is a button, and hovering it swaps the clock for a checkbox.
+ * Both icons are rendered and one of them is hidden, so the swap costs no layout.
+ */
+.dueButton {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.checkboxIcon {
+  display: none;
+}
+
+.dueButton:hover .stateIcon,
+.dueButton:focus-visible .stateIcon {
+  display: none;
+}
+
+.dueButton:hover .checkboxIcon,
+.dueButton:focus-visible .checkboxIcon {
+  display: inline-flex;
+}
+
+.stateIcon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.checkboxIcon {
+  align-items: center;
+}
+
+.dueButton:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/*
+ * What the button does, for assistive tech only: the visible date stays part of the accessible
+ * name (WCAG 2.5.3) and this sentence says what activating it will do.
+ */
+.action {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The three coloured due states. "Due soon" keeps the dark text; the other two go white. */
+.soon {
+  padding: 2px 4px;
+  color: var(--text);
+  background: var(--due-soon);
+}
+
+.overdue {
+  padding: 2px 4px;
+  color: var(--text-inverse);
+  background: var(--danger);
+}
+
+/* A complete due date and a fully checked checklist wear the same green (Section 2.5.3). */
+.complete {
+  padding: 2px 4px;
+  color: var(--text-inverse);
+  background: var(--success);
+}

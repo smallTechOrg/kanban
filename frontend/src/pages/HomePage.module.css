@@ -1,0 +1,82 @@
+/*
+ * Section 2.2: 1128px centred, 40px 16px padding, the sidebar and the column 32px apart.
+ *
+ * `width: 100%` is load-bearing, exactly as on the two workspace pages: `AppShell` lays the
+ * routed page out as a column flex item, and an `auto` cross-axis margin beats `stretch`, so
+ * without it the page shrink-wraps its content and `BoardsGrid` fits two tiles per row
+ * instead of filling the 1128px.
+ */
+.page {
+  display: flex;
+  gap: 32px;
+  width: 100%;
+  max-width: 1128px;
+  margin: 0 auto;
+  padding: 40px 16px;
+}
+
+.content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 40px;
+  min-width: 0;
+}
+
+.workspace {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.badge {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  color: var(--text-inverse);
+  background: var(--logo);
+  border-radius: var(--radius-sm);
+}
+
+.workspaceName {
+  flex: 1 1 auto;
+  font-size: var(--fs-h3);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.closed {
+  display: flex;
+}
+
+/* Section 2.10: 194x96 placeholders with a 1.2s shimmer while the boards load. */
+.skeleton {
+  height: 96px;
+  background: var(--list-bg);
+  border-radius: var(--radius-sm);
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Section 2.9.4: the sidebar becomes a strip above the boards below 1024px. */
+@media (max-width: 1023px) {
+  .page {
+    flex-direction: column;
+    gap: 16px;
+  }
+}

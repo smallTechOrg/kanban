@@ -1,0 +1,184 @@
+/*
+ * The single source of truth for colours, spacing, radii, shadows and motion
+ * (docs/PLANNING.md Section 2.9.1). This is the ONLY file in the frontend that
+ * may contain a hex colour literal — everything else reads var(--token).
+ *
+ * Label, cover and board-background palettes are deliberately NOT tokens: they come
+ * from GET /api/meta and are applied by src/lib/colors.ts (Section 5.6).
+ */
+:root {
+  /* typography */
+  --font:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', Ubuntu, 'Droid Sans',
+    'Helvetica Neue', sans-serif;
+  --fs-body: 14px;
+  --lh-body: 20px;
+  --fs-meta: 12px;
+  --fs-h3: 16px;
+  --fs-title: 20px;
+  --fs-board: 18px;
+
+  /* neutrals (Atlassian palette) */
+  --text: #172b4d;
+  --text-muted: #5e6c84;
+  --text-subtle: #6b778c;
+  --icon: #42526e;
+  --border: #dfe1e6;
+  --page-bg: #fafbfc;
+  --surface: #ffffff;
+  --modal-bg: #f4f5f7;
+  --list-bg: #ebecf0;
+  --hover: #091e420f;
+  --pressed: #091e4226;
+  /* The selected-row tint shared by the Home sidebar (2.2), search results (2.1.2) and the
+     DatePicker range (2.7.3). */
+  --selected: #e4f0f6;
+  --overlay: rgba(0, 0, 0, 0.64);
+  /* The gap a dragged card leaves behind in its list (Sections 2.5.1 and 5.5). */
+  --drop-placeholder: rgba(9, 30, 66, 0.08);
+  --quick-edit-overlay: rgba(0, 0, 0, 0.6);
+  /* The hatched band an archived card's modal wears (Section 2.6.1, ArchivedBanner). */
+  --archived-bg: #fbe5b4;
+  --archived-stripe: rgba(0, 0, 0, 0.05);
+  /* The gradient a full-size cover paints its white title over (Sections 2.5.1 and 2.6.1). */
+  --cover-scrim: rgba(0, 0, 0, 0.6);
+  /* The same wash at the hover strength Section 2.5.4 gives the quick editor's side buttons. */
+  --quick-edit-overlay-hover: rgba(0, 0, 0, 0.8);
+  /* Text on a dark fill and the dark panel itself (Section 2.1.2: Button primary and
+     Avatar initials are white; Tooltip and Toast are #172B4D with white text). Kept
+     literal rather than aliased to --text so the dark theme cannot invert them. */
+  --text-inverse: #ffffff;
+  --surface-inverse: #172b4d;
+
+  /* brand */
+  --primary: #0079bf;
+  --primary-hover: #026aa7;
+  --primary-active: #055a8c;
+  --nav-bg: #026aa7;
+  --focus: #0079bf;
+  --link: #0079bf;
+  --logo: #0052cc;
+
+  /* semantic */
+  --success: #61bd4f;
+  --warning: #f2d600;
+  --due-soon: #f5cd47;
+  --danger: #eb5a46;
+  --danger-btn: #b04632;
+  --danger-btn-hover: #933b27;
+  --progress: #5ba4cf;
+  /* The "Reconnecting…" banner of Section 2.10 is the same yellow as a due-soon badge. */
+  --banner-bg: var(--due-soon);
+  --star: #f2d600;
+
+  /* top nav (Section 2.1.1: buttons sit on a 30/40/50% white wash) */
+  --nav-btn: rgba(255, 255, 255, 0.3);
+  --nav-btn-hover: rgba(255, 255, 255, 0.4);
+  --nav-btn-active: rgba(255, 255, 255, 0.5);
+  --nav-placeholder: rgba(255, 255, 255, 0.8);
+
+  /* board header / canvas */
+  --board-header-bg: rgba(0, 0, 0, 0.24);
+  /* The nav darkens the board background instead of using --nav-bg (Section 2.1.1). */
+  --nav-bg-board: rgba(0, 0, 0, 0.15);
+  --tw-btn: rgba(255, 255, 255, 0.24);
+  --tw-btn-hover: rgba(255, 255, 255, 0.32);
+  --scroll-thumb: rgba(255, 255, 255, 0.4);
+  --scroll-track: rgba(0, 0, 0, 0.15);
+  /* The 1px x 16px rule between the header's left groups and the "+N" member chip (2.3.1). */
+  --divider-white: rgba(255, 255, 255, 0.24);
+  --chip-white: rgba(255, 255, 255, 0.3);
+  /* The card region inside a list scrolls on its own 8px bar over a transparent track (2.4.1). */
+  --card-scroll-thumb: #bfc4ce;
+  /* The 15% scrim shared by the board-tile hover overlay (2.2) and the TopNav on a board (2.1). */
+  --tile-overlay: rgba(0, 0, 0, 0.15);
+
+  /* shadows */
+  --shadow-card: 0 1px 1px #091e4240, 0 0 1px #091e424f;
+  --shadow-card-drag: 0 8px 12px #091e4226, 0 0 1px #091e424f;
+  --shadow-popover: 0 8px 12px #091e4226, 0 0 1px #091e424f;
+  --shadow-modal: 0 8px 16px -4px #091e4240, 0 0 1px #091e424f;
+  --shadow-list: 0 1px 1px #091e4240;
+  --shadow-auth-card: 0 0 10px #091e4240;
+  /* The board menu drawer casts its shadow leftwards, over the canvas (Section 2.3.4). */
+  --shadow-drawer: -8px 0 12px #091e4226;
+
+  /* radii */
+  --radius-sm: 3px;
+  --card-radius: 8px;
+  --list-radius: 12px;
+  --popover-radius: 8px;
+
+  /* sizing */
+  --nav-h: 44px;
+  --board-header-h: 48px;
+  --list-w: 272px;
+  --list-gap: 8px;
+  --card-gap: 8px;
+  --popover-w: 304px;
+  --modal-w: 768px;
+  --sidebar-btn-h: 32px;
+  --icon-size: 16px;
+  --avatar-tile: 24px;
+  --avatar-nav: 28px;
+  --avatar-modal: 32px;
+  --avatar-menu: 40px;
+  --input-h: 36px;
+  /* The board menu drawer (Section 2.3.4), which the canvas also pads for above 1024px. */
+  --drawer-w: 339px;
+  --drawer-header-h: 40px;
+
+  /* stacking order (CLAUDE.md section 3 owns z-index here). A popover may be opened
+     from inside a modal, and a toast must stay visible above both. */
+  /* The sticky nav sits below all three (Section 2.1.1), and above the quick-edit backdrop,
+     which covers only the board (Section 2.5.4). */
+  /* One layer inside the card dialog: its X and its loading bar are absolutely positioned at
+     the top, and so is the 160px cover strip that comes after them in the DOM (Section 2.6.1),
+     which would otherwise paint over both and swallow the click that closes the card. */
+  --z-card-overlay: 1;
+  /* The menu drawer covers the canvas but stays under the quick-edit backdrop and the nav. */
+  --z-drawer: 10;
+  --z-quick-edit: 20;
+  --z-nav: 30;
+  --z-modal: 100;
+  --z-popover: 200;
+  --z-toast: 300;
+
+  /* breakpoints (Section 5.6; referenced by media queries as literals) */
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+
+  /* motion */
+  --t-hover: 0.085s ease;
+  --t-popover: 0.1s ease;
+  --t-drawer: 0.2s ease;
+  --t-bg: 0.2s ease;
+}
+
+/* Trello's pre-2023 radii. localStorage-only in v1 (no UI toggle). */
+:root[data-theme='classic'] {
+  --card-radius: 3px;
+  --list-radius: 3px;
+}
+
+/* Defined from M0 so no component ever hard-codes a colour. localStorage-only in v1. */
+:root[data-theme='dark'] {
+  --surface: #1d2125;
+  --page-bg: #1d2125;
+  --list-bg: #101204;
+  --modal-bg: #323940;
+  --text: #b6c2cf;
+  --text-muted: #9fadbc;
+  --border: #38414a;
+  --hover: #a6c5e229;
+  --pressed: #a6c5e238;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-hover: 0s;
+    --t-popover: 0s;
+    --t-drawer: 0s;
+    --t-bg: 0s;
+  }
+}

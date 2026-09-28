@@ -1,0 +1,43 @@
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 240px;
+  max-width: 360px;
+  padding: 10px 12px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-inverse);
+  background: var(--surface-inverse);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-popover);
+  pointer-events: auto;
+}
+
+.error {
+  background: var(--danger-btn);
+}
+
+.message {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.action {
+  flex: none;
+  font-weight: 700;
+  color: var(--text-inverse);
+  text-decoration: underline;
+}
+
+/*
+ * Section 2.10 writes the undoable toast as "N cards archived · Undo", so the separator is the
+ * link's own decoration rather than a second text node: it must not be part of the button's
+ * accessible name, and it must not be underlined with it.
+ */
+.action::before {
+  display: inline-block;
+  margin-right: 8px;
+  text-decoration: none;
+  content: '·';
+}

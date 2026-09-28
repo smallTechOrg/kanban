@@ -1,0 +1,210 @@
+/*
+ * Section 2.5.1. The tile is the Draggable, so the library owns its inline `transform`; the
+ * 3deg drag tilt is written as the separate `rotate` property, which composes with that
+ * translate instead of fighting it.
+ */
+.tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  margin-bottom: var(--card-gap);
+  padding: 8px 12px;
+  background: var(--surface);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+}
+
+.tile:hover {
+  background: var(--modal-bg);
+}
+
+/*
+ * Section 2.3.3: filtering hides a tile and the list stays. The row keeps its `Draggable` — not
+ * an unmounted component — so the index every other card reports to a drop is still an index
+ * over every active card of the list.
+ *
+ * It is collapsed rather than `display: none`, which is the letter of Section 2.7's "Filters"
+ * row, because a `display: none` element has no box at all: `getBoundingClientRect()` answers
+ * `0,0,0,0`, so `@hello-pangea/dnd` measures every hidden tile at the *viewport origin* and
+ * treats it as lying above every visible card. Dragging the last visible tile of a filtered
+ * list then announced "position 4 of 4" before it had moved a pixel. A collapsed box keeps the
+ * documented index and puts it where the card actually is: a zero-height point between its two
+ * neighbours, which is the case the same row calls "zero-height Draggables collapse onto one
+ * point" and expects.
+ */
+.hidden {
+  visibility: hidden;
+  min-height: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+/* Section 2.5.1: the "current card" of the keyboard shortcuts wears a 2px ring. */
+.current {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+.tile[data-is-dragging='true'] {
+  rotate: 3deg;
+  box-shadow: var(--shadow-card-drag);
+  cursor: grabbing;
+}
+
+/*
+ * The anchor holds the title and is the drag handle. Its ::after stretches over the whole tile,
+ * so a click anywhere that is not one of the three controls above it opens the card and a drag
+ * can start from any of that area (Section 2.5.1).
+ */
+.link {
+  display: block;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--card-radius);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/*
+ * The chips, the badge row and the pencil are the tile's own controls, so they paint above the
+ * anchor's stretched layer instead of under it.
+ */
+.labels,
+.badges {
+  position: relative;
+  z-index: 1;
+}
+
+.title {
+  display: block;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* Section 2.5.1: cards with `is_template` are prefixed by a grey pill. */
+.template {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 6px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--text);
+  background: var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* Section 2.5.2: the chip row, and the two global modes a click toggles. */
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+/* The chip itself is the ui/ primitive; the tile only says that clicking one is a control. */
+.chip {
+  cursor: pointer;
+}
+
+/* Section 2.5.1: the quick-edit pencil, visible only while the tile is hovered or focused. */
+.pencil {
+  position: absolute;
+  z-index: 1;
+  top: 2px;
+  right: 2px;
+  opacity: 0;
+  transition: opacity var(--t-hover);
+}
+
+.tile:hover .pencil,
+.tile:focus-within .pencil {
+  opacity: 1;
+}
+
+.pencilButton {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * Section 2.5.1 block 1, the cover. A colour cover is a 32px band; an image cover grows to
+ * 260px and is contained on its dominant colour. Both bleed to the tile's edges through the
+ * negative margins the 8px/12px padding leaves.
+ */
+.cover {
+  position: relative;
+  margin: -8px -12px 8px;
+  border-radius: var(--card-radius) var(--card-radius) 0 0;
+  overflow: hidden;
+  min-height: 32px;
+}
+
+.coverImage {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+}
+
+/*
+ * `cover.size = 'full'`: the whole tile is the cover, the badge row is not rendered and the
+ * title sits bottom-left in white over the scrim.
+ */
+.full {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 96px;
+}
+
+.fullCover,
+.scrim {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--card-radius);
+}
+
+.fullImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.scrim {
+  background: linear-gradient(transparent, var(--cover-scrim));
+}
+
+.full .title {
+  position: relative;
+  font-weight: 600;
+  color: var(--text-inverse);
+}
+
+/* Section 2.5.1 block 5: the assigned members, right-aligned under the badges. */
+.members {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 4px;
+}

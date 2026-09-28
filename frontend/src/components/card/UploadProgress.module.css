@@ -1,0 +1,39 @@
+/* Section 2.6.3: a 4px --primary bar while the bytes are on the wire. */
+.track {
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  background: var(--hover);
+  border-radius: 2px;
+}
+
+.fill {
+  width: 0;
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: width 0.14s ease;
+}
+
+/* No total yet, so the bar sweeps instead of claiming a percentage. */
+.indeterminate {
+  width: 40%;
+  animation: sweep 1.2s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indeterminate {
+    width: 100%;
+    animation: none;
+  }
+}

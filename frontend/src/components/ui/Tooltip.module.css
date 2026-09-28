@@ -1,0 +1,15 @@
+.trigger {
+  display: inline-flex;
+}
+
+.tooltip {
+  z-index: var(--z-popover);
+  max-width: 200px;
+  padding: 4px 8px;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+  color: var(--text-inverse);
+  background: var(--surface-inverse);
+  border-radius: var(--radius-sm);
+  width: max-content;
+}

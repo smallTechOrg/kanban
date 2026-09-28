@@ -1,0 +1,27 @@
+/* Section 2.6.1: a 160px band, the image contained in it, and "Cover" bottom-right. */
+.strip {
+  position: relative;
+  height: 160px;
+  border-radius: var(--popover-radius) var(--popover-radius) 0 0;
+}
+
+.image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+}
+
+/* The thumbnail leads until the original has loaded; only one of the two is ever painted. */
+.hidden {
+  visibility: hidden;
+}
+
+.button {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  background: var(--surface);
+}

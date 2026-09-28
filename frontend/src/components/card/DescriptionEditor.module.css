@@ -1,0 +1,57 @@
+/* Section 2.6.3: icon + h3 + Edit, then the box, the editor or the rendered Markdown. */
+.section {
+  margin-bottom: 24px;
+}
+
+.header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 32px;
+}
+
+.icon {
+  flex: 0 0 var(--icon-size);
+  color: var(--icon);
+}
+
+.heading {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+.body {
+  padding-left: 24px;
+}
+
+/* The click-to-edit box of an empty description (Section 2.6.3). */
+.emptyBox {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+  text-align: left;
+  background: var(--hover);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.emptyBox:hover {
+  background: var(--pressed);
+}
+
+.none {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}

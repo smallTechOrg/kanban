@@ -1,0 +1,69 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--sidebar-btn-h);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--text);
+  transition: background var(--t-hover);
+}
+
+.row:hover {
+  background: var(--hover);
+}
+
+.row:active {
+  background: var(--pressed);
+}
+
+.icon {
+  display: flex;
+  flex: none;
+  color: var(--icon);
+}
+
+.icon svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.helper {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A scope guard stays readable but inert (Sections 2.3.1 and 2.4.3). */
+.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.disabled:hover {
+  background: none;
+}
+
+/* The tooltip wrapper must not shrink a full-width row. */
+.wrap {
+  width: 100%;
+}

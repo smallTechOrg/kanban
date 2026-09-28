@@ -1,0 +1,6 @@
+/* Section 2.3.4: the drawer's Settings sub-panel. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

@@ -1,0 +1,20 @@
+/* Section 2.6.5: "Copy card" — title, the "Keep…" checkboxes, then "Copy to…". */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.keeps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--text-muted);
+}

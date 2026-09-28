@@ -1,0 +1,70 @@
+/* Section 2.8: a two-column sheet inside the 768px modal. */
+.columns {
+  column-count: 2;
+  column-gap: 24px;
+}
+
+.group {
+  /* A group is never split across the two columns. */
+  break-inside: avoid;
+  margin-bottom: 16px;
+}
+
+.heading {
+  margin: 0 0 8px;
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.term {
+  flex: 0 0 auto;
+  min-width: 72px;
+}
+
+.keys {
+  display: inline-flex;
+  gap: 2px;
+  align-items: baseline;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 2px;
+  align-items: baseline;
+}
+
+.or {
+  margin: 0 2px;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+}
+
+.definition {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+/* One column below --bp-md (Section 5.6), which the 768-1023px band of 2.9.4 keeps at two. */
+@media (max-width: 767px) {
+  .columns {
+    column-count: 1;
+  }
+}

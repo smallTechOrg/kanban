@@ -1,0 +1,99 @@
+.sidebar {
+  position: sticky;
+  top: 60px;
+  flex: 0 0 240px;
+  align-self: flex-start;
+  width: 240px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  height: var(--sidebar-btn-h);
+  padding: 0 8px;
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.row:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.row:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.active {
+  color: var(--primary);
+  background: var(--selected);
+}
+
+.icon {
+  flex: 0 0 auto;
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.heading {
+  padding: 8px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.badge {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  color: var(--text-inverse);
+  background: var(--logo);
+  border-radius: var(--radius-sm);
+}
+
+.workspace {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Section 2.9.4: below 1024px the sidebar becomes a strip above the main column. */
+@media (max-width: 1023px) {
+  .sidebar {
+    position: static;
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .row {
+    width: auto;
+  }
+
+  .heading {
+    display: none;
+  }
+}

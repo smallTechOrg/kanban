@@ -1,0 +1,75 @@
+/* Section 2.6.4: the 168px column beside the main one. */
+.sidebar {
+  flex: none;
+  width: 168px;
+  padding: 0 16px 8px 8px;
+}
+
+.heading {
+  margin: 0 0 8px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+
+/* Section 2.6.4: the blue check tile sits flush at the Watch row's right edge. */
+.watchRow {
+  position: relative;
+}
+
+.watchCheck {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--text-inverse);
+  background: var(--primary);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+
+/*
+ * What the tile means, for assistive tech only: the row's accessible name stays the visible
+ * "Watch" (WCAG 2.5.3) and this sentence says what the tile beside it reports.
+ */
+.state {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The archived card's hard delete (Section 2.6.4), in the row rhythm of the buttons above it. */
+.delete {
+  margin-bottom: 8px;
+}
+
+/* The 1px rule above "Archive" (Section 2.6.4). */
+.divider {
+  height: 1px;
+  margin: 8px 0;
+  background: var(--border);
+}
+
+/* Section 2.6.1: on a phone the sidebar stacks under the main column as a 2-column grid. */
+@media (max-width: 767px) {
+  .sidebar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 8px;
+    width: 100%;
+    padding: 0 16px 16px;
+  }
+
+  .heading,
+  .divider {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,0 +1,115 @@
+/*
+ * Section 2.3.1: 48px band over the board background, padding 8px 12px, 4px gaps, every
+ * control a 32px transparent-white button. White text is inherited by InlineEditable's
+ * display button (`color: inherit`), while its editor keeps the dark-on-white text of the
+ * Textarea primitive.
+ */
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--board-header-h);
+  padding: 8px 12px;
+  color: var(--text-inverse);
+  background: var(--board-header-bg);
+}
+
+.heading {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  font-size: var(--fs-board);
+  font-weight: 700;
+  line-height: var(--lh-body);
+}
+
+/* The name button hugs its text; the editor inherits the same 18px 700 font (2.3.1). */
+.name {
+  width: auto;
+  max-width: 320px;
+}
+
+.divider {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 8px;
+  background: var(--divider-white);
+}
+
+.members {
+  display: flex;
+  align-items: center;
+}
+
+.member {
+  display: flex;
+}
+
+/* Stacked with a 4px overlap, first one flush (2.3.1). */
+.member + .member {
+  margin-left: -4px;
+}
+
+.more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--avatar-nav);
+  height: var(--avatar-nav);
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  color: var(--text-inverse);
+  background: var(--chip-white);
+  border-radius: 50%;
+}
+
+/* Filter and Show menu sit at the far end of the bar (2.3.1). */
+.right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* The Filter control: a wrapper the popover anchors to, whatever shape the control has. */
+.filter {
+  display: flex;
+}
+
+/* Section 2.3.1: an active filter is a solid white pill reading "N filters", with an X. */
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--sidebar-btn-h);
+  padding: 0 4px 0 0;
+  color: var(--text);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+}
+
+.pillButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--sidebar-btn-h);
+  padding: 0 8px;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  line-height: var(--lh-body);
+  color: inherit;
+}
+
+.pillIcon {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+/* Below 768px the bar wraps to two rows: name and star, then the rest (2.9.4). */
+@media (max-width: 767px) {
+  .right {
+    margin-left: 0;
+  }
+}

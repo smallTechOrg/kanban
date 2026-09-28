@@ -1,0 +1,12 @@
+/* Section 2.6.4: the read-only link, the card number and the two copy buttons. */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.number {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+}

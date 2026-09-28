@@ -1,0 +1,50 @@
+/* Section 2.6.3: white textarea with the focus ring, then Save / Cancel / Formatting help. */
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input {
+  min-height: 108px;
+  border-radius: var(--radius-sm);
+}
+
+.footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* "Formatting help" sits at the right end of the row, away from the two commit buttons. */
+.help {
+  margin-left: auto;
+}
+
+.cheatSheet {
+  margin: 0;
+}
+
+.cheatRow {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-height: 28px;
+}
+
+.cheatEffect {
+  flex: 1;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+.cheatSyntax {
+  margin: 0;
+  padding: 2px 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+  background: var(--hover);
+  border-radius: var(--radius-sm);
+}

@@ -1,0 +1,62 @@
+/*
+ * Section 2.3.3: sections separated by 12px 700 labels, each option a 32px checkbox row.
+ * The panel itself (304px, header, scroll) is the `ui/Popover` primitive.
+ */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.groupLabel {
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}
+
+/* One option: 32px tall, full width, the same hover wash as a popover menu row. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--sidebar-btn-h);
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  transition: background var(--t-hover);
+}
+
+.row:hover {
+  background: var(--hover);
+}
+
+.radio {
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* A member row keeps its 24px avatar beside the name (2.3.3). */
+.member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The label rows are full-width chips, so the checkbox keeps its column. */
+.chip {
+  flex: 1;
+  min-width: 0;
+}

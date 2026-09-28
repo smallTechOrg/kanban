@@ -1,0 +1,41 @@
+/* Section 2.4.3: groups separated by a 1px --border rule with 8px margins. */
+.divider {
+  height: 1px;
+  margin: 8px 0;
+  background: var(--border);
+  border: 0;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.body {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}
+
+/* 5x2 grid of 48x32 swatches (2.4.3). */
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+
+.swatch {
+  width: 100%;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  transition: transform var(--t-hover);
+}
+
+.swatch:hover {
+  transform: scale(1.05);
+}
+
+.swatch[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}

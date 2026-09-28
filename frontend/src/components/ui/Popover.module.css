@@ -1,0 +1,67 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  z-index: var(--z-popover);
+  width: var(--popover-w);
+  /* Set by the `size` middleware: the room left between the trigger and the viewport edge. */
+  max-height: var(--popover-avail-h, none);
+  background: var(--surface);
+  border-radius: var(--popover-radius);
+  box-shadow: var(--shadow-popover);
+}
+
+.header {
+  display: grid;
+  grid-template-columns: 28px 1fr 28px;
+  align-items: center;
+  height: 40px;
+  padding: 0 4px;
+}
+
+.title {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 12px 12px;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: push var(--t-popover);
+}
+
+/* Section 2.1.2: a pushed view slides 8px and fades in. */
+@keyframes push {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+
+/*
+ * Below --bp-md the anchored panel becomes a bottom sheet. Floating UI writes position and
+ * transform as inline styles, so the sheet has to win with !important.
+ *
+ * The plan contradicts itself on the breakpoint: Section 2.1.2 (line 436) says "below 600px",
+ * while Section 2.9.4 (the responsive table), Section 5.6 (--bp-md) and the M5 fidelity
+ * checklist all say below 768px. Three-to-one, and --bp-md is the named token, so 767px wins.
+ */
+@media (max-width: 767px) {
+  .panel {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    width: 100% !important;
+    transform: none !important;
+    border-radius: var(--list-radius) var(--list-radius) 0 0 !important;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+}

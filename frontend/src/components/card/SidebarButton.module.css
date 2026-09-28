@@ -1,0 +1,55 @@
+/* Section 2.6.4: the 32px sidebar row. Nothing here names a colour of its own. */
+.wrap {
+  display: block;
+  width: 100%;
+}
+
+.button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  height: var(--sidebar-btn-h);
+  margin-bottom: 8px;
+  padding: 0 12px;
+  font-size: var(--fs-body);
+  font-weight: 400;
+  line-height: var(--lh-body);
+  color: var(--text);
+  text-align: left;
+  background: var(--hover);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--t-hover);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--pressed);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.icon > svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

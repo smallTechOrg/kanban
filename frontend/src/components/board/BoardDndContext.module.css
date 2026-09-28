@@ -1,0 +1,40 @@
+/*
+ * The three drag containers of Section 2.7. Everything visual about a column or a card region
+ * belongs to ListColumn and CardList; these rules carry only what the drag needs.
+ */
+
+/* The horizontal LIST droppable: the row the columns sit in, top-aligned so a short column
+   does not stretch to the canvas height. */
+.lists {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--list-gap);
+  height: 100%;
+}
+
+/* One column's Draggable wrapper. It is the flex item, so it owns the 272px track; the
+   ListColumn inside it fills it. */
+.column {
+  display: flex;
+  flex: 0 0 var(--list-w);
+  max-height: 100%;
+  border-radius: var(--list-radius);
+}
+
+/* Section 2.7: a lifted list gets the popover shadow and no tilt. */
+.columnDragging {
+  box-shadow: var(--shadow-popover);
+}
+
+/* Section 2.4.5: an empty list still offers a 6px drop zone that grows to the dragged card's
+   height while a card hovers it (the library renders that placeholder). */
+.cards {
+  min-height: 6px;
+}
+
+/* Section 5.5: the vacated slot is a tile-shaped tint, and only in a card region — the list
+   droppable's placeholder is the 272px gap the library opens, with no fill of its own. */
+.cards [data-rfd-placeholder-context-id] {
+  background: var(--drop-placeholder);
+  border-radius: var(--card-radius);
+}

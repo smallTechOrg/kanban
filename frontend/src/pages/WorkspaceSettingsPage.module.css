@@ -1,0 +1,20 @@
+/* The home page's column (Section 2.2): 1128px centred, 40px 16px padding. */
+.page {
+  width: 100%;
+  max-width: 1128px;
+  margin: 0 auto;
+  padding: 40px 16px;
+}
+
+.heading {
+  margin-bottom: 16px;
+  font-size: var(--fs-h3);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.blurb {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}

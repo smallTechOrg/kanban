@@ -1,0 +1,71 @@
+/*
+ * Section 2.3.4's Activity panel: one 32px avatar per row, the sentence, and the relative time
+ * under it. The panel it sits in scrolls (`BoardMenuDrawer`), so nothing here sets a height.
+ */
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.sentence {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+.name {
+  font-weight: 700;
+}
+
+/* The sentence carries the card title, so the whole line is the link to the card. */
+.link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.time {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-meta);
+  line-height: 16px;
+  color: var(--text-muted);
+}
+
+/* A row the server wrote with no actor (a deleted user). */
+.systemAvatar {
+  flex: none;
+  width: var(--avatar-modal);
+  height: var(--avatar-modal);
+  background: var(--hover);
+  border-radius: 50%;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+}

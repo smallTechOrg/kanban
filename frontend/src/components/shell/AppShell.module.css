@@ -1,0 +1,14 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* While GET /api/auth/me is in flight: nothing of the app is known yet (Section 2.10). */
+.booting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  background: var(--page-bg);
+}

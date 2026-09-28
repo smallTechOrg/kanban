@@ -1,0 +1,69 @@
+/*
+ * The board fills the viewport below the 44px nav and owns the board background, which is
+ * the one case Section 5 allows an inline style (the value comes from the board row).
+ *
+ * It is a flex column of an exact height so the canvas can take whatever the header and the
+ * "Reconnecting…" banner leave and stay the page's only scroll container (Section 2.9.4: below
+ * 768px "no horizontal page scroll, only the canvas scrolls"). A height computed from
+ * --board-header-h instead would be wrong in the two cases that matter: with the banner
+ * showing, and below 768px where Section 2.9.4 wraps the header onto two rows.
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--nav-h));
+  background-position: center;
+  background-size: cover;
+  transition: background-color var(--t-bg);
+}
+
+/* Section 2.10 "Board, loading": the header band keeps its place and its cached name. */
+.loadingHeader {
+  display: flex;
+  align-items: center;
+  min-height: var(--board-header-h);
+  padding: 8px 12px;
+  font-size: var(--fs-board);
+  font-weight: 700;
+  color: var(--text-inverse);
+  background: var(--board-header-bg);
+}
+
+.loadingCanvas {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: flex-start;
+  gap: var(--list-gap);
+  padding: 8px 4px 8px 8px;
+  overflow: hidden;
+}
+
+/* Three 272px columns of three cards, shimmering like the home page's tiles (2.10). */
+.skeletonList {
+  display: flex;
+  flex: 0 0 var(--list-w);
+  flex-direction: column;
+  gap: var(--card-gap);
+  padding: 8px;
+  background: var(--tw-btn);
+  border-radius: var(--list-radius);
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+.skeletonCard {
+  height: 32px;
+  background: var(--tw-btn-hover);
+  border-radius: var(--card-radius);
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}
