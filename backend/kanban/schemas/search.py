@@ -3,7 +3,7 @@
 Section 4.7 types the response as `{boards: BoardSummary[], cards: SearchCard[]}` and says in so
 many words that `SearchCard` is deliberately **not** a `CardSummary`: the FTS5 SELECT of Section
 3.4 produces exactly the seven columns below plus one labels query, and `SearchPopover` needs
-nothing else - no badges, no cover, no members, no watch flag. Building a full `CardSummary` here
+nothing else - no badges and no cover. Building a full `CardSummary` here
 would mean either the board payload's badge sub-selects per hit or a second query per row.
 
 `SearchBoard` is `BoardSummary` under the name the search domain calls it by, not a second model:

@@ -42,16 +42,15 @@ import {
   type ShortcutScope,
 } from '@/lib/shortcuts';
 import { useUiStore, type PopoverKind } from '@/store/uiStore';
-import { useMe } from './useAuth';
 import { boardKey } from './useBoardData';
 import { useArchiveCard, useMoveCard, useUnarchiveCard } from './useBoardMutations';
-import { useToggleCardLabel, useToggleCardMember, useToggleWatch } from './useCardMutations';
+import { useToggleCardLabel } from './useCardMutations';
 import { useToast } from './useToast';
 
 /**
  * The attribute that says "this element is what shortcut `<name>` aims at": the search input
  * (`search`), the boards button (`boards`), the board header's Filter control (`filter`), the
- * three card-modal sidebar rows a key can open (`labels`, `members`, `dates`) and every card tile
+ * two card-modal sidebar rows a key can open (`labels`, `dates`) and every card tile
  * (`card-<id>`). A keystroke has no `event.currentTarget` to anchor a popover to, and the plan
  * anchors each panel to the control that owns it (Sections 2.3.1, 2.6.4 and 5.9), so the one
  * lookup lives here rather than as a ref handed down through four component layers.
@@ -87,21 +86,17 @@ const CARD_ACTIONS: readonly ShortcutAction[] = [
   'quickEdit',
   'quickEditTitle',
   'composeBelow',
-  'toggleSelfMember',
   'openLabels',
-  'openMembers',
   'openDates',
   'archiveCard',
-  'toggleWatch',
   'toggleLabelAtIndex',
   'moveToPreviousList',
   'moveToNextList',
 ];
 
-/** The three panels a card key opens, by the action that opens them. */
+/** The two panels a card key opens, by the action that opens them. */
 const CARD_PANELS: Partial<Record<ShortcutAction, PopoverKind>> = {
   openLabels: 'labels',
-  openMembers: 'members',
   openDates: 'dates',
 };
 
@@ -113,7 +108,6 @@ export function useKeyboardShortcuts(scope: ShortcutScope, boardId: number = NO_
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { show } = useToast();
-  const me = useMe().data;
 
   // The only subscription: the card the next keystroke acts on, which the three card-bound
   // mutations have to be created with. `0` is "no card", and their `mutate` is then never called.
@@ -124,8 +118,6 @@ export function useKeyboardShortcuts(scope: ShortcutScope, boardId: number = NO_
   const archiveCard = useArchiveCard(boardId);
   const unarchiveCard = useUnarchiveCard(boardId);
   const moveCard = useMoveCard(boardId);
-  const toggleMember = useToggleCardMember(boardId, targetCardId);
-  const toggleWatch = useToggleWatch(boardId, targetCardId);
   const toggleLabel = useToggleCardLabel(boardId, targetCardId);
 
   const boardState = useCallback(
@@ -173,9 +165,6 @@ export function useKeyboardShortcuts(scope: ShortcutScope, boardId: number = NO_
           ui.setOpenPopover({ kind: 'filter', anchor });
           return true;
         }
-        case 'toggleMineFilter':
-          ui.setFilter({ mine: !ui.filter.mine });
-          return true;
         case 'clearFilters':
           ui.resetFilter();
           return true;
@@ -208,12 +197,7 @@ export function useKeyboardShortcuts(scope: ShortcutScope, boardId: number = NO_
           ui.setComposer({ kind: 'card', listId: slot.listId, index: slot.index });
           return true;
         }
-        case 'toggleSelfMember':
-          if (me === undefined) return false;
-          toggleMember.mutate({ userId: me.id, assigned: !card.member_ids.includes(me.id) });
-          return true;
         case 'openLabels':
-        case 'openMembers':
         case 'openDates': {
           const kind = CARD_PANELS[action];
           if (kind === undefined) return false;
@@ -235,9 +219,6 @@ export function useKeyboardShortcuts(scope: ShortcutScope, boardId: number = NO_
             label: 'Undo',
             onClick: () => unarchiveCard.mutate(card.id),
           });
-          return true;
-        case 'toggleWatch':
-          toggleWatch.mutate(!card.is_watching);
           return true;
         case 'toggleLabelAtIndex': {
           const label = selectLabels(state)[(match.labelIndex ?? 1) - 1];
@@ -266,14 +247,11 @@ export function useKeyboardShortcuts(scope: ShortcutScope, boardId: number = NO_
       archiveCard,
       boardId,
       boardState,
-      me,
       moveCard,
       navigate,
       show,
       targetCardId,
       toggleLabel,
-      toggleMember,
-      toggleWatch,
       unarchiveCard,
     ],
   );

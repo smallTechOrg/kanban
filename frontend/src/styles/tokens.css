@@ -44,9 +44,9 @@
   --cover-scrim: rgba(0, 0, 0, 0.6);
   /* The same wash at the hover strength Section 2.5.4 gives the quick editor's side buttons. */
   --quick-edit-overlay-hover: rgba(0, 0, 0, 0.8);
-  /* Text on a dark fill and the dark panel itself (Section 2.1.2: Button primary and
-     Avatar initials are white; Tooltip and Toast are #172B4D with white text). Kept
-     literal rather than aliased to --text so the dark theme cannot invert them. */
+  /* Text on a dark fill and the dark panel itself (Section 2.1.2: Button primary is white;
+     Tooltip and Toast are #172B4D with white text). Kept literal rather than aliased to
+     --text so the dark theme cannot invert them. */
   --text-inverse: #ffffff;
   --surface-inverse: #172b4d;
 
@@ -85,9 +85,6 @@
   --tw-btn-hover: rgba(255, 255, 255, 0.32);
   --scroll-thumb: rgba(255, 255, 255, 0.4);
   --scroll-track: rgba(0, 0, 0, 0.15);
-  /* The 1px x 16px rule between the header's left groups and the "+N" member chip (2.3.1). */
-  --divider-white: rgba(255, 255, 255, 0.24);
-  --chip-white: rgba(255, 255, 255, 0.3);
   /* The card region inside a list scrolls on its own 8px bar over a transparent track (2.4.1). */
   --card-scroll-thumb: #bfc4ce;
   /* The 15% scrim shared by the board-tile hover overlay (2.2) and the TopNav on a board (2.1). */
@@ -99,7 +96,8 @@
   --shadow-popover: 0 8px 12px #091e4226, 0 0 1px #091e424f;
   --shadow-modal: 0 8px 16px -4px #091e4240, 0 0 1px #091e424f;
   --shadow-list: 0 1px 1px #091e4240;
-  --shadow-auth-card: 0 0 10px #091e4240;
+  /* The centred card of the closed-board screen (Section 2.3.5). */
+  --shadow-panel: 0 0 10px #091e4240;
   /* The board menu drawer casts its shadow leftwards, over the canvas (Section 2.3.4). */
   --shadow-drawer: -8px 0 12px #091e4226;
 
@@ -119,10 +117,6 @@
   --modal-w: 768px;
   --sidebar-btn-h: 32px;
   --icon-size: 16px;
-  --avatar-tile: 24px;
-  --avatar-nav: 28px;
-  --avatar-modal: 32px;
-  --avatar-menu: 40px;
   --input-h: 36px;
   /* The board menu drawer (Section 2.3.4), which the canvas also pads for above 1024px. */
   --drawer-w: 339px;

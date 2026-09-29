@@ -30,8 +30,11 @@ out = [
     "",
     "- Request and response bodies are JSON with `snake_case` field names that match the database columns.",
     "- Timestamps are ISO-8601 UTC strings ending in `Z`.",
-    "- Authentication is a `kb_session` cookie. Cookie-authenticated requests that are not `GET` must also send",
-    "  the header `X-Requested-With: fetch`, or the request is rejected.",
+    "- There is no authentication: Kan Ban is a single-person install and every endpoint is open to whoever",
+    "  can reach the port. Bind it to loopback or a trusted LAN.",
+    "- Every request that is not a `GET` must send the header `X-Requested-With: fetch`, or it is rejected with",
+    "  403 `csrf_header_missing`. That is what stops another site's page from writing to a local install in the",
+    "  background; it is not an access control.",
     "- Errors return an envelope: `{\"error\": {\"code\", \"message\", \"details\", \"request_id\"}}`.",
     "- Mutations answer `{\"item\": ..., \"board_version\": N}`; moves answer a `MoveResult` that also carries the",
     "  positions of any rows the server had to renumber.",
@@ -49,7 +52,7 @@ for tag in sorted(groups):
         summary = (op.get("summary") or "").strip()
         if not summary:
             summary = (op.get("description") or "").strip().split("\n")[0]
-        summary = summary.replace("|", "\|") or "-"
+        summary = summary.replace("|", "\\|") or "-"
         out.append(f"| `{method}` | `{path}` | {summary} |")
     out.append("")
 

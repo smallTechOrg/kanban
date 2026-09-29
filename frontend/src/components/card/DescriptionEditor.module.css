@@ -48,10 +48,3 @@
 .emptyBox:hover {
   background: var(--pressed);
 }
-
-.none {
-  margin: 0;
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  color: var(--text-muted);
-}

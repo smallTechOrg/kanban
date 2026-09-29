@@ -110,11 +110,11 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      # The raised login bucket is not optional: every spec registers its own account, and the
-      # default `10/300` of Section 4.1 refuses the last few of a full run with 429.
+      # A throwaway data directory per run: the specs create their own boards and there is no
+      # account to set up, so a fresh database is the whole fixture.
       - name: Start the server
         run: |
-          KANBAN_PORT=8020 KANBAN_DATA_DIR=./.tmp-verify KANBAN_SECRET=ci-secret-not-a-real-key             KANBAN_LOGIN_RATE_LIMIT=200/300 python -m kanban &
+          KANBAN_PORT=8020 KANBAN_DATA_DIR=./.tmp-verify python -m kanban &
           curl -sS --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:8020/api/health
 
       - name: Run Playwright

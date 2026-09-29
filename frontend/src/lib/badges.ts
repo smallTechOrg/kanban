@@ -16,8 +16,7 @@ export type DueState = 'none' | 'soon' | 'overdue' | 'complete';
 export const DUE_SOON_MS = 24 * 60 * 60 * 1000;
 
 /** The badges of Section 2.5.3, in the left-to-right order the row renders them. */
-export type BadgeKind =
-  'watch' | 'due' | 'start' | 'description' | 'comments' | 'attachments' | 'checklist';
+export type BadgeKind = 'due' | 'start' | 'description' | 'attachments' | 'checklist';
 
 export interface CardBadge {
   kind: BadgeKind;
@@ -54,16 +53,12 @@ function dueText(card: CardRow, dueAt: string, now: Date): string {
  */
 export function cardBadges(card: CardRow, now: Date): CardBadge[] {
   const badges: CardBadge[] = [];
-  if (card.is_watching) badges.push({ kind: 'watch' });
   if (card.due_at !== null) {
     badges.push({ kind: 'due', text: dueText(card, card.due_at, now), state: dueState(card, now) });
   } else if (card.start_at !== null) {
     badges.push({ kind: 'start', text: `Started ${formatDate(card.start_at, now)}` });
   }
   if (card.badges.description) badges.push({ kind: 'description' });
-  if (card.badges.comments > 0) {
-    badges.push({ kind: 'comments', text: String(card.badges.comments) });
-  }
   if (card.badges.attachments > 0) {
     badges.push({ kind: 'attachments', text: String(card.badges.attachments) });
   }

@@ -2,15 +2,13 @@
 
 The server is deliberately single-process (the in-memory `BoardBus` and the single SQLite writer
 both assume it), so no shared store is needed and a plain dict of buckets keyed by client IP is
-the whole implementation. Two buckets exist:
-
-* the **login bucket** - `KANBAN_LOGIN_RATE_LIMIT`, default 10 requests per 300 s - on
-  `POST /api/auth/login` and `POST /api/auth/register`;
-* the **global bucket** - 600 requests per 60 s - on every other `/api` route.
+the whole implementation. One bucket guards the API: 600 requests per 60 s on every `/api` route.
+It is a runaway guard rather than an access control - there is nothing here to brute-force - so a
+single limit for the whole surface is the right shape.
 
 `RateLimitMiddleware` is the only caller: rejecting in middleware means an exhausted bucket costs
-no database work and no body parsing. Exceeding a bucket returns 429 `rate_limited` with
-`Retry-After` set to the whole seconds until the next token.
+no database work and no body parsing. Exceeding it returns 429 `rate_limited` with `Retry-After`
+set to the whole seconds until the next token.
 """
 
 import threading
@@ -21,14 +19,10 @@ from typing import Final
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from kanban.config import settings
 from kanban.errors import RateLimited, error_response
 
-#: Every `/api` route that is not login or register (Section 4.1).
+#: Every `/api` route (Section 4.1).
 GLOBAL_RATE_LIMIT: Final[str] = "600/60"
-
-#: The two paths the login bucket guards, on POST only.
-LOGIN_PATHS: Final[frozenset[str]] = frozenset({"/api/auth/login", "/api/auth/register"})
 
 #: Only `/api` is limited; the SPA bundle and `/uploads` are served by the static layer.
 _API_PREFIX: Final[str] = "/api"
@@ -44,7 +38,7 @@ UNKNOWN_CLIENT: Final[str] = "unknown"
 
 
 def parse_rate(rate: str) -> tuple[int, float]:
-    """Parse the `"<requests>/<seconds>"` form of `KANBAN_LOGIN_RATE_LIMIT` (Section 1.9).
+    """Parse the `"<requests>/<seconds>"` form of `GLOBAL_RATE_LIMIT`.
 
     Raises `ValueError` for anything else, at import time, because a mistyped limit must not
     silently become "no limit".
@@ -125,8 +119,7 @@ def _rate_limited(retry_after: int) -> RateLimited:
 #: Every limiter ever built, so `reset_all()` can empty them in one call.
 _LIMITERS: Final[list[RateLimiter]] = []
 
-#: The two documented buckets. Module level, because the limit is process-wide by design.
-login_limiter = RateLimiter(settings.login_rate_limit)
+#: The documented bucket. Module level, because the limit is process-wide by design.
 global_limiter = RateLimiter(GLOBAL_RATE_LIMIT)
 
 
@@ -151,8 +144,6 @@ def limiter_for(scope: Scope) -> RateLimiter | None:
     path: str = scope.get("path", "")
     if not path.startswith(_API_PREFIX):
         return None
-    if scope.get("method", "GET").upper() == "POST" and path.rstrip("/") in LOGIN_PATHS:
-        return login_limiter
     return global_limiter
 
 

@@ -14,7 +14,6 @@ import {
   boardPayloadFixture,
   makeBoardSummary,
   makeCardSummary,
-  memberFixture,
   metaFixture,
 } from '@/test/handlers';
 import { BoardDndContext, CardsDroppable } from './BoardDndContext';
@@ -121,7 +120,6 @@ describe('CardTile', () => {
       due_at: '2020-01-15T12:00:00.000Z',
       badges: {
         description: true,
-        comments: 2,
         attachments: 1,
         checklist_done: 1,
         checklist_total: 3,
@@ -137,7 +135,6 @@ describe('CardTile', () => {
     expect(screen.getByLabelText('Label Bug fix')).toBeInTheDocument();
     expect(screen.getByTitle('Overdue')).toHaveTextContent('Jan 15, 2020');
     expect(screen.getByLabelText('This card has a description.')).toBeInTheDocument();
-    expect(screen.getByTitle('Comments')).toHaveTextContent('2');
     expect(screen.getByTitle('Attachments')).toHaveTextContent('1');
     expect(screen.getByTitle('Checklist items')).toHaveTextContent('1/3');
 
@@ -153,7 +150,7 @@ describe('CardTile', () => {
     );
 
     expect(screen.getByText('Bare card')).toBeInTheDocument();
-    expect(screen.queryByTitle('Comments')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Attachments')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Checklist items')).not.toBeInTheDocument();
     expect(screen.queryByText('0')).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^Label /)).not.toBeInTheDocument();
@@ -247,14 +244,5 @@ describe('CardTile', () => {
     });
     expect(screen.getByTitle('Overdue')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Covered card/ })).toBeInTheDocument();
-  });
-
-  it("shows the assigned members' avatars", () => {
-    renderBoard(
-      <CardTile boardId={BOARD_ID} cardId={FIRST} index={0} />,
-      seed([makeCardSummary({ id: FIRST, member_ids: [memberFixture.id] })]),
-    );
-
-    expect(screen.getByRole('img', { name: memberFixture.full_name })).toBeInTheDocument();
   });
 });

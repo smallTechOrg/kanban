@@ -16,7 +16,6 @@ from kanban.models import Activity
 def record(
     ctx: WriteCtx,
     type: str,
-    user_id: int | None,
     card_id: int | None = None,
     list_id: int | None = None,
     board_id: int | None = None,
@@ -36,7 +35,6 @@ def record(
         board_id=target_board_id,
         card_id=card_id,
         list_id=list_id,
-        user_id=user_id,
         type=type,
         data=json.dumps(data, separators=(",", ":"), sort_keys=True),
         board_version=ctx.versions[target_board_id],

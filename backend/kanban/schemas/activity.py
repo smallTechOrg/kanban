@@ -1,36 +1,48 @@
-"""`GET /api/boards/{board_id}/activity`: the board activity feed of Sections 4.3 and 2.3.4.
+"""The activity feed of Sections 4.2 and 2.3.4: the read side of the activity log.
 
-Section 4.3 types the response as `{items: ActivityOut[], next_before}`, and `ActivityOut` is
-already declared - with exactly this shape, the stored row plus its actor as a `PublicUserOut` -
-in `schemas/comments.py`, which arrived first with the card feed of Section 4.5. Restating it here
-would put the one wire shape of an `activities` row in two modules, which CLAUDE.md section 3
-forbids, so `BoardActivityOut` **is** that model under the name the board feed asks for: one
-OpenAPI schema, one generated TypeScript type, and `api/types.ts` keeps naming it `ActivityOut`.
-
-Only the page wrapper is new: the card feed answers with the two-shape `FeedItemOut` union
-(a `comment.added` row is rendered from the comment it points at), while the board feed renders
-every row from `type` + `data` alone - the board drawer shows sentences, never comment bubbles -
-so `CardFeedOut` is not the shape this endpoint can reuse.
+One endpoint answers both readers - the board drawer's feed and the card modal's - because they
+are one query over one table: `GET /api/boards/{board_id}/activity`, narrowed by `card_id` for
+the card. There is no second shape to declare for the card, so `ActivityOut` is the only row
+model in the API and `lib/activity.ts` renders every sentence of the Section 3.8 table from
+`type` + `data` alone.
 """
+
+from typing import Any
 
 from pydantic import BaseModel
 
-from kanban.schemas.comments import ActivityOut
 
-#: One `activities` row as the board feed carries it (Section 4.3): the row with `data` parsed back
-#: to an object and `user` as a `PublicUserOut`, or `None` once the actor's account is gone
-#: (`activities.user_id` is `ON DELETE SET NULL`). The denormalised names in `data` are what let
-#: `lib/activity.ts` render the Section 3.8 sentence of a card that has since been deleted.
+class ActivityOut(BaseModel):
+    """One `activities` row as either feed carries it (Section 4.2).
+
+    `data` is the stored JSON object parsed back out, with the names denormalised at write time,
+    so the sentence of the Section 3.8 table is rendered from `type` + `data` alone, no sentence
+    is ever assembled on the server, and a row about a card that has since been deleted still
+    carries the `card_title` captured when it was written.
+    """
+
+    id: int
+    board_id: int
+    card_id: int | None
+    list_id: int | None
+    type: str
+    data: dict[str, Any]
+    board_version: int
+    created_at: str
+
+
+#: The name Section 4.2 gives the row model of the feed. It is `ActivityOut` itself rather
+#: than a second declaration, so there is one OpenAPI schema and one generated TypeScript type.
 BoardActivityOut = ActivityOut
 
 
 class ActivityPage(BaseModel):
-    """One cursor page of the board activity feed (Sections 4.3 and 4.1).
+    """One cursor page of the activity feed (Sections 4.2 and 4.1).
 
     Newest first (`ORDER BY id DESC`). `next_before` is the `activities.id` to page before, which
     is the last row's id when the page came back full and `null` once the end is reached - what
-    tells `BoardActivityFeed`'s infinite scroll to stop asking.
+    tells the feed's infinite scroll to stop asking.
     """
 
-    items: list[BoardActivityOut]
+    items: list[ActivityOut]
     next_before: int | None = None

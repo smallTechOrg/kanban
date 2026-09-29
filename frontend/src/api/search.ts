@@ -16,8 +16,8 @@ export const DEFAULT_SEARCH_LIMIT = 20;
 export const MAX_QUERY_LENGTH = 200;
 
 /**
- * `GET /api/search?q=&limit=` — matching boards and cards, both restricted by the server to the
- * caller's own open boards. `board_id` is not sent: the popover searches everywhere (2.1.1).
+ * `GET /api/search?q=&limit=` — matching boards and cards, both restricted by the server to
+ * open boards. `board_id` is not sent: the popover searches everywhere (2.1.1).
  */
 export function search(q: string, limit = DEFAULT_SEARCH_LIMIT): Promise<SearchResults> {
   const params = new URLSearchParams({ q: q.slice(0, MAX_QUERY_LENGTH), limit: String(limit) });

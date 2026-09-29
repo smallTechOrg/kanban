@@ -11,7 +11,7 @@
 services:
   kanban:
     build: .
-    image: kanban:1.0.0
+    image: kanban:2.0.0
     container_name: kanban
     restart: unless-stopped
     ports:
@@ -23,6 +23,9 @@ services:
     environment:
       # Inside a container the app must bind every interface, otherwise the published
       # port reaches nothing. On the host the default stays loopback-only (Section 1.9).
+      # Kan Ban has no authentication, so `ports:` below is the only access control there
+      # is: bind it to 127.0.0.1 ('127.0.0.1:8000:8000') or front it with a reverse proxy
+      # unless the whole network is trusted.
       KANBAN_HOST: 0.0.0.0
       KANBAN_DATA_DIR: /app/data
       KANBAN_FRONTEND_DIST: /app/frontend/dist

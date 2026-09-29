@@ -4,15 +4,14 @@ Everything runs through the public API (CLAUDE.md section 6): the cards are crea
 composer, their descriptions are set with `PATCH /api/cards/{card_id}`, and the archived, closed and
 deleted states come from the real endpoints - which is the point of the trigger tests, since only a
 real UPDATE or DELETE on `cards` fires `cards_au` / `cards_ad`. The helpers borrowed from
-`test_cards.py` (`create_card`, `list_ids`, `register`) are reused rather than restated.
+`test_cards.py` (`create_card`, `list_ids`) are reused rather than restated.
 
-Search is the one read that spans every board of the caller, and this module's database lives for
-the whole file, so each test scopes its assertions with `?board_id=` - its own fixture board - and
-the two tests that must search the whole install (the non-member rule and the empty query) use
-words no other test writes.
+Search is the one read that spans every board, and this module's database lives for the whole file,
+so each test scopes its assertions with `?board_id=` - its own fixture board - and the one test
+that must search the whole install (the empty query) uses words no other test writes.
 
-`/api/search` is registered by `main.create_app()`, so this module uses the shared `client`
-fixture of `conftest.py` like every other API test.
+`/api/search` is registered by `main.create_app()`, so this module uses the shared `api` fixture of
+`conftest.py` like every other API test.
 """
 
 from collections.abc import Callable
@@ -22,21 +21,18 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from kanban.models import User
 from tests.conftest import CSRF_HEADERS
-from tests.test_cards import create_card, list_ids, register, session
+from tests.test_cards import create_card, list_ids, session
 
 BoardFactory = Callable[..., dict[str, Any]]
-LoggedIn = tuple[TestClient, User]
 
 
 # --------------------------------------------------------------------------- fixtures
 
 
 @pytest.fixture
-def rocket(logged_in: LoggedIn, board: dict[str, Any]) -> dict[str, Any]:
+def rocket(api: TestClient, board: dict[str, Any]) -> dict[str, Any]:
     """One card, "Launch the rocket", in the seeded `To Do` list of the fixture board."""
-    api, _user = logged_in
     return create_card(api, list_ids(board["id"])[0], "Launch the rocket")["item"]
 
 
@@ -97,10 +93,8 @@ def retitle(api: TestClient, card_id: int, title: str) -> None:
 
 
 def test_finds_a_card_by_a_word_in_its_title(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
-
     results = search(api, "rocket", board_id=board["id"])
 
     assert len(results["cards"]) == 1
@@ -118,26 +112,22 @@ def test_finds_a_card_by_a_word_in_its_title(
 
 
 def test_finds_a_card_by_a_word_in_its_description(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     describe(api, rocket["id"], "Coordinate with the **telemetry** crew before liftoff.")
 
     assert card_titles(api, board["id"], "telemetry") == ["Launch the rocket"]
 
 
 def test_a_bare_term_is_a_prefix_match(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
-
     assert card_titles(api, board["id"], "roc") == ["Launch the rocket"]
 
 
 def test_several_terms_narrow_the_results(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     create_card(api, rocket["list_id"], "Launch the website")
     board_id = board["id"]
 
@@ -150,9 +140,8 @@ def test_several_terms_narrow_the_results(
 
 
 def test_labels_travel_with_a_hit(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     label = api.get(f"/api/boards/{board['id']}/labels").json()["items"][0]
     renamed = api.patch(
         f"/api/labels/{label['id']}", json={"name": "Blocked", "tone": "bold"}, headers=CSRF_HEADERS
@@ -167,9 +156,8 @@ def test_labels_travel_with_a_hit(
 
 
 def test_limit_caps_the_card_group(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     create_card(api, rocket["list_id"], "Launch the website")
 
     results = search(api, "launch", board_id=board["id"], limit=1)
@@ -178,10 +166,8 @@ def test_limit_caps_the_card_group(
 
 
 def test_a_matching_board_comes_back_as_a_board_summary(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
-
     results = search(api, "sprint", board_id=board["id"])
 
     assert len(results["boards"]) == 1
@@ -189,7 +175,6 @@ def test_a_matching_board_comes_back_as_a_board_summary(
     assert hit.keys() == board.keys()  # the `BoardSummary` of Section 4.3, not a narrower shape
     assert hit["id"] == board["id"]
     assert hit["name"] == board["name"]
-    assert hit["my_role"] == "admin"
     assert hit["is_starred"] is False
     assert hit["is_closed"] is False
     assert results["cards"] == []
@@ -199,9 +184,8 @@ def test_a_matching_board_comes_back_as_a_board_summary(
 
 
 def test_index_follows_a_title_update(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     retitle(api, rocket["id"], "Launch the balloon")
 
     assert card_titles(api, board["id"], "balloon") == ["Launch the balloon"]
@@ -209,9 +193,8 @@ def test_index_follows_a_title_update(
 
 
 def test_index_follows_a_description_update(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     describe(api, rocket["id"], "Waiting on the telemetry crew.")
     describe(api, rocket["id"], "Waiting on the fuelling crew.")
 
@@ -220,9 +203,8 @@ def test_index_follows_a_description_update(
 
 
 def test_index_drops_a_deleted_card(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     describe(api, rocket["id"], "One perigee pass.")
     assert indexed_rowids("perigee") == [rocket["id"]]
     # `DELETE /api/cards/{id}` is 409 unless the card is archived first (Section 4.5).
@@ -238,28 +220,26 @@ def test_index_drops_a_deleted_card(
     assert indexed_rowids("perigee") == []
 
 
-# --------------------------------------------------------------------------- visibility
+# --------------------------------------------------------------------------- what is searchable
 
 
-def test_a_card_on_someone_elses_board_is_never_returned(logged_in: LoggedIn) -> None:
-    api, _user = logged_in
-    other, _account = register(api, "bea_searcher")
-    theirs = other.post(
-        "/api/boards", json={"name": "Secret submarines"}, headers=CSRF_HEADERS
-    ).json()
-    create_card(other, list_ids(theirs["id"])[0], "Launch the submarine")
+def test_a_card_on_another_board_is_found_without_a_board_filter(
+    api: TestClient, board_factory: BoardFactory
+) -> None:
+    """One install, one index: `board_id` narrows the search, nothing hides a board from it."""
+    elsewhere = board_factory("Secret submarines")
+    create_card(api, list_ids(elsewhere["id"])[0], "Launch the submarine")
 
     # "submarine" appears in no other test of this module, so the whole install is searched here.
-    assert search(api, "submarine") == {"boards": [], "cards": []}
-    mine = search(other, "submarine")
-    assert [card["title"] for card in mine["cards"]] == ["Launch the submarine"]
-    assert board_names(mine) == ["Secret submarines"]
+    everywhere = search(api, "submarine")
+
+    assert [card["title"] for card in everywhere["cards"]] == ["Launch the submarine"]
+    assert board_names(everywhere) == ["Secret submarines"]
 
 
 def test_an_archived_card_is_excluded(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     archived = api.post(f"/api/cards/{rocket['id']}/archive", headers=CSRF_HEADERS)
     assert archived.status_code == 200, archived.text
 
@@ -271,9 +251,8 @@ def test_an_archived_card_is_excluded(
 
 
 def test_a_card_in_an_archived_list_is_excluded(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     archived = api.post(f"/api/lists/{rocket['list_id']}/archive", headers=CSRF_HEADERS)
     assert archived.status_code == 200, archived.text
 
@@ -281,9 +260,8 @@ def test_a_card_in_an_archived_list_is_excluded(
 
 
 def test_a_closed_board_is_excluded_from_both_groups(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     assert board_names(search(api, "sprint", board_id=board["id"])) == [board["name"]]
 
     closed = api.post(f"/api/boards/{board['id']}/close", headers=CSRF_HEADERS)
@@ -294,9 +272,8 @@ def test_a_closed_board_is_excluded_from_both_groups(
 
 
 def test_board_id_narrows_both_groups_to_one_board(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
-    api, _user = logged_in
     first = board_factory("Gliders")
     second = board_factory("Gliders II")
     create_card(api, list_ids(first["id"])[0], "Fold the wingtips")
@@ -310,13 +287,6 @@ def test_board_id_narrows_both_groups_to_one_board(
     ]
 
 
-def test_search_requires_authentication(api: TestClient) -> None:
-    response = api.get("/api/search", params={"q": "rocket"})
-
-    assert response.status_code == 401
-    assert response.json()["error"]["code"] == "unauthenticated"
-
-
 # --------------------------------------------------------------------------- the query itself
 
 
@@ -325,37 +295,29 @@ def test_search_requires_authentication(api: TestClient) -> None:
     ['"rocket"', "rocket*", "^rocket", "-rocket", "(rocket", 'rocket"', "**rocket**", "ROCKET"],
 )
 def test_operator_characters_are_searched_as_text(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any], query: str
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any], query: str
 ) -> None:
-    api, _user = logged_in
-
     assert card_titles(api, board["id"], query) == ["Launch the rocket"]
 
 
 @pytest.mark.parametrize("query", ["rocket OR zeppelin", "NEAR(rocket zeppelin)", "rocket AND"])
 def test_fts_keywords_are_terms_not_operators(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any], query: str
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any], query: str
 ) -> None:
-    api, _user = logged_in
-
     # `OR`, `AND` and `NEAR` are indexed words here, so each of these AND's a word the card has
     # not got: no error, and deliberately no hit - a stray keyword never widens somebody's search.
     assert card_titles(api, board["id"], query) == []
 
 
 def test_a_query_of_operators_alone_matches_nothing(
-    logged_in: LoggedIn, rocket: dict[str, Any]
+    api: TestClient, rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
-
     assert search(api, '*^:-()" ') == {"boards": [], "cards": []}
 
 
 def test_a_very_long_query_is_capped_rather_than_refused(
-    logged_in: LoggedIn, board: dict[str, Any], rocket: dict[str, Any]
+    api: TestClient, board: dict[str, Any], rocket: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
-
     # 30 terms inside the documented 200-character `q`: only the first `MAX_TERMS` are searched,
     # so the hit survives and no request pays for one prefix scan per word of a pasted paragraph.
     pasted = " ".join(["launch", "the", "rocket"] * 10)
@@ -364,17 +326,13 @@ def test_a_very_long_query_is_capped_rather_than_refused(
     assert card_titles(api, board["id"], pasted) == ["Launch the rocket"]
 
 
-def test_an_empty_query_returns_empty_results(logged_in: LoggedIn, rocket: dict[str, Any]) -> None:
-    api, _user = logged_in
-
+def test_an_empty_query_returns_empty_results(api: TestClient, rocket: dict[str, Any]) -> None:
     assert search(api, "") == {"boards": [], "cards": []}
     assert search(api, "   ") == {"boards": [], "cards": []}
     assert search(api) == {"boards": [], "cards": []}
 
 
-def test_too_long_a_query_is_rejected(logged_in: LoggedIn) -> None:
-    api, _user = logged_in
-
+def test_too_long_a_query_is_rejected(api: TestClient) -> None:
     response = api.get("/api/search", params={"q": "r" * 201})
 
     assert response.status_code == 422

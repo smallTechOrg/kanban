@@ -9,13 +9,12 @@ import {
   type ResponderProvided,
 } from '@hello-pangea/dnd';
 import { cx } from '@/components/ui';
-import { useBoardMeta, useBoardState } from '@/hooks/useBoardData';
+import { useBoardState } from '@/hooks/useBoardData';
 import { useMoveCard, useMoveList } from '@/hooks/useBoardMutations';
 import {
   BOARD_DROPPABLE_ID,
   CARD_DRAG_TYPE,
   LIST_DRAG_TYPE,
-  isDragLocked,
   listDropId,
   moveFromDrop,
   parseListId,
@@ -125,7 +124,6 @@ export interface ListDragHandle {
 }
 
 export interface ListDraggableProps {
-  boardId: number;
   listId: number;
   index: number;
   children: (handle: ListDragHandle) => ReactNode;
@@ -143,21 +141,9 @@ export interface ListDraggableProps {
  * place they aim for, got nothing at all. The two children that must keep their native mouse
  * behaviour stop the event before the sensor's window listener sees it (`ListHeader`).
  */
-export function ListDraggable({
-  boardId,
-  listId,
-  index,
-  children,
-}: ListDraggableProps): ReactElement {
-  const role = useBoardMeta(boardId).data?.my_role;
-
+export function ListDraggable({ listId, index, children }: ListDraggableProps): ReactElement {
   return (
-    <Draggable
-      draggableId={listDropId(listId)}
-      index={index}
-      isDragDisabled={isDragLocked(role)}
-      disableInteractiveElementBlocking
-    >
+    <Draggable draggableId={listDropId(listId)} index={index} disableInteractiveElementBlocking>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}

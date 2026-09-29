@@ -23,7 +23,10 @@ const DONE = 'Done';
 /** Step 2 renames the first list, so every later step refers to that column by its new name. */
 const RENAMED = 'Backlog';
 
-const BOARD = 'M2 checkpoint';
+/** A fresh board name per run, so the spec also passes against a database that is not empty. */
+const suffix = `${Date.now()}`.slice(-9);
+
+const BOARD = `M2 checkpoint ${suffix}`;
 const NEW_LIST = 'Ship it';
 
 /** Typed in this order, so step 6's alphabetical sort has something to change. */
@@ -34,15 +37,6 @@ const MIDDLE = CARDS[1];
 
 /** The two cards left in the first column after step 4, in alphabetical order. */
 const SORTED = ['Pick colours', 'Write docs'];
-
-/** A fresh account per run, so the spec also passes against a database that is not empty. */
-const suffix = `${Date.now()}`.slice(-9);
-const user = {
-  fullName: 'Mira Falk',
-  email: `mira_${suffix}@example.com`,
-  username: `mira_${suffix}`,
-  password: 'correct-horse-battery',
-};
 
 interface Point {
   x: number;
@@ -175,15 +169,8 @@ async function openListMenu(page: Page, listName: string): Promise<Locator> {
 test.describe.configure({ mode: 'serial' });
 
 test('M2: board page, composers, mouse drag-and-drop, list menu', async ({ page }) => {
-  await test.step('1. register, then create a board with the default lists', async () => {
-    await page.goto('/register');
-    await page.getByLabel('Full name').fill(user.fullName);
-    await page.getByLabel('Email').fill(user.email);
-    await page.getByLabel('Username').fill(user.username);
-    await page.getByLabel('Password').fill(user.password);
-    await page.getByRole('button', { name: 'Sign up' }).click();
-    await expect(page).toHaveURL('http://127.0.0.1:8020/');
-
+  await test.step('1. create a board with the default lists', async () => {
+    await page.goto('/');
     await page.getByRole('button', { name: 'Create new board' }).click();
     const popover = page.getByRole('dialog', { name: 'Create board' });
     await expect(popover.getByLabel('Start with default lists')).toBeChecked();

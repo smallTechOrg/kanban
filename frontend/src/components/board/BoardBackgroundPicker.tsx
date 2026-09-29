@@ -76,9 +76,6 @@ export interface BoardBackgroundPickerProps {
  * element directly rather than held in `uiStore`: it is transient, no other component reads it,
  * and a runtime-computed board background is the one inline style Section 5 allows. Focus
  * previews too, so the keyboard sees what the pointer does (Section 5.10).
- *
- * Observers cannot write to a board (403, Section 4.3), so every swatch is inert for them rather
- * than failing after the click — the rule `BoardSettingsPanel` applies to its visibility select.
  */
 export function BoardBackgroundPicker({
   boardId,
@@ -134,8 +131,6 @@ export function BoardBackgroundPicker({
 
   if (board === undefined) return null;
 
-  const readOnly = board.my_role === 'observer';
-
   function swatch(
     key: string,
     label: string,
@@ -152,7 +147,6 @@ export function BoardBackgroundPicker({
         style={style}
         aria-label={label}
         aria-pressed={selected}
-        disabled={readOnly}
         onClick={choose}
         onMouseEnter={() => preview(style)}
         onMouseLeave={clearPreview}
@@ -226,7 +220,7 @@ export function BoardBackgroundPicker({
             <button
               type="button"
               className={cx(styles.swatch, styles.tile, styles.upload)}
-              disabled={readOnly || isUploading}
+              disabled={isUploading}
               onClick={() => fileInput.current?.click()}
             >
               {isUploading ? (

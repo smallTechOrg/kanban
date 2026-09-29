@@ -15,8 +15,6 @@ export interface ListHeaderProps {
   cardCount: number;
   /** How many of them survive the board filter; absent while no filter is active. */
   matchedCount?: number;
-  /** False for observers, who may read the board but not write to it (Section 4.1). */
-  canEdit: boolean;
   /** From the column's `LIST` Draggable: the whole header is the handle (Section 2.7). */
   handleProps: DraggableProvidedDragHandleProps | null;
 }
@@ -42,7 +40,6 @@ export function ListHeader({
   name,
   cardCount,
   matchedCount,
-  canEdit,
   handleProps,
 }: ListHeaderProps): ReactElement {
   const popover = useUiStore((state) => state.openPopover);
@@ -69,7 +66,6 @@ export function ListHeader({
           className={styles.title}
           label={`Rename list ${name}`}
           value={name}
-          disabled={!canEdit}
           onSave={(next) => updateList.mutate({ listId, name: next })}
         />
       </h2>
@@ -78,23 +74,21 @@ export function ListHeader({
         {matchedCount === undefined ? cardCount : `${String(matchedCount)}/${String(cardCount)}`}
       </span>
 
-      {canEdit ? (
-        <IconButton
-          label="List actions"
-          // `ListDraggable` turns off the library's interactive-element blocking so the title
-          // button can start a list drag, which also hands this button's mousedown to the drag
-          // sensor: it claims the lock, `preventDefault`s the event (so the button never takes
-          // focus and the popover has nowhere to return it) and a 5px wobble while clicking
-          // would lift the column instead of opening the menu. Stopping the event here leaves
-          // the rest of the header draggable.
-          onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.stopPropagation()}
-          onClick={(event: MouseEvent<HTMLButtonElement>) =>
-            setOpenPopover({ kind: 'listMenu', anchor: event.currentTarget, props: { listId } })
-          }
-        >
-          <MoreHorizontal aria-hidden="true" />
-        </IconButton>
-      ) : null}
+      <IconButton
+        label="List actions"
+        // `ListDraggable` turns off the library's interactive-element blocking so the title
+        // button can start a list drag, which also hands this button's mousedown to the drag
+        // sensor: it claims the lock, `preventDefault`s the event (so the button never takes
+        // focus and the popover has nowhere to return it) and a 5px wobble while clicking
+        // would lift the column instead of opening the menu. Stopping the event here leaves
+        // the rest of the header draggable.
+        onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.stopPropagation()}
+        onClick={(event: MouseEvent<HTMLButtonElement>) =>
+          setOpenPopover({ kind: 'listMenu', anchor: event.currentTarget, props: { listId } })
+        }
+      >
+        <MoreHorizontal aria-hidden="true" />
+      </IconButton>
 
       {menuOpen ? (
         <ListMenuPopover

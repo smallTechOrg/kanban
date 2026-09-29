@@ -1,4 +1,4 @@
-"""Board, member and background shapes (Sections 4.3, 4.10.1 and 2.2).
+"""Board and background shapes (Sections 4.3, 4.10.1 and 2.2).
 
 Section 4.3 declares `BoardSummary` and `LabelOut` in one TypeScript block and both lived here
 until the label router arrived; `LabelOut` now belongs to `schemas/labels.py` with the rest of the
@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 
 from kanban.constants import BOARD_GRADIENTS, DEFAULT_BOARD_COLOR
 from kanban.schemas.cards import CardSummary
-from kanban.schemas.common import PublicUserOut
 from kanban.schemas.labels import LabelOut
 from kanban.schemas.lists import ListOut
 
@@ -23,8 +22,6 @@ HEX_COLOR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
 BoardName = Annotated[str, StringConstraints(min_length=1, max_length=512)]
 BoardDescription = Annotated[str, StringConstraints(max_length=16384)]
 
-Role = Literal["admin", "member", "observer"]
-Visibility = Literal["private", "workspace", "public"]
 BackgroundType = Literal["color", "gradient", "image"]
 #: `image` backgrounds are only ever set through the upload route or `background_image_id`.
 PresetBackgroundType = Literal["color", "gradient"]
@@ -54,41 +51,24 @@ class BoardSummary(BaseModel):
     id: int
     name: str
     description: str
-    owner_id: int
     background_type: BackgroundType
     background_value: str
     #: The 400x240 `/uploads/backgrounds/{id}.thumb.jpg` for `image` backgrounds, else `null`.
     background_thumb_url: str | None
-    visibility: Visibility
     is_closed: bool
     version: int
-    #: Per-user state, from `board_stars` / `board_members` of the caller.
+    #: From `board_stars`.
     is_starred: bool
-    my_role: Role
     created_at: str
     updated_at: str
-
-
-class MemberOut(PublicUserOut):
-    """`PublicUserOut & {role, joined_at}` - never the member's email (Section 4.3)."""
-
-    role: Role
-    #: `board_members.created_at`.
-    joined_at: str
-
-
-class MembersOut(BaseModel):
-    """`GET /api/boards/{board_id}/members`."""
-
-    items: list[MemberOut]
 
 
 class BoardGroups(BaseModel):
     """`GET /api/boards` with the default `closed=0` (Section 2.2).
 
     `starred` is ordered by `board_stars.position`, `recent` is the four most recently viewed
-    boards, `all` is every board of the caller alphabetically (`COLLATE NOCASE`) - a starred or
-    recently viewed board appears in `all` as well.
+    boards, `all` is every board alphabetically (`COLLATE NOCASE`) - a starred or recently
+    viewed board appears in `all` as well.
     """
 
     starred: list[BoardSummary]
@@ -105,13 +85,12 @@ class ClosedBoardGroup(BaseModel):
 class BoardOut(BaseModel):
     """`GET /api/boards/{board_id}`: the `BoardPayload` of Section 4.10.1.
 
-    The whole document in one round trip: the board and the caller's role on it, its members and
-    labels, and every *active* list and card of the board. `board_payload.py` assembles it; the
-    five arrays here are the only shape the board page reads.
+    The whole document in one round trip: the board, its labels, and every *active* list and card
+    of the board. `board_payload.py` assembles it; the arrays here are the only shape the board
+    page reads.
     """
 
     board: BoardSummary
-    members: list[MemberOut]
     labels: list[LabelOut]
     lists: list[ListOut] = Field(default_factory=list)
     cards: list[CardSummary] = Field(default_factory=list)
@@ -125,7 +104,6 @@ class BoardCreateIn(BaseModel):
     name: BoardName
     background_type: PresetBackgroundType = "color"
     background_value: str = DEFAULT_BOARD_COLOR
-    visibility: Visibility = "private"
     default_lists: bool = True
 
     @model_validator(mode="after")
@@ -149,7 +127,6 @@ class BoardUpdateIn(BaseModel):
     background_type: PresetBackgroundType | None = None
     background_value: str | None = None
     background_image_id: int | None = Field(default=None, ge=1)
-    visibility: Visibility | None = None
 
     @model_validator(mode="after")
     def _check_body(self) -> "BoardUpdateIn":
@@ -168,16 +145,8 @@ class BoardUpdateIn(BaseModel):
         return self
 
 
-class MemberRoleIn(BaseModel):
-    """`PUT /api/boards/{board_id}/members/{user_id}`: one body adds a member or changes a role."""
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    role: Role = "member"
-
-
 class StarOut(BaseModel):
-    """`PUT` / `DELETE /api/boards/{board_id}/star` - per-user state, so no `board_version`."""
+    """`PUT` / `DELETE /api/boards/{board_id}/star` - not board state, so no `board_version`."""
 
     is_starred: bool
 
@@ -197,7 +166,7 @@ class BackgroundGradientOut(BaseModel):
 
 
 class CustomBackgroundOut(BaseModel):
-    """One uploaded image from the caller's `board_backgrounds` library."""
+    """One uploaded image from the `board_backgrounds` library."""
 
     id: int
     url: str
@@ -205,7 +174,7 @@ class CustomBackgroundOut(BaseModel):
 
 
 class BoardBackgroundOut(BaseModel):
-    """`GET /api/boards/{board_id}/backgrounds`: the presets plus the caller's own images."""
+    """`GET /api/boards/{board_id}/backgrounds`: the presets plus the uploaded images."""
 
     colors: list[BackgroundColorOut]
     gradients: list[BackgroundGradientOut]

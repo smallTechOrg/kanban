@@ -263,10 +263,4 @@ describe('ListMenuPopover', () => {
 
     expect(calls).toEqual([`POST /lists/${LIST_ID}/archive`, `POST /lists/${LIST_ID}/unarchive`]);
   });
-
-  it('keeps the Watch row as a disabled scope guard', async () => {
-    await openMenu();
-
-    expect(row('Watch')).toBeDisabled();
-  });
 });

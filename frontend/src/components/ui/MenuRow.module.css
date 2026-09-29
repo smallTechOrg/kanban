@@ -52,18 +52,3 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* A scope guard stays readable but inert (Sections 2.3.1 and 2.4.3). */
-.disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.disabled:hover {
-  background: none;
-}
-
-/* The tooltip wrapper must not shrink a full-width row. */
-.wrap {
-  width: 100%;
-}

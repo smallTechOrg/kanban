@@ -14,8 +14,9 @@
  *   so a burst (somebody dragging, a paste of ten cards) costs one refetch.
  * - **Gap.** `version > cached + 1` means something was missed, and a `resync` means far more than
  *   that, so both invalidate at once instead of waiting out the debounce.
- * - **Cards.** An event carrying a `card_id` also invalidates `['card', card_id]` and
- *   `['feed', card_id]`, which is what makes an open modal follow somebody else's comment.
+ * - **Cards.** An event carrying a `card_id` also invalidates `['card', card_id]`, and any
+ *   accepted event invalidates `['activity', boardId]` — the prefix of the drawer's feed and of
+ *   every card's — because the row it describes is the feed's newest entry.
  * - **Drags.** While `uiStore.isDragging` is true the events are queued in the store and applied on
  *   drop, so a refetch never pulls the board out from under a lift.
  *
@@ -29,8 +30,9 @@ import { connectBoardEvents, RESYNC, type RealtimeStatus } from '@/api/events';
 import type { BoardEvent } from '@/api/types';
 import { isId, type BoardState } from '@/lib/boardState';
 import { useUiStore } from '@/store/uiStore';
+import { activityKey } from './useBoardActivity';
 import { boardKey, invalidateBoard } from './useBoardData';
-import { cardKey, feedKey } from './useCard';
+import { cardKey } from './useCard';
 
 /** Section 5.4.3: one board refetch per 150 ms of events. */
 const INVALIDATE_DEBOUNCE_MS = 150;
@@ -78,9 +80,9 @@ export function useBoardEvents(boardId: number): RealtimeStatus {
         }
         if (event.version <= cached) continue;
         refetch = refetch === 'now' || event.version > cached + 1 ? 'now' : 'debounced';
+        void queryClient.invalidateQueries({ queryKey: activityKey(boardId) });
         if (event.card_id !== undefined) {
           void queryClient.invalidateQueries({ queryKey: cardKey(event.card_id) });
-          void queryClient.invalidateQueries({ queryKey: feedKey(event.card_id) });
         }
       }
 

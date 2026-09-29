@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import type { Activity } from '@/api/types';
-import { Avatar, Button, EmptyState, Spinner } from '@/components/ui';
+import { Button, EmptyState, Spinner } from '@/components/ui';
 import { useBoardActivity } from '@/hooks/useBoardActivity';
 import { activitySentence } from '@/lib/activity';
 import { formatDateTime, relativeTime } from '@/lib/dates';
@@ -20,8 +20,8 @@ interface RowProps {
 }
 
 /**
- * One feed row: the actor's avatar, their name in bold, the sentence, and the relative time
- * whose `title` carries the absolute one (Section 2.3.4).
+ * One feed row: the sentence, and the relative time whose `title` carries the absolute one
+ * (Section 2.3.4).
  *
  * The sentence already contains the card's title (`lib/activity.ts` renders it from the names the
  * server denormalised at write time), so the row links the sentence itself rather than printing
@@ -31,39 +31,24 @@ function ActivityRow({ boardId, activity }: RowProps): ReactElement | null {
   const sentence = activitySentence(activity);
   if (sentence === null) return null;
 
-  const name = activity.user?.full_name ?? 'Kan Ban';
-  const body = (
-    <>
-      <span className={styles.name}>{name}</span>
-      {` ${sentence}`}
-    </>
-  );
-
   return (
     <li className={styles.row}>
-      {activity.user === null ? (
-        <span className={styles.systemAvatar} aria-hidden="true" />
-      ) : (
-        <Avatar name={activity.user.full_name} color={activity.user.avatar_color} size={32} />
-      )}
-      <div className={styles.content}>
-        <p className={styles.sentence}>
-          {activity.card_id === null ? (
-            body
-          ) : (
-            <Link className={styles.link} to={`/b/${boardId}/c/${activity.card_id}`}>
-              {body}
-            </Link>
-          )}
-        </p>
-        <time
-          className={styles.time}
-          dateTime={activity.created_at}
-          title={formatDateTime(activity.created_at)}
-        >
-          {relativeTime(activity.created_at)}
-        </time>
-      </div>
+      <p className={styles.sentence}>
+        {activity.card_id === null ? (
+          sentence
+        ) : (
+          <Link className={styles.link} to={`/b/${boardId}/c/${activity.card_id}`}>
+            {sentence}
+          </Link>
+        )}
+      </p>
+      <time
+        className={styles.time}
+        dateTime={activity.created_at}
+        title={formatDateTime(activity.created_at)}
+      >
+        {relativeTime(activity.created_at)}
+      </time>
     </li>
   );
 }

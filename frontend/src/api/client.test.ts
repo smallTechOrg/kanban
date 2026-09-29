@@ -54,7 +54,7 @@ describe('api client', () => {
     server.use(
       http.post('/api/lists/11/cards', () => {
         attempts += 1;
-        return HttpResponse.json(envelope('forbidden', 'Observers cannot write.'), { status: 403 });
+        return HttpResponse.json(envelope('conflict', 'Board is closed.'), { status: 409 });
       }),
     );
 
@@ -62,7 +62,7 @@ describe('api client', () => {
       .post('/lists/11/cards', { title: 'Nope' })
       .catch((reason: unknown) => reason);
     expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).status).toBe(403);
+    expect((error as ApiError).status).toBe(409);
     expect(attempts).toBe(1);
   });
 });

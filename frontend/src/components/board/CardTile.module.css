@@ -198,13 +198,3 @@
   font-weight: 600;
   color: var(--text-inverse);
 }
-
-/* Section 2.5.1 block 5: the assigned members, right-aligned under the badges. */
-.members {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 4px;
-  margin-top: 4px;
-}

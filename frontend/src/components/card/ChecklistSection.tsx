@@ -30,7 +30,6 @@ export interface ChecklistSectionProps {
    */
   hideChecked: boolean;
   onToggleHideChecked: () => void;
-  readOnly?: boolean;
 }
 
 /**
@@ -53,7 +52,6 @@ export function ChecklistSection({
   index,
   hideChecked,
   onToggleHideChecked,
-  readOnly = false,
 }: ChecklistSectionProps): ReactElement {
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState('');
@@ -68,8 +66,7 @@ export function ChecklistSection({
   const addItem = useCreateChecklistItem(boardId, cardId);
   const addItems = useCreateChecklistItems(boardId, cardId);
 
-  const pending = isTempId(checklist.id);
-  const locked = readOnly || pending;
+  const locked = isTempId(checklist.id);
   const { done: checked, total } = checklistProgress(checklist);
   const visible = visibleItems(checklist.items, hideChecked);
 
@@ -182,7 +179,6 @@ export function ChecklistSection({
                     cardId={cardId}
                     item={item}
                     index={at}
-                    readOnly={readOnly}
                   />
                 ))}
                 {dropProvided.placeholder}

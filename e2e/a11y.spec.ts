@@ -7,7 +7,7 @@ import type { Result } from 'axe-core';
  * ("Playwright runs `@axe-core/playwright` on Home, Board and Card modal").
  *
  * axe runs against the three surfaces the plan names plus every panel that opens over them —
- * eight scans in all — on a board this file builds through the UI, so each one sees real
+ * ten scans in all — on a board this file builds through the UI, so each one sees real
  * content: a list, a card with a label, and the card's detail modal open over the board. Only
  * `serious` and `critical` findings fail the run (the two impacts the milestone commits to
  * clearing, with the one documented exception above `scan()`), and a failure prints the rule
@@ -29,7 +29,10 @@ const BLOCKING: ReadonlySet<string> = new Set(['serious', 'critical']);
 /** The one rule this file reports rather than fails on; the reason is above `scan()`. */
 const CONTRAST_RULE = 'color-contrast';
 
-const BOARD = 'A11y audit';
+/** A fresh board name per run, so the file also passes against a database that is not empty. */
+const suffix = `${Date.now()}`.slice(-9);
+
+const BOARD = `A11y audit ${suffix}`;
 const LIST = 'Inbox';
 const CARD = 'Check the contrast';
 
@@ -38,15 +41,6 @@ const LABEL = 'green';
 
 /** The `localStorage` key Section 5.13 and the M5 checklist pin the colourblind mode to. */
 const COLORBLIND_KEY = 'kb_colorBlindLabels';
-
-/** A fresh account per run, so the file also passes against a database that is not empty. */
-const suffix = `${Date.now()}`.slice(-9);
-const user = {
-  fullName: 'Aster Nyquist',
-  email: `aster_${suffix}@example.com`,
-  username: `aster_${suffix}`,
-  password: 'correct-horse-battery',
-};
 
 /** One column, which `ListColumn` labels with the list's name. */
 function column(page: Page, name: string): Locator {
@@ -106,19 +100,10 @@ test.describe.configure({ mode: 'serial' });
 test('a11y: axe finds no serious or critical violation on Home, Board or the card modal', async ({
   page,
 }) => {
-  await test.step('0. register, which lands on Home', async () => {
-    await page.goto('/register');
-    await page.getByLabel('Full name').fill(user.fullName);
-    await page.getByLabel('Email').fill(user.email);
-    await page.getByLabel('Username').fill(user.username);
-    await page.getByLabel('Password').fill(user.password);
-    await page.getByRole('button', { name: 'Sign up' }).click();
-    await expect(page).toHaveURL('http://127.0.0.1:8020/');
-  });
-
-  await test.step('1. Home, empty: the create tile, the blurb and the sidebar', async () => {
+  await test.step('1. Home: the create tile, the grid and the sidebar', async () => {
+    await page.goto('/');
     await expect(page.getByRole('button', { name: 'Create new board' })).toBeVisible();
-    await scan(page, 'Home (empty)');
+    await scan(page, 'Home');
   });
 
   await test.step('2. create a board through the popover', async () => {
@@ -135,11 +120,11 @@ test('a11y: axe finds no serious or critical violation on Home, Board or the car
     await expect(page.getByRole('heading', { name: BOARD })).toBeVisible();
   });
 
-  await test.step('3. Home again, with one tile', async () => {
+  await test.step('3. Home again, with this board in the grid', async () => {
     await page.locator('header').getByRole('button', { name: 'Boards', exact: true }).click();
     await expect(page).toHaveURL('http://127.0.0.1:8020/');
     await expect(page.getByRole('link', { name: BOARD, exact: true }).first()).toBeVisible();
-    await scan(page, 'Home (one board)');
+    await scan(page, 'Home (with a board)');
   });
 
   await test.step('4. back to the board, add a list and a card', async () => {

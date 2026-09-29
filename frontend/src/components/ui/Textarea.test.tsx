@@ -25,8 +25,8 @@ describe('Textarea', () => {
   it('waits for Ctrl/Cmd+Enter when that is the submit key', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
-    render(<Textarea aria-label="Comment" submitKey="mod-enter" onSubmit={onSubmit} />);
-    const input = screen.getByRole('textbox', { name: 'Comment' });
+    render(<Textarea aria-label="Description" submitKey="mod-enter" onSubmit={onSubmit} />);
+    const input = screen.getByRole('textbox', { name: 'Description' });
 
     await user.type(input, 'Looks good{Enter}');
     expect(onSubmit).not.toHaveBeenCalled();

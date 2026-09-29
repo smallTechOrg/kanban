@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   boardBackgroundStyle,
   boardNameFromGroups,
-  initialsFromName,
   setBoardStarred,
   sortBoardsByName,
   type BoardBackgroundFields,
@@ -120,24 +119,6 @@ describe('boardBackgroundStyle', () => {
       gradients,
     );
     expect(style.backgroundImage).toBe('url("/uploads/backgrounds/4.jpg")');
-  });
-});
-
-describe('initialsFromName', () => {
-  it('takes the first letter of the first two words', () => {
-    expect(initialsFromName('Vivek Sharma')).toBe('VS');
-  });
-
-  it('ignores surrounding and repeated whitespace', () => {
-    expect(initialsFromName('  asha   rao  kumar ')).toBe('AR');
-  });
-
-  it('honours a one-letter request for the workspace badge', () => {
-    expect(initialsFromName('Kan Ban Workspace', 1)).toBe('K');
-  });
-
-  it('returns an empty string for a blank name', () => {
-    expect(initialsFromName('   ')).toBe('');
   });
 });
 

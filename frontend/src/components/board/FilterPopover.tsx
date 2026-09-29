@@ -1,8 +1,7 @@
 import { useId, type ReactElement } from 'react';
-import { Avatar, Checkbox, Field, Popover, Select, TextInput } from '@/components/ui';
+import { Checkbox, Field, Popover, Select, TextInput } from '@/components/ui';
 import { LabelChip } from '@/components/ui/LabelChip';
-import { useMe } from '@/hooks/useAuth';
-import { useLabels, useMembers } from '@/hooks/useBoardData';
+import { useLabels } from '@/hooks/useBoardData';
 import { useMeta } from '@/hooks/useMeta';
 import type { Id } from '@/lib/boardState';
 import type { LabelPalette } from '@/lib/colors';
@@ -47,8 +46,8 @@ function toggleId(ids: readonly Id[], id: Id): Id[] {
 }
 
 /**
- * The "Filter" popover of Section 2.3.3: keyword, members, card status, due date, labels,
- * activity recency and the Match select, as 32px rows under 12px section labels.
+ * The "Filter" popover of Section 2.3.3: keyword, card status, due date, labels, activity
+ * recency and the Match select, as 32px rows under 12px section labels.
  *
  * It writes `uiStore.filter` and nothing else. Which cards that hides is decided by
  * `lib/filter.ts` through `hooks/useBoardFilter.ts` (`CardList` sets `display: none` on a tile
@@ -65,15 +64,13 @@ export function FilterPopover({ boardId, anchor, onClose }: FilterPopoverProps):
   const filter = useUiStore((state) => state.filter);
   const setFilter = useUiStore((state) => state.setFilter);
   const labels = useLabels(boardId).data ?? [];
-  const members = useMembers(boardId).data ?? [];
   const palette: LabelPalette = useMeta().data?.label_colors ?? NO_PALETTE;
-  const meId = useMe().data?.id ?? null;
   const activityName = useId();
 
   return (
     <Popover anchor={anchor} title="Filter" onClose={onClose}>
       <div className={styles.body}>
-        <Field label="Keyword" helper="Search cards, members, labels, and more.">
+        <Field label="Keyword" helper="Search cards, labels, and more.">
           {(control) => (
             <TextInput
               {...control}
@@ -83,38 +80,6 @@ export function FilterPopover({ boardId, anchor, onClose }: FilterPopoverProps):
             />
           )}
         </Field>
-
-        <section className={styles.group}>
-          <h4 className={styles.groupLabel}>Members</h4>
-          <Checkbox
-            className={styles.row}
-            label="No members"
-            checked={filter.noMembers}
-            onChange={(event) => setFilter({ noMembers: event.target.checked })}
-          />
-          {meId === null ? null : (
-            <Checkbox
-              className={styles.row}
-              label="Cards assigned to me"
-              checked={filter.mine}
-              onChange={(event) => setFilter({ mine: event.target.checked })}
-            />
-          )}
-          {members.map((member) => (
-            <Checkbox
-              key={member.id}
-              className={styles.row}
-              label={
-                <span className={styles.member}>
-                  <Avatar name={member.full_name} color={member.avatar_color} />
-                  {member.full_name}
-                </span>
-              }
-              checked={filter.memberIds.includes(member.id)}
-              onChange={() => setFilter({ memberIds: toggleId(filter.memberIds, member.id) })}
-            />
-          ))}
-        </section>
 
         <section className={styles.group}>
           <h4 className={styles.groupLabel}>Card status</h4>

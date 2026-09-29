@@ -1,10 +1,9 @@
 /*
  * Section 2.2: 1128px centred, 40px 16px padding, the sidebar and the column 32px apart.
  *
- * `width: 100%` is load-bearing, exactly as on the two workspace pages: `AppShell` lays the
- * routed page out as a column flex item, and an `auto` cross-axis margin beats `stretch`, so
- * without it the page shrink-wraps its content and `BoardsGrid` fits two tiles per row
- * instead of filling the 1128px.
+ * `width: 100%` is load-bearing: `AppShell` lays the routed page out as a column flex item,
+ * and an `auto` cross-axis margin beats `stretch`, so without it the page shrink-wraps its
+ * content and `BoardsGrid` fits two tiles per row instead of filling the 1128px.
  */
 .page {
   display: flex;
@@ -21,33 +20,6 @@
   flex-direction: column;
   gap: 40px;
   min-width: 0;
-}
-
-.workspace {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.badge {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  font-size: var(--fs-meta);
-  font-weight: 700;
-  color: var(--text-inverse);
-  background: var(--logo);
-  border-radius: var(--radius-sm);
-}
-
-.workspaceName {
-  flex: 1 1 auto;
-  font-size: var(--fs-h3);
-  font-weight: 700;
-  color: var(--text);
 }
 
 .closed {

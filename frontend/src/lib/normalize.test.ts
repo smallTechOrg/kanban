@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { denormalizeBoard, normalizeBoard } from './normalize';
-import type {
-  BoardDocument,
-  BoardMeta,
-  CardRow,
-  Id,
-  LabelRow,
-  ListRow,
-  MemberRow,
-} from './boardState';
+import type { BoardDocument, BoardMeta, CardRow, Id, LabelRow, ListRow } from './boardState';
 
 const STEP = 65536;
 
@@ -17,29 +9,14 @@ const board: BoardMeta = {
   name: 'Website relaunch',
   description: '',
   version: 143,
-  owner_id: 1,
   background_type: 'color',
   background_value: 'var(--primary)',
   background_thumb_url: null,
-  visibility: 'private',
   is_closed: false,
   is_starred: true,
-  my_role: 'admin',
   created_at: '2026-09-01T09:12:00.000Z',
   updated_at: '2026-09-24T17:58:41.120Z',
 };
-
-const members: MemberRow[] = [
-  {
-    id: 1,
-    username: 'vivek',
-    full_name: 'Vivek Sharma',
-    initials: 'VS',
-    avatar_color: 'var(--logo)',
-    role: 'admin',
-    joined_at: '2026-09-01T09:12:00.000Z',
-  },
-];
 
 const labels: LabelRow[] = [
   { id: 32, board_id: 7, name: 'Bug', color: 'red', tone: 'normal', position: 4 * STEP },
@@ -73,11 +50,8 @@ function makeCard(overrides: Partial<CardRow> & { id: Id }): CardRow {
     due_complete: false,
     cover: null,
     label_ids: [],
-    member_ids: [],
-    is_watching: false,
     badges: {
       description: false,
-      comments: 0,
       attachments: 0,
       checklist_done: 0,
       checklist_total: 0,
@@ -92,7 +66,6 @@ function makeCard(overrides: Partial<CardRow> & { id: Id }): CardRow {
 function makePayload(): BoardDocument {
   return {
     board,
-    members,
     labels,
     lists: [
       makeList({ id: 12, name: 'Doing', position: 2 * STEP }),
@@ -116,7 +89,6 @@ describe('normalizeBoard', () => {
     expect(state.cardOrder[12]).toEqual([201]);
     expect(state.cards[102]?.title).toBe('B');
     expect(state.labels[31]?.color).toBe('green');
-    expect(state.members[1]?.username).toBe('vivek');
   });
 
   it('gives every list an order entry, even an empty one', () => {
@@ -159,7 +131,6 @@ describe('denormalizeBoard', () => {
     expect(document.lists.map((list) => list.id)).toEqual([11, 12]);
     expect(document.cards.map((card) => card.id)).toEqual([101, 102, 201, 103]);
     expect(document.labels.map((entry) => entry.id)).toEqual([31, 32]);
-    expect(document.members).toEqual(members);
     expect(document.board).toBe(board);
   });
 });

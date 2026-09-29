@@ -1,6 +1,6 @@
 /**
- * `GET /api/meta`: the palettes, limits and flags the client renders instead of holding a
- * second hard-coded copy (CLAUDE.md section 3). The only place this query is declared —
+ * `GET /api/meta`: the palettes and limits the client renders instead of holding a second
+ * hard-coded copy (CLAUDE.md section 3). The only place this query is declared —
  * components never call `useQuery` inline.
  */
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';

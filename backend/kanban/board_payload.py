@@ -1,23 +1,22 @@
 """The single round-trip board document (Sections 4.3, 4.10.1 and 6.7).
 
 `GET /api/boards/{board_id}` is the only read the board page makes, so the whole `BoardPayload`
-is assembled here in exactly **five statements**, whatever the board holds: board + membership,
-members, labels, the active lists, and one cards query whose badge counts, `label_ids`,
-`member_ids` and `is_watching` all come from correlated sub-selects. Nothing in this module
-iterates a query, so 30 lists x 100 cards costs the same five round trips as an empty board
-(Section 4.10.1: under 100 ms for that board).
+is assembled here in exactly **four statements**, whatever the board holds: board + star, labels,
+the active lists, and one cards query whose badge counts and `label_ids` all come from correlated
+sub-selects. Nothing in this module iterates a query, so 30 lists x 100 cards costs the same four
+round trips as an empty board (Section 4.10.1: under 100 ms for that board).
 
 Raw SQL lives here by design (CLAUDE.md section 2). The cards statement is the one place the
 badge aggregates are written down, and an ORM expression of it would either fan every card out
-across its labels and members or fall back to a query per card.
+across its labels or fall back to a query per card.
 
 Only *active* rows reach the client: the lists statement filters `is_archived = 0` and the cards
 statement joins `lists` to filter `lists.is_archived = 0 AND cards.is_archived = 0`, so a card
 inside an archived list is absent from the payload and comes back with the list when it is sent
 to the board (Sections 3.7 and 4.3).
 
-The row shapes are the `BoardSummary`, `MemberOut` and `LabelOut` of Section 4.3, the `ListOut`
-of Section 4.4 and the `CardSummary` of Section 4.5. The three that `services/boards.py` already
+The row shapes are the `BoardSummary` and `LabelOut` of Section 4.3, the `ListOut` of
+Section 4.4 and the `CardSummary` of Section 4.5. The two that `services/boards.py` already
 builds are reused from there rather than restated.
 """
 
@@ -28,10 +27,10 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from kanban.errors import NotFound
-from kanban.models import Board, BoardMember, BoardStar, User
-from kanban.services.boards import UPLOADS_URL, board_summary, list_labels, list_members
+from kanban.models import Board, BoardStar
+from kanban.services.boards import UPLOADS_URL, board_summary, list_labels
 
-#: Statement 4: the board's active lists in `position` order (Section 4.4).
+#: Statement 3: the board's active lists in `position` order (Section 4.4).
 _LISTS_SQL: Final[str] = """
 SELECT id, board_id, name, position, color, is_archived, created_at, updated_at
   FROM lists
@@ -40,7 +39,7 @@ SELECT id, board_id, name, position, color, is_archived, created_at, updated_at
  ORDER BY position, id
 """
 
-#: Statement 5: every active card of every active list, with its badges (Section 4.10.1).
+#: Statement 4: every active card of every active list, with its badges (Section 4.10.1).
 #:
 #: `description` is Markdown and only its emptiness is a badge, so the body never leaves the
 #: database here; the card modal fetches it. The `attachments` LEFT JOIN resolves an
@@ -66,7 +65,6 @@ SELECT c.id,
        c.created_at,
        c.updated_at,
        c.description <> '' AS has_description,
-       (SELECT COUNT(*) FROM comments cm WHERE cm.card_id = c.id) AS comment_count,
        (SELECT COUNT(*) FROM attachments a WHERE a.card_id = c.id) AS attachment_count,
        (SELECT COUNT(*)
           FROM checklist_items ci
@@ -77,11 +75,6 @@ SELECT c.id,
           JOIN checklists ch ON ch.id = ci.checklist_id
          WHERE ch.card_id = c.id AND ci.is_checked = 1) AS checklist_done,
        (SELECT GROUP_CONCAT(cl.label_id) FROM card_labels cl WHERE cl.card_id = c.id) AS label_ids,
-       (SELECT GROUP_CONCAT(cmb.user_id) FROM card_members cmb WHERE cmb.card_id = c.id)
-           AS member_ids,
-       EXISTS (SELECT 1
-                 FROM card_watchers cw
-                WHERE cw.card_id = c.id AND cw.user_id = :user_id) AS is_watching,
        cover.thumb_path AS cover_thumb_path,
        cover.dominant_color AS cover_dominant_color
   FROM cards c
@@ -95,50 +88,45 @@ SELECT c.id,
 """
 
 
-def build(db: Session, user: User, *, board_id: int) -> dict[str, Any]:
-    """The `BoardPayload` of Section 4.10.1 for `board_id`, as `user` sees it.
+def build(db: Session, *, board_id: int) -> dict[str, Any]:
+    """The `BoardPayload` of Section 4.10.1 for `board_id`.
 
-    Raises `NotFound` when the board does not exist or `user` is not a member - the same 404
-    `board_access` raises, so a board id cannot be enumerated through this path either. A closed
+    Raises `NotFound` when the board does not exist - the same 404 `board_access` raises. A closed
     board returns its payload like any other; the client renders `ClosedBoardPage` from
     `board.is_closed` (Section 2.3.5). Everything returned is a plain dict rather than an ORM
     row, because the caller records the board view afterwards and that write ends the read
     snapshot these rows were loaded in (Section 4.3).
     """
-    board, my_role, is_starred = _board(db, board_id, user_id=user.id)
-    members = list_members(db, board_id=board_id)
+    board, is_starred = _board(db, board_id)
     labels = list_labels(db, board_id=board_id)
-    # `.mappings()` rather than plain rows throughout: a board of 3000 cards reads 27 columns
+    # `.mappings()` rather than plain rows throughout: a board of 3000 cards reads 24 columns
     # from each of them, and keyed access to a `RowMapping` is several times cheaper than
     # attribute access to a `Row` when SQLAlchemy is installed without its C extensions.
     list_rows = db.execute(text(_LISTS_SQL), {"board_id": board_id}).mappings()
     lists = [_list(row) for row in list_rows]
-    # `GROUP_CONCAT` has no defined row order, so the two id arrays are ordered against the
-    # arrays the client already has: no extra statement, and a stable payload.
+    # `GROUP_CONCAT` has no defined row order, so `label_ids` is ordered against the array the
+    # client already has: no extra statement, and a stable payload.
     label_order = {label["id"]: index for index, label in enumerate(labels)}
-    member_order = {member["id"]: index for index, member in enumerate(members)}
-    card_rows = db.execute(text(_CARDS_SQL), {"board_id": board_id, "user_id": user.id}).mappings()
-    cards = [_card(row, label_order=label_order, member_order=member_order) for row in card_rows]
+    card_rows = db.execute(text(_CARDS_SQL), {"board_id": board_id}).mappings()
+    cards = [_card(row, label_order=label_order) for row in card_rows]
     return {
-        "board": board_summary(board, my_role=my_role, is_starred=is_starred),
-        "members": members,
+        "board": board_summary(board, is_starred=is_starred),
         "labels": labels,
         "lists": lists,
         "cards": cards,
     }
 
 
-def _board(db: Session, board_id: int, *, user_id: int) -> tuple[Board, str, bool]:
-    """Statement 1: the board, the caller's role on it and whether they starred it."""
+def _board(db: Session, board_id: int) -> tuple[Board, bool]:
+    """Statement 1: the board and whether it is starred."""
     row = db.execute(
-        select(Board, BoardMember.role, BoardStar.id.label("star_id"))
-        .join(BoardMember, (BoardMember.board_id == Board.id) & (BoardMember.user_id == user_id))
-        .outerjoin(BoardStar, (BoardStar.board_id == Board.id) & (BoardStar.user_id == user_id))
+        select(Board, BoardStar.id.label("star_id"))
+        .outerjoin(BoardStar, BoardStar.board_id == Board.id)
         .where(Board.id == board_id)
     ).first()
     if row is None:  # pragma: no cover - board_access resolved this same row a moment ago
         raise NotFound("not_found", "Board not found.")
-    return row.Board, row.role, row.star_id is not None
+    return row.Board, row.star_id is not None
 
 
 def _list(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -155,9 +143,7 @@ def _list(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _card(
-    row: Mapping[str, Any], *, label_order: dict[int, int], member_order: dict[int, int]
-) -> dict[str, Any]:
+def _card(row: Mapping[str, Any], *, label_order: dict[int, int]) -> dict[str, Any]:
     """The `CardSummary` of Section 4.5, badges and all.
 
     One dict literal rather than a base dict merged with the rest: on the 3,000-card fixture the
@@ -178,11 +164,8 @@ def _card(
         "due_complete": bool(row["due_complete"]),
         "cover": _cover(row),
         "label_ids": _ordered_ids(row["label_ids"], label_order),
-        "member_ids": _ordered_ids(row["member_ids"], member_order),
-        "is_watching": bool(row["is_watching"]),
         "badges": {
             "description": bool(row["has_description"]),
-            "comments": row["comment_count"],
             "attachments": row["attachment_count"],
             "checklist_done": row["checklist_done"],
             "checklist_total": row["checklist_total"],
@@ -222,11 +205,11 @@ def _cover(row: Mapping[str, Any]) -> dict[str, Any] | None:
 def _ordered_ids(concatenated: str | None, order: dict[int, int]) -> list[int]:
     """Turn one `GROUP_CONCAT` cell into the id array the client expects.
 
-    `order` is the payload's own ordering for that kind of id - labels by `labels.position`,
-    members as `MemberOut[]` lists them - so the arrays follow the board rather than whatever
-    order SQLite happened to aggregate in. An id the board does not list (only reachable if a
-    foreign row survived a cross-board move) sorts last instead of being dropped. The two early
-    returns are the shapes almost every card has, and they carry most of the board's cards.
+    `order` is the payload's own ordering for those ids - labels by `labels.position` - so the
+    array follows the board rather than whatever order SQLite happened to aggregate in. An id the
+    board does not list (only reachable if a foreign row survived a cross-board move) sorts last
+    instead of being dropped. The two early returns are the shapes almost every card has, and
+    they carry most of the board's cards.
     """
     if not concatenated:
         return []

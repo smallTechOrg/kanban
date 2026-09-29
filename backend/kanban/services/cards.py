@@ -4,19 +4,19 @@ Sections 4.4, 4.5, 3.6 and 6.7.2. Every function here opens exactly one `write_t
 `activities` rows through `activity.record()` and gets every `position` from
 `ordering.place_in_container()` - never from midpoint maths of its own (CLAUDE.md section 3).
 
-Permission checks are not repeated here: `routers/cards.py` resolves the card's (or the
-destination list's) board and `auth.board_access` has already decided by the time a function here
-is called, which is why each one takes the `board_id` the router resolved. Live SSE events are
+The board is not resolved twice: `routers/cards.py` resolves the card's (or the destination
+list's) board through `access.board_access` before a function here is called, which is why each one
+takes the `board_id` the router resolved. Live SSE events are
 derived from the `activities` rows this module records, by the `Session` listeners of `events.py`,
 so nothing here publishes one.
 
 The one permission decision that cannot be a dependency lives here for the same reason: a
 cross-board move and a cross-board copy name their destination board in the *body*, which
-`auth.board_access` never sees, so Section 3.6 puts "verify the actor is a member of both boards"
-in the service. `target_board()` makes that one check - through `auth.Role` and `auth.BoardCtx`, so
-the role ranking and the closed-board rule are still `auth.py`'s - and `reassign_board()` is the
-row surgery a card needs when it changes board (fresh `short_id`, labels dropped, members and
-watchers filtered). `services/lists.py` calls both for the cross-board list move rather than
+`access.board_access` never sees, so Section 3.6 puts the destination check in the service.
+`target_board()` makes it, applying exactly the rules that dependency applies and none of its own -
+404 for a board that is not there, 409 for a closed one - and `reassign_board()` is the
+row surgery a card needs when it changes board (a fresh `short_id`, and the labels dropped
+because they belong to the board it left). `services/lists.py` calls both for that move rather than
 writing a second copy, exactly as it already calls `next_short_id`.
 
 Because the `CardDetail` of Section 4.5 *is* the card plus its children, this module owns the read
@@ -37,27 +37,20 @@ from sqlalchemy import collate, delete, func, select
 from sqlalchemy.orm import Session
 
 from kanban import activity, copy, storage
-from kanban.auth import BoardCtx, Role
 from kanban.db import WriteCtx, write_tx
-from kanban.errors import BadRequest, Conflict, Forbidden, NotFound
+from kanban.errors import BadRequest, Conflict, NotFound
 from kanban.models import (
     Attachment,
     Board,
-    BoardMember,
     Card,
     CardLabel,
-    CardMember,
-    CardWatcher,
     Checklist,
     ChecklistItem,
-    Comment,
     Label,
     List,
-    User,
 )
 from kanban.ordering import check_neighbours, place_in_container
 from kanban.services.boards import UPLOADS_URL, orphaned_upload_ids
-from kanban.services.comments import BODY_PREVIEW_CHARS
 
 #: `cards.cover_type` for a cover that points at one of the card's image attachments (Section 3.4).
 ATTACHMENT_COVER = "attachment"
@@ -138,9 +131,9 @@ def _board_of_list(db: Session, list_id: int) -> int:
     """Which board a destination list belongs to, read before the transaction opens.
 
     A copy names its destination by list alone (Section 4.5), so the board whose `version` the
-    write bumps - and whose membership `target_board` checks - is only known after this one
-    SELECT. Raises `BadRequest` (400), never `NotFound`, because `to_list_id` is a body field
-    rather than the addressed row, exactly as `_move_target` answers.
+    write bumps - and which `target_board` checks is open - is only known after this one SELECT.
+    Raises `BadRequest` (400), never `NotFound`, because `to_list_id` is a body field rather than
+    the addressed row, exactly as `_move_target` answers.
     """
     board_id = db.execute(select(List.board_id).where(List.id == list_id)).scalar_one_or_none()
     if board_id is None:
@@ -205,7 +198,7 @@ def pasted_link_host(title: str) -> str | None:
 
 
 def add_link_attachment(
-    db: Session, ctx: WriteCtx, user: User, *, card: Card, url: str, name: str | None = None
+    db: Session, ctx: WriteCtx, *, card: Card, url: str, name: str | None = None
 ) -> int:
     """Insert one `kind='link'` attachment on `card` and record `attachment.added` (Section 4.6).
 
@@ -216,7 +209,6 @@ def add_link_attachment(
     """
     row = Attachment(
         card_id=card.id,
-        user_id=user.id,
         kind="link",
         name=name or link_name(url),
         url=url,
@@ -226,7 +218,6 @@ def add_link_attachment(
     activity.record(
         ctx,
         "attachment.added",
-        user_id=user.id,
         card_id=card.id,
         list_id=card.list_id,
         card_title=card.title,
@@ -256,7 +247,6 @@ def attachment_out(db: Session, row: Attachment) -> dict[str, Any]:
     return {
         "id": row.id,
         "card_id": row.card_id,
-        "user_id": row.user_id,
         "name": row.name,
         "kind": row.kind,
         "url": row.url,
@@ -283,9 +273,9 @@ def card_attachments(db: Session, card_id: int) -> list[dict[str, Any]]:
 
 
 def _badges(db: Session, card: Card) -> dict[str, Any]:
-    """The five badge counts of Section 2.5 for one card, in one statement.
+    """The four badge counts of Section 2.5 for one card, in one statement.
 
-    `board_payload.py` computes the same five values for a whole board with correlated
+    `board_payload.py` computes the same four values for a whole board with correlated
     sub-selects; this is the single-row form every card mutation answers with.
     """
     items = (
@@ -297,11 +287,6 @@ def _badges(db: Session, card: Card) -> dict[str, Any]:
     counts = db.execute(
         select(
             select(func.count())
-            .select_from(Comment)
-            .where(Comment.card_id == card.id)
-            .scalar_subquery()
-            .label("comments"),
-            select(func.count())
             .select_from(Attachment)
             .where(Attachment.card_id == card.id)
             .scalar_subquery()
@@ -312,7 +297,6 @@ def _badges(db: Session, card: Card) -> dict[str, Any]:
     ).one()
     return {
         "description": card.description != "",
-        "comments": counts.comments,
         "attachments": counts.attachments,
         "checklist_done": counts.checklist_done,
         "checklist_total": counts.checklist_total,
@@ -320,7 +304,7 @@ def _badges(db: Session, card: Card) -> dict[str, Any]:
 
 
 def card_badges(db: Session, *, card_id: int) -> dict[str, Any]:
-    """The five badge counts of Section 2.5 for one card, addressed by id.
+    """The four badge counts of Section 2.5 for one card, addressed by id.
 
     `services.checklists` answers its item patch with exactly this object (Section 4.6), so
     ticking an item updates the tile's `checklist_done / checklist_total` from the same round trip
@@ -345,27 +329,11 @@ def card_label_ids(db: Session, *, card_id: int) -> list[int]:
     )
 
 
-def _summary(db: Session, card: Card, *, user_id: int) -> dict[str, Any]:
+def _summary(db: Session, card: Card) -> dict[str, Any]:
     """Build the `CardSummary` of Section 4.10.1 for one card.
 
-    `label_ids` are ordered the way the chips row renders them (label `position`), `member_ids`
-    by user id, and `is_watching` is the caller's own `card_watchers` row.
+    `label_ids` are ordered the way the chips row renders them (label `position`).
     """
-    member_ids = list(
-        db.execute(
-            select(CardMember.user_id)
-            .where(CardMember.card_id == card.id)
-            .order_by(CardMember.user_id)
-        ).scalars()
-    )
-    is_watching = (
-        db.execute(
-            select(CardWatcher.id).where(
-                CardWatcher.card_id == card.id, CardWatcher.user_id == user_id
-            )
-        ).first()
-        is not None
-    )
     return {
         "id": card.id,
         "client_id": card.client_id,
@@ -381,8 +349,6 @@ def _summary(db: Session, card: Card, *, user_id: int) -> dict[str, Any]:
         "due_complete": bool(card.due_complete),
         "cover": _cover(db, card),
         "label_ids": card_label_ids(db, card_id=card.id),
-        "member_ids": member_ids,
-        "is_watching": is_watching,
         "badges": _badges(db, card),
         "created_at": card.created_at,
         "updated_at": card.updated_at,
@@ -399,7 +365,6 @@ def checklist_item_out(row: ChecklistItem) -> dict[str, Any]:
         "is_checked": bool(row.is_checked),
         "checked_at": row.checked_at,
         "due_at": row.due_at,
-        "assignee_id": row.assignee_id,
     }
 
 
@@ -468,7 +433,7 @@ def _checklists(db: Session, card_id: int) -> list[dict[str, Any]]:
     ]
 
 
-def get_card(db: Session, user: User, *, card_id: int) -> dict[str, Any]:
+def get_card(db: Session, *, card_id: int) -> dict[str, Any]:
     """One card as the modal needs it: the `CardDetail` of Section 4.5, archived ones included.
 
     Everything `CardSummary` carries plus the description, the reminder offset, the board and
@@ -482,7 +447,7 @@ def get_card(db: Session, user: User, *, card_id: int) -> dict[str, Any]:
         .where(List.id == card.list_id)
     ).one()
     return {
-        **_summary(db, card, user_id=user.id),
+        **_summary(db, card),
         "description": card.description,
         "due_reminder_minutes": card.due_reminder_minutes,
         "board_name": names.board_name,
@@ -492,13 +457,13 @@ def get_card(db: Session, user: User, *, card_id: int) -> dict[str, Any]:
     }
 
 
-def card_summary(db: Session, user: User, *, card_id: int) -> dict[str, Any]:
+def card_summary(db: Session, *, card_id: int) -> dict[str, Any]:
     """The `CardSummary` of Section 4.10.1 for one card, re-read from the database.
 
     What every card mutation answers with, and what `services.checklists` answers "Convert to
     card" with: the new tile, not the whole `CardDetail` the modal reads.
     """
-    return _summary(db, _load(db, card_id), user_id=user.id)
+    return _summary(db, _load(db, card_id))
 
 
 # --------------------------------------------------------------------------- create
@@ -550,26 +515,6 @@ def _validated_label_ids(db: Session, *, board_id: int, label_ids: Sequence[int]
     return wanted
 
 
-def _validated_member_ids(db: Session, *, board_id: int, member_ids: Sequence[int]) -> list[int]:
-    """The requested members, deduplicated. Raises `BadRequest` for a non-member of the board."""
-    wanted = list(dict.fromkeys(member_ids))
-    if not wanted:
-        return []
-    known = set(
-        db.execute(
-            select(BoardMember.user_id).where(
-                BoardMember.board_id == board_id, BoardMember.user_id.in_(wanted)
-            )
-        ).scalars()
-    )
-    missing = [user_id for user_id in wanted if user_id not in known]
-    if missing:
-        raise BadRequest(
-            "bad_request", "That user is not a member of this board.", {"member_ids": missing}
-        )
-    return wanted
-
-
 def next_short_id(db: Session, board_id: int) -> int:
     """`MAX(short_id) + 1` for the board, read inside the write lock (Section 4.5).
 
@@ -582,7 +527,6 @@ def next_short_id(db: Session, board_id: int) -> int:
 
 def create_card(
     db: Session,
-    user: User,
     *,
     board_id: int,
     list_id: int,
@@ -590,19 +534,18 @@ def create_card(
     index: int | str | None = None,
     client_id: str | None = None,
     label_ids: Sequence[int] = (),
-    member_ids: Sequence[int] = (),
     split_lines: bool = False,
 ) -> CardBatch:
     """Create a card in `list_id`, or one per pasted line with `split_lines` (Section 4.4).
 
     Every card gets `MAX(short_id) + 1` of its board read under the write lock, the composer's
-    `label_ids` / `member_ids` and one `card.created` activity row; `client_id` is stored on the
-    first card, which is the optimistic tile the composer is waiting for. A title that is nothing
-    but an `http(s)` URL is a pasted link (Section 4.4): the card is named after the URL's host
-    and carries a `{kind: 'link'}` attachment, whose `attachment.added` row follows the
-    `card.created` one. Raises `BadRequest` when the list is archived or a label / member does not
-    belong to the board, `NotFound` when the list is gone and `Busy` (503) when the write lock
-    cannot be taken.
+    `label_ids` and one `card.created` activity row; `client_id` is stored on the first card,
+    which is the optimistic tile the composer is waiting for. A title that is nothing but an
+    `http(s)` URL is a pasted link (Section 4.4): the card is named after the URL's host and
+    carries a `{kind: 'link'}` attachment, whose `attachment.added` row follows the
+    `card.created` one. Raises `BadRequest` when the list is archived or a label does not belong
+    to the board, `NotFound` when the list is gone and `Busy` (503) when the write lock cannot
+    be taken.
     """
     titles = split_pasted_lines(title, split_lines=split_lines)
     with write_tx(db, [board_id]) as ctx:
@@ -610,7 +553,6 @@ def create_card(
         if target.is_archived:
             raise BadRequest("bad_request", "That list is archived.", {"list_id": list_id})
         labels = _validated_label_ids(db, board_id=board_id, label_ids=label_ids)
-        members = _validated_member_ids(db, board_id=board_id, member_ids=member_ids)
         short_id = next_short_id(db, board_id)
         created: list[int] = []
         for offset, line in enumerate(titles):
@@ -627,28 +569,24 @@ def create_card(
                 title=host or line,
                 position=position,
                 client_id=client_id if offset == 0 else None,
-                created_by=user.id,
             )
             db.add(card)
             db.flush()  # the id the association rows and the activity row need
             for label_id in labels:
                 db.add(CardLabel(card_id=card.id, label_id=label_id))
-            for member_id in members:
-                db.add(CardMember(card_id=card.id, user_id=member_id))
             activity.record(
                 ctx,
                 "card.created",
-                user_id=user.id,
                 card_id=card.id,
                 list_id=list_id,
                 card_title=card.title,
                 list_name=target.name,
             )
             if host is not None:
-                add_link_attachment(db, ctx, user, card=card, url=line, name=host)
+                add_link_attachment(db, ctx, card=card, url=line, name=host)
             created.append(card.id)
     return CardBatch(
-        items=[card_summary(db, user, card_id=card_id) for card_id in created],
+        items=[card_summary(db, card_id=card_id) for card_id in created],
         board_version=ctx.board_version,
     )
 
@@ -656,7 +594,7 @@ def create_card(
 # --------------------------------------------------------------------------- patch
 
 
-def _record_dates(ctx: WriteCtx, card: Card, user_id: int) -> None:
+def _record_dates(ctx: WriteCtx, card: Card) -> None:
     """The one activity row a change to `start_at` / `due_at` writes (Sections 4.5 and 3.8).
 
     The two columns are a single user-visible concern - one `DatesPopover` with one Save and one
@@ -669,7 +607,6 @@ def _record_dates(ctx: WriteCtx, card: Card, user_id: int) -> None:
         activity.record(
             ctx,
             "card.due_removed",
-            user_id=user_id,
             card_id=card.id,
             list_id=card.list_id,
             card_title=card.title,
@@ -678,7 +615,6 @@ def _record_dates(ctx: WriteCtx, card: Card, user_id: int) -> None:
         activity.record(
             ctx,
             "card.due_set",
-            user_id=user_id,
             card_id=card.id,
             list_id=card.list_id,
             card_title=card.title,
@@ -688,7 +624,7 @@ def _record_dates(ctx: WriteCtx, card: Card, user_id: int) -> None:
 
 
 def update_card(
-    db: Session, user: User, *, board_id: int, card_id: int, changes: dict[str, Any]
+    db: Session, *, board_id: int, card_id: int, changes: dict[str, Any]
 ) -> CardMutation:
     """Patch a card's scalar fields, one activity row per changed field (Sections 4.5 and 3.8).
 
@@ -706,7 +642,6 @@ def update_card(
             activity.record(
                 ctx,
                 "card.renamed",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=card.list_id,
                 **{"from": card.title, "to": changes["title"]},
@@ -717,7 +652,6 @@ def update_card(
             activity.record(
                 ctx,
                 "card.description_changed",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=card.list_id,
                 card_title=card.title,
@@ -726,7 +660,7 @@ def update_card(
         if any(value != getattr(card, key) for key, value in dates.items()):
             card.start_at = dates.get("start_at", card.start_at)
             card.due_at = dates.get("due_at", card.due_at)
-            _record_dates(ctx, card, user.id)
+            _record_dates(ctx, card)
         if "due_reminder_minutes" in changes:
             card.due_reminder_minutes = changes["due_reminder_minutes"]
         if "due_complete" in changes and changes["due_complete"] != bool(card.due_complete):
@@ -734,7 +668,6 @@ def update_card(
             activity.record(
                 ctx,
                 "card.due_completed" if card.due_complete else "card.due_incompleted",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=card.list_id,
                 card_title=card.title,
@@ -744,14 +677,11 @@ def update_card(
             activity.record(
                 ctx,
                 "card.template_set" if card.is_template else "card.template_unset",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=card.list_id,
                 card_title=card.title,
             )
-    return CardMutation(
-        item=card_summary(db, user, card_id=card_id), board_version=ctx.board_version
-    )
+    return CardMutation(item=card_summary(db, card_id=card_id), board_version=ctx.board_version)
 
 
 # --------------------------------------------------------------------------- move
@@ -775,55 +705,40 @@ def _move_target(db: Session, *, to_list_id: int, board_id: int) -> List:
     return target
 
 
-def target_board(db: Session, user: User, *, board_id: int) -> Board:
-    """The board a cross-board move or copy is aimed at, checked for the caller (Section 3.6).
+def target_board(db: Session, *, board_id: int) -> Board:
+    """The destination board of a cross-board move or copy, checked as a route would check it.
 
-    The one permission check a dependency cannot make, because `to_board_id` / the destination
-    list arrive in the body rather than the path: the decision itself is still `auth.py`'s, through
-    `auth.BoardCtx.has_role`, so the role ranking is not restated. A board the caller is not a
-    member of and a board that does not exist answer the same 403 `forbidden`, so this cannot be
-    used to enumerate board ids. Raises `Forbidden` for both and for a role below `member`, and
-    `Conflict` (409 "Board is closed") for a closed destination, which is the rule
-    `auth.board_access` applies to every other mutation.
+    The one guard a dependency cannot apply, because `to_board_id` and the destination list arrive
+    in the body rather than the path: `access.board_access()` never sees them, so Section 3.6 puts
+    the check here. It applies exactly the rules that dependency does and adds none of its own -
+    404 `not_found` for a board that is not there, 409 `conflict` "Board is closed" for one that
+    is - so a move into another board is refused for the same reasons, and with the same wording,
+    as any mutation addressed to it directly.
     """
     board = db.get(Board, board_id)
-    membership = db.execute(
-        select(BoardMember).where(BoardMember.board_id == board_id, BoardMember.user_id == user.id)
-    ).scalar_one_or_none()
-    if board is None or membership is None:
-        raise Forbidden("forbidden", "You are not a member of that board.", {"board_id": board_id})
-    if not BoardCtx(board=board, member=membership, user=user).has_role(Role.member):
-        raise Forbidden(
-            "forbidden",
-            f"This action requires the {Role.member.value} role.",
-            {"board_id": board_id},
-        )
+    if board is None:
+        raise NotFound("not_found", "Board not found.")
     if board.is_closed:
         raise Conflict("conflict", "Board is closed", {"board_id": board_id})
     return board
 
 
 def reassign_board(db: Session, card: Card, *, to_board_id: int) -> None:
-    """Hand one card row to another board, with the four fixups Section 3.6 lists.
+    """Hand one card row to another board, with the two fixups Section 3.6 lists.
 
     A fresh `short_id` from the target board's sequence (`cards` is unique on
-    `(board_id, short_id)`), `card_labels` dropped because labels are per board, and
-    `card_members` / `card_watchers` filtered down to users who are members of the target. The row
-    is flushed before returning, so the next card of a list move reads a `MAX(short_id)` that
+    `(board_id, short_id)`), and `card_labels` dropped because labels are per board. The row is
+    flushed before returning, so the next card of a list move reads a `MAX(short_id)` that
     already counts this one. Must be called inside `write_tx()`.
     """
     card.board_id = to_board_id
     card.short_id = next_short_id(db, to_board_id)
     db.execute(delete(CardLabel).where(CardLabel.card_id == card.id))
-    strangers = select(BoardMember.user_id).where(BoardMember.board_id == to_board_id)
-    for model in (CardMember, CardWatcher):
-        db.execute(delete(model).where(model.card_id == card.id, model.user_id.not_in(strangers)))
     db.flush()  # the new short_id must be visible to the next `next_short_id` of the same move
 
 
 def move_card(
     db: Session,
-    user: User,
     *,
     board_id: int,
     card_id: int,
@@ -847,7 +762,7 @@ def move_card(
     - so the card can never vanish from one board without appearing on the other. The returned
     `board_version` is the destination board's.
 
-    Raises `Forbidden` (403) when the caller may not write to `to_board_id`, `Conflict` (409) when
+    Raises `NotFound` (404) when `to_board_id` names no board, `Conflict` (409) when
     it is closed, `BadRequest` when `to_list_id` is not an active list of the destination board or
     a neighbour breaks the invariant of `ordering.check_neighbours`, `NotFound` when the card is
     gone and `Busy` (503) on a lock timeout.
@@ -857,7 +772,7 @@ def move_card(
     assert destination_board_id is not None  # `crossing` is False when `to_board_id` is None
     # Both checks happen before the transaction opens, because `write_tx` reads the version of
     # every board it is given and a board the caller may not touch must never get that far.
-    other_board = target_board(db, user, board_id=destination_board_id) if crossing else None
+    other_board = target_board(db, board_id=destination_board_id) if crossing else None
     board_ids = [board_id, destination_board_id] if crossing else [board_id]
     with write_tx(db, board_ids) as ctx:
         card = _load(db, card_id)
@@ -891,7 +806,6 @@ def move_card(
             activity.record(
                 ctx,
                 "card.moved_out",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=source.id,
                 board_id=board_id,
@@ -903,7 +817,6 @@ def move_card(
             activity.record(
                 ctx,
                 "card.moved_in",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=target.id,
                 board_id=other_board.id,
@@ -916,7 +829,6 @@ def move_card(
             activity.record(
                 ctx,
                 "card.reordered",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=target.id,
                 card_title=card.title,
@@ -927,7 +839,6 @@ def move_card(
             activity.record(
                 ctx,
                 "card.moved",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=target.id,
                 card_title=card.title,
@@ -940,7 +851,7 @@ def move_card(
         card.list_id = target.id
         card.position = position
     return CardMove(
-        item=card_summary(db, user, card_id=card_id),
+        item=card_summary(db, card_id=card_id),
         positions=renumbered,
         board_version=ctx.versions[destination_board_id],
     )
@@ -951,7 +862,6 @@ def move_card(
 
 def copy_card(
     db: Session,
-    user: User,
     *,
     board_id: int,
     card_id: int,
@@ -964,24 +874,21 @@ def copy_card(
     """Copy a card into `to_list_id`, on this board or another one (Section 4.5).
 
     `kanban/copy.py` owns what a copy *is* - which columns come along, which children each `keep`
-    flag brings, and the rule that a copy landing on another board keeps neither labels nor
-    members; this function owns the request: the destination list, the `short_id` and the
-    `position` read under the write lock, and the activity rows. The copy is an ordinary new card,
-    so it records `card.copied` plus one `comment.added` per comment it brought with it (the card
-    feed is driven by `activities` alone, Section 3.8, so a copied comment with no row would be
-    invisible in the modal).
+    flag brings, and the rule that a copy landing on another board keeps no labels; this function
+    owns the request: the destination list, the `short_id` and the `position` read under the write
+    lock, and the one `card.copied` activity row.
 
     The transaction is the destination board's alone: a copy changes nothing on the source board,
     so only the destination's `version` is bumped and the returned `board_version` is its.
 
-    Raises `Forbidden` (403) when the destination list is on a board the caller may not write to,
-    `Conflict` (409) when that board is closed, `BadRequest` (400) when `to_list_id` is not an
-    active list of it, `NotFound` when the source card is gone and `Busy` (503) on a lock timeout.
+    Raises `NotFound` when the destination board or the source card is gone, `Conflict` (409) when
+    that board is closed, `BadRequest` (400) when `to_list_id` is not an active list of it, and
+    `Busy` (503) on a lock timeout.
     """
     to_board_id = _board_of_list(db, to_list_id)
     crossing = to_board_id != board_id
     if crossing:
-        target_board(db, user, board_id=to_board_id)
+        target_board(db, board_id=to_board_id)
     with write_tx(db, [to_board_id]) as ctx:
         source = _load(db, card_id)
         source_list = _load_list(db, source.list_id)
@@ -996,13 +903,11 @@ def copy_card(
             title=title,
             position=position,
             keep=keep or copy.Keep(),
-            created_by=user.id,
             is_template=is_template,
         )
         activity.record(
             ctx,
             "card.copied",
-            user_id=user.id,
             card_id=result.card.id,
             list_id=target.id,
             card_title=title,
@@ -1011,38 +916,13 @@ def copy_card(
             source_list_name=source_list.name,
             list_name=target.name,
         )
-        record_copied_comments(ctx, result, list_id=target.id)
         copy_id = result.card.id
     return CardMutation(
-        item=card_summary(db, user, card_id=copy_id), board_version=ctx.versions[to_board_id]
+        item=card_summary(db, card_id=copy_id), board_version=ctx.versions[to_board_id]
     )
 
 
-def record_copied_comments(ctx: WriteCtx, copied: copy.CardCopy, *, list_id: int) -> None:
-    """One `comment.added` row per comment a copy brought with it (Sections 3.8 and 4.5).
-
-    The card feed is `activities` and nothing else (Section 3.8), so a copied `comments` row with no
-    row of its own would be counted by the tile's comment badge and still be invisible in the
-    modal. The actor is the comment's original author, which is who the feed's own sentence and the
-    joined comment both name. `services/lists.py` calls it for every card of a list copy.
-    """
-    for comment in copied.comments:
-        activity.record(
-            ctx,
-            "comment.added",
-            user_id=comment.user_id,
-            card_id=copied.card.id,
-            list_id=list_id,
-            card_title=copied.card.title,
-            comment_id=comment.id,
-            body_preview=comment.body[:BODY_PREVIEW_CHARS],
-        )
-
-
-# --------------------------------------------------------------------------- archive state machine
-
-
-def archive_card(db: Session, user: User, *, board_id: int, card_id: int) -> CardMutation:
+def archive_card(db: Session, *, board_id: int, card_id: int) -> CardMutation:
     """Archive a card, keeping its `position` so unarchive restores the slot (Sections 3.6, 3.7).
 
     Idempotent: archiving an archived card writes no row and records nothing. Raises `NotFound`
@@ -1055,14 +935,11 @@ def archive_card(db: Session, user: User, *, board_id: int, card_id: int) -> Car
             activity.record(
                 ctx,
                 "card.archived",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=card.list_id,
                 card_title=card.title,
             )
-    return CardMutation(
-        item=card_summary(db, user, card_id=card_id), board_version=ctx.board_version
-    )
+    return CardMutation(item=card_summary(db, card_id=card_id), board_version=ctx.board_version)
 
 
 def _first_active_list(db: Session, board_id: int) -> List | None:
@@ -1075,7 +952,7 @@ def _first_active_list(db: Session, board_id: int) -> List | None:
     ).scalar_one_or_none()
 
 
-def unarchive_card(db: Session, user: User, *, board_id: int, card_id: int) -> CardMutation:
+def unarchive_card(db: Session, *, board_id: int, card_id: int) -> CardMutation:
     """ "Send to board": clear `is_archived` and restore the original slot (Sections 3.6 and 3.7).
 
     `position` is untouched, so the card reappears exactly where it was - archived rows keep
@@ -1102,17 +979,14 @@ def unarchive_card(db: Session, user: User, *, board_id: int, card_id: int) -> C
             activity.record(
                 ctx,
                 "card.unarchived",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=card.list_id,
                 card_title=card.title,
             )
-    return CardMutation(
-        item=card_summary(db, user, card_id=card_id), board_version=ctx.board_version
-    )
+    return CardMutation(item=card_summary(db, card_id=card_id), board_version=ctx.board_version)
 
 
-def delete_card(db: Session, user: User, *, board_id: int, card_id: int) -> None:
+def delete_card(db: Session, *, board_id: int, card_id: int) -> None:
     """Delete an archived card and everything under it (Sections 3.7 and 4.5).
 
     Raises `Conflict` (409) unless the card is archived - archive first, then delete - and
@@ -1128,7 +1002,6 @@ def delete_card(db: Session, user: User, *, board_id: int, card_id: int) -> None
         activity.record(
             ctx,
             "card.deleted",
-            user_id=user.id,
             list_id=card.list_id,
             card_title=card.title,
             list_name=_load_list(db, card.list_id).name,
@@ -1139,7 +1012,6 @@ def delete_card(db: Session, user: User, *, board_id: int, card_id: int) -> None
 
 def list_archived_cards(
     db: Session,
-    user: User,
     *,
     board_id: int,
     q: str | None = None,
@@ -1168,5 +1040,5 @@ def list_archived_cards(
         .scalars()
         .all()
     )
-    items = [_summary(db, card, user_id=user.id) for card in rows]
+    items = [_summary(db, card) for card in rows]
     return items, rows[-1].id if len(rows) == limit else None

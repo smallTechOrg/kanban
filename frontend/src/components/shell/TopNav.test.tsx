@@ -2,12 +2,9 @@ import type { ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { HttpResponse, http } from 'msw';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useUiStore } from '@/store/uiStore';
-import { userFixture } from '@/test/handlers';
-import { server } from '@/test/server';
 import { TopNav } from './TopNav';
 
 function renderTopNav(): void {
@@ -18,8 +15,7 @@ function renderTopNav(): void {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={['/']}>
         <Routes>
-          <Route path="/" element={<TopNav user={userFixture} />} />
-          <Route path="/login" element={<h1>Log in to continue</h1>} />
+          <Route path="/" element={<TopNav />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -43,27 +39,6 @@ describe('TopNav', () => {
     expect(screen.getByRole('button', { name: /Create board/ })).toBeInTheDocument();
     // M5 made "Create card" real; what the row then does is `CreateMenuPopover`'s own test.
     expect(screen.getByRole('button', { name: /Create card/ })).toBeInTheDocument();
-  });
-
-  it('shows the account identity and logs out to /login', async () => {
-    const user = userEvent.setup();
-    let loggedOut = false;
-    server.use(
-      http.post('/api/auth/logout', () => {
-        loggedOut = true;
-        return new HttpResponse(null, { status: 204 });
-      }),
-    );
-    renderTopNav();
-
-    await user.click(screen.getByRole('button', { name: 'Account menu' }));
-
-    expect(await screen.findByText(userFixture.email)).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Log out' }));
-
-    expect(await screen.findByRole('heading', { name: 'Log in to continue' })).toBeInTheDocument();
-    expect(loggedOut).toBe(true);
   });
 
   it('lists the recent boards behind the Recent button', async () => {

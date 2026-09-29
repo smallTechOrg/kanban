@@ -26,7 +26,7 @@ from kanban import activity, storage
 from kanban.constants import COVER_COLORS
 from kanban.db import write_tx
 from kanban.errors import BadRequest, NotFound
-from kanban.models import Attachment, Card, User
+from kanban.models import Attachment, Card
 from kanban.services import cards
 from kanban.services.cards import ATTACHMENT_COVER, add_link_attachment, attachment_out
 
@@ -56,7 +56,6 @@ def _load_attachment(db: Session, attachment_id: int) -> Attachment:
 
 def create_file_attachment(
     db: Session,
-    user: User,
     *,
     board_id: int,
     card_id: int,
@@ -77,7 +76,6 @@ def create_file_attachment(
             card = _load_card(db, card_id)
             row = Attachment(
                 card_id=card_id,
-                user_id=user.id,
                 kind="upload",
                 name=upload.display_name,
                 url="",  # the id below is what names the file, so the URL cannot exist yet
@@ -99,7 +97,6 @@ def create_file_attachment(
             activity.record(
                 ctx,
                 "attachment.added",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=card.list_id,
                 card_title=card.title,
@@ -120,7 +117,7 @@ def create_file_attachment(
 
 
 def create_link_attachment(
-    db: Session, user: User, *, board_id: int, card_id: int, url: str, name: str | None = None
+    db: Session, *, board_id: int, card_id: int, url: str, name: str | None = None
 ) -> AttachmentMutation:
     """Attach a link to a card: no file, no thumbnail, no disk (Section 4.6).
 
@@ -131,7 +128,7 @@ def create_link_attachment(
     """
     with write_tx(db, [board_id]) as ctx:
         card = _load_card(db, card_id)
-        attachment_id = add_link_attachment(db, ctx, user, card=card, url=url, name=name)
+        attachment_id = add_link_attachment(db, ctx, card=card, url=url, name=name)
     return AttachmentMutation(
         item=attachment_out(db, _load_attachment(db, attachment_id)),
         board_version=ctx.board_version,
@@ -139,7 +136,7 @@ def create_link_attachment(
 
 
 def rename_attachment(
-    db: Session, user: User, *, board_id: int, attachment_id: int, name: str
+    db: Session, *, board_id: int, attachment_id: int, name: str
 ) -> AttachmentMutation:
     """Rename an attachment's display name; the file on disk is untouched (Section 4.6).
 
@@ -157,7 +154,6 @@ def rename_attachment(
             activity.record(
                 ctx,
                 "attachment.renamed",
-                user_id=user.id,
                 card_id=card.id,
                 list_id=card.list_id,
                 card_title=card.title,
@@ -172,7 +168,7 @@ def rename_attachment(
     )
 
 
-def delete_attachment(db: Session, user: User, *, board_id: int, attachment_id: int) -> None:
+def delete_attachment(db: Session, *, board_id: int, attachment_id: int) -> None:
     """Delete an attachment, clearing the card's cover with it (Sections 4.6 and 6.9).
 
     Two entities can change, so two rows are recorded: `attachment.deleted` always, and
@@ -188,7 +184,6 @@ def delete_attachment(db: Session, user: User, *, board_id: int, attachment_id: 
         activity.record(
             ctx,
             "attachment.deleted",
-            user_id=user.id,
             card_id=card.id,
             list_id=card.list_id,
             card_title=card.title,
@@ -202,7 +197,6 @@ def delete_attachment(db: Session, user: User, *, board_id: int, attachment_id: 
             activity.record(
                 ctx,
                 "card.cover_removed",
-                user_id=user.id,
                 card_id=card.id,
                 list_id=card.list_id,
                 card_title=card.title,
@@ -237,7 +231,7 @@ def _validated_cover_value(db: Session, *, card_id: int, kind: str, value: str) 
 
 
 def set_cover(
-    db: Session, user: User, *, board_id: int, card_id: int, kind: str, value: str, size: str
+    db: Session, *, board_id: int, card_id: int, kind: str, value: str, size: str
 ) -> cards.CardMutation:
     """Put a colour or attachment cover on a card (Section 4.5).
 
@@ -255,7 +249,6 @@ def set_cover(
         activity.record(
             ctx,
             "card.cover_changed",
-            user_id=user.id,
             card_id=card_id,
             list_id=card.list_id,
             card_title=card.title,
@@ -264,11 +257,11 @@ def set_cover(
             cover_size=size,
         )
     return cards.CardMutation(
-        item=cards.card_summary(db, user, card_id=card_id), board_version=ctx.board_version
+        item=cards.card_summary(db, card_id=card_id), board_version=ctx.board_version
     )
 
 
-def clear_cover(db: Session, user: User, *, board_id: int, card_id: int) -> cards.CardMutation:
+def clear_cover(db: Session, *, board_id: int, card_id: int) -> cards.CardMutation:
     """Remove a card's cover (Section 4.5), leaving `cover_size` for the next one.
 
     A card that has no cover records nothing - removing nothing is not an action, the same rule
@@ -284,11 +277,10 @@ def clear_cover(db: Session, user: User, *, board_id: int, card_id: int) -> card
             activity.record(
                 ctx,
                 "card.cover_removed",
-                user_id=user.id,
                 card_id=card_id,
                 list_id=card.list_id,
                 card_title=card.title,
             )
     return cards.CardMutation(
-        item=cards.card_summary(db, user, card_id=card_id), board_version=ctx.board_version
+        item=cards.card_summary(db, card_id=card_id), board_version=ctx.board_version
     )

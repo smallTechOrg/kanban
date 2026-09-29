@@ -3,7 +3,6 @@
  * (`import { Button, Popover } from '@/components/ui'`), so the file list is the catalogue of
  * Section 2.1.2.
  */
-export { Avatar, type AvatarProps, type AvatarSize } from './Avatar';
 export { Button, type ButtonProps, type ButtonVariant } from './Button';
 export { cx } from './classNames';
 export { ConfirmPopover, type ConfirmPopoverProps } from './ConfirmPopover';

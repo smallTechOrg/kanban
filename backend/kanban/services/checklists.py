@@ -3,7 +3,7 @@
 Every mutation here opens exactly one `write_tx()`, records its `activities` rows through
 `activity.record()` and takes every `position` from `ordering.place_in_container()` - never from
 midpoint maths of its own (CLAUDE.md section 3). Permission checks are not repeated: by the time
-a router calls in, `auth.board_access` has resolved the caller's role on the board the checklist
+a router calls in, `access.board_access` has resolved the board the checklist
 belongs to, and the `board_id` each function receives is the one it resolved.
 
 `checklists` and `checklist_items` carry no `is_archived`, so `place_in_container`'s `literal(0)`
@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 from kanban import activity
 from kanban.db import write_tx
 from kanban.errors import BadRequest, NotFound
-from kanban.models import BoardMember, Card, Checklist, ChecklistItem, List, User, utcnow_iso
+from kanban.models import Card, Checklist, ChecklistItem, List, utcnow_iso
 from kanban.ordering import check_neighbours, place_in_container
 from kanban.services.cards import (
     card_badges,
@@ -105,7 +105,7 @@ def list_board_checklists(db: Session, *, board_id: int) -> list[dict[str, Any]]
 
     Archived cards and the cards of archived lists are excluded, the visibility rule the board
     payload applies (Section 4.3). Ordered by card title - case-insensitively, as "Sort list"
-    orders by title - then by checklist `position`. Observer role suffices, which is what the
+    orders by title - then by checklist `position`. It is a read, which is what the
     router's read dependency enforces.
     """
     rows = db.execute(
@@ -156,7 +156,6 @@ def _copy_source(db: Session, *, checklist_id: int, board_id: int) -> Checklist:
 
 def create_checklist(
     db: Session,
-    user: User,
     *,
     board_id: int,
     card_id: int,
@@ -189,7 +188,6 @@ def create_checklist(
         activity.record(
             ctx,
             "checklist.added",
-            user_id=user.id,
             card_id=card_id,
             list_id=card.list_id,
             card_title=card.title,
@@ -204,7 +202,7 @@ def create_checklist(
 
 
 def rename_checklist(
-    db: Session, user: User, *, board_id: int, checklist_id: int, changes: dict[str, Any]
+    db: Session, *, board_id: int, checklist_id: int, changes: dict[str, Any]
 ) -> Mutation:
     """Rename a checklist from its section header (Section 4.6).
 
@@ -219,7 +217,6 @@ def rename_checklist(
             activity.record(
                 ctx,
                 "checklist.renamed",
-                user_id=user.id,
                 card_id=card.id,
                 list_id=card.list_id,
                 card_title=card.title,
@@ -234,7 +231,7 @@ def rename_checklist(
     )
 
 
-def delete_checklist(db: Session, user: User, *, board_id: int, checklist_id: int) -> None:
+def delete_checklist(db: Session, *, board_id: int, checklist_id: int) -> None:
     """Delete a checklist and its items (Section 4.6): checklists have no archive state.
 
     The items go with it through `checklist_items.checklist_id ON DELETE CASCADE`. Activity
@@ -246,7 +243,6 @@ def delete_checklist(db: Session, user: User, *, board_id: int, checklist_id: in
         activity.record(
             ctx,
             "checklist.deleted",
-            user_id=user.id,
             card_id=card.id,
             list_id=card.list_id,
             card_title=card.title,
@@ -258,7 +254,6 @@ def delete_checklist(db: Session, user: User, *, board_id: int, checklist_id: in
 
 def move_checklist(
     db: Session,
-    user: User,
     *,
     board_id: int,
     checklist_id: int,
@@ -301,7 +296,6 @@ def move_checklist(
         activity.record(
             ctx,
             "checklist.moved",
-            user_id=user.id,
             card_id=card.id,
             list_id=card.list_id,
             card_title=card.title,
@@ -321,7 +315,6 @@ def move_checklist(
 
 def create_items(
     db: Session,
-    user: User,
     *,
     board_id: int,
     checklist_id: int,
@@ -356,7 +349,6 @@ def create_items(
             activity.record(
                 ctx,
                 "checklist.item_added",
-                user_id=user.id,
                 card_id=card.id,
                 list_id=card.list_id,
                 card_title=card.title,
@@ -371,39 +363,14 @@ def create_items(
     )
 
 
-def _validated_assignee(db: Session, *, board_id: int, assignee_id: int) -> str:
-    """The assignee's display name. Raises `BadRequest` for a non-member of the board (4.6)."""
-    name = db.execute(
-        select(User.full_name)
-        .join(BoardMember, BoardMember.user_id == User.id)
-        .where(BoardMember.board_id == board_id, User.id == assignee_id)
-    ).scalar_one_or_none()
-    if name is None:
-        raise BadRequest(
-            "bad_request",
-            "That user is not a member of this board.",
-            {"assignee_id": assignee_id},
-        )
-    return str(name)
-
-
-def _member_name(db: Session, user_id: int) -> str:
-    """The name an `item_unassigned` row denormalises, even if the account is later gone."""
-    row = db.get(User, user_id)
-    return "" if row is None else row.full_name
-
-
-def update_item(
-    db: Session, user: User, *, board_id: int, item_id: int, changes: dict[str, Any]
-) -> Mutation:
+def update_item(db: Session, *, board_id: int, item_id: int, changes: dict[str, Any]) -> Mutation:
     """Patch one checklist item, one activity row per changed field (Sections 4.6 and 3.8).
 
     `changes` is the `exclude_unset` dump of `ItemUpdateIn`, so `due_at: None` removes the due
-    date and `assignee_id: None` unassigns; a value equal to the stored one records nothing.
+    date; a value equal to the stored one records nothing.
     Ticking stamps `checked_at` and clearing it nulls it again. The returned item carries the
     card's recomputed `badges`, so the tile's `checklist_done / checklist_total` is patched from
-    this one round trip. Raises `BadRequest` (400) when the assignee is not a board member and
-    `Busy` (503).
+    this one round trip. Raises `Busy` (503).
     """
     with write_tx(db, [board_id]) as ctx:
         item = _load_item(db, item_id)
@@ -415,7 +382,6 @@ def update_item(
             activity.record(
                 ctx,
                 type,
-                user_id=user.id,
                 card_id=card.id,
                 list_id=card.list_id,
                 card_title=card.title,
@@ -442,24 +408,6 @@ def update_item(
                 record("checklist.item_due_removed", item_name=item.name)
             else:
                 record("checklist.item_due_set", item_name=item.name, due_at=item.due_at)
-        if "assignee_id" in changes and changes["assignee_id"] != item.assignee_id:
-            previous, item.assignee_id = item.assignee_id, changes["assignee_id"]
-            if item.assignee_id is None:
-                record(
-                    "checklist.item_unassigned",
-                    item_name=item.name,
-                    member_id=previous,
-                    member_name="" if previous is None else _member_name(db, previous),
-                )
-            else:
-                record(
-                    "checklist.item_assigned",
-                    item_name=item.name,
-                    member_id=item.assignee_id,
-                    member_name=_validated_assignee(
-                        db, board_id=board_id, assignee_id=item.assignee_id
-                    ),
-                )
         card_id = card.id
     return Mutation(
         item=checklist_item_out(_load_item(db, item_id))
@@ -468,7 +416,7 @@ def update_item(
     )
 
 
-def delete_item(db: Session, user: User, *, board_id: int, item_id: int) -> None:
+def delete_item(db: Session, *, board_id: int, item_id: int) -> None:
     """Delete one checklist item (Section 4.6). Activity `checklist.item_deleted`."""
     with write_tx(db, [board_id]) as ctx:
         item = _load_item(db, item_id)
@@ -477,7 +425,6 @@ def delete_item(db: Session, user: User, *, board_id: int, item_id: int) -> None
         activity.record(
             ctx,
             "checklist.item_deleted",
-            user_id=user.id,
             card_id=card.id,
             list_id=card.list_id,
             card_title=card.title,
@@ -507,7 +454,6 @@ def _move_destination(db: Session, *, to_checklist_id: int, card_id: int) -> Che
 
 def move_item(
     db: Session,
-    user: User,
     *,
     board_id: int,
     item_id: int,
@@ -552,7 +498,6 @@ def move_item(
         activity.record(
             ctx,
             "checklist.item_moved",
-            user_id=user.id,
             card_id=card.id,
             list_id=card.list_id,
             card_title=card.title,
@@ -573,7 +518,7 @@ def move_item(
 
 
 def convert_item_to_card(
-    db: Session, user: User, *, board_id: int, item_id: int, index: int | str | None = None
+    db: Session, *, board_id: int, item_id: int, index: int | str | None = None
 ) -> Mutation:
     """Convert an item to a card in its own list and delete the item (Section 4.6).
 
@@ -600,14 +545,12 @@ def convert_item_to_card(
             short_id=next_short_id(db, board_id),
             title=item.name,
             position=position,
-            created_by=user.id,
         )
         db.add(card)
         db.flush()  # the id the activity row references
         activity.record(
             ctx,
             "checklist.item_converted",
-            user_id=user.id,
             card_id=source.id,
             list_id=source.list_id,
             card_title=source.title,
@@ -618,4 +561,4 @@ def convert_item_to_card(
         )
         db.delete(item)
         card_id = card.id
-    return Mutation(item=card_summary(db, user, card_id=card_id), board_version=ctx.board_version)
+    return Mutation(item=card_summary(db, card_id=card_id), board_version=ctx.board_version)

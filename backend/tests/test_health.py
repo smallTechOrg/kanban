@@ -1,11 +1,9 @@
-"""The two public endpoints M0 ships (Section 4.7)."""
+"""The two endpoints that name no board, and the error envelope (Section 4.7)."""
 
 from fastapi.testclient import TestClient
 
 from kanban import __version__
 from kanban.constants import (
-    ADMIN_USERNAME,
-    AVATAR_COLORS,
     BOARD_COLORS,
     BOARD_GRADIENTS,
     COVER_COLORS,
@@ -18,18 +16,14 @@ META_FIELDS = (
     "label_colors",
     "cover_colors",
     "board_colors",
-    "avatar_colors",
     "board_gradients",
     "list_colors",
     "max_upload_mb",
-    "signup_enabled",
-    "single_user",
-    "admin_username",
 )
 
 
-def test_health_reports_the_documented_shape(client: TestClient) -> None:
-    response = client.get("/api/health")
+def test_health_reports_the_documented_shape(api: TestClient) -> None:
+    response = api.get("/api/health")
 
     assert response.status_code == 200
     payload = response.json()
@@ -41,34 +35,32 @@ def test_health_reports_the_documented_shape(client: TestClient) -> None:
     assert isinstance(payload["frontend_build"], bool)
 
 
-def test_health_carries_a_request_id(client: TestClient) -> None:
-    response = client.get("/api/health")
+def test_health_carries_a_request_id(api: TestClient) -> None:
+    response = api.get("/api/health")
 
     assert response.headers["X-Request-Id"].startswith("req_")
 
 
-def test_meta_has_every_documented_field(client: TestClient) -> None:
-    payload = client.get("/api/meta").json()
+def test_meta_has_every_documented_field(api: TestClient) -> None:
+    payload = api.get("/api/meta").json()
 
     assert set(payload) == set(META_FIELDS)
     assert payload["version"] == __version__
-    assert payload["admin_username"] == ADMIN_USERNAME
 
 
-def test_meta_serves_the_palettes_from_constants(client: TestClient) -> None:
-    payload = client.get("/api/meta").json()
+def test_meta_serves_the_palettes_from_constants(api: TestClient) -> None:
+    payload = api.get("/api/meta").json()
 
     assert payload["label_colors"] == LABEL_COLORS
     assert payload["cover_colors"] == COVER_COLORS
     assert payload["board_colors"] == BOARD_COLORS
-    assert payload["avatar_colors"] == list(AVATAR_COLORS)
     assert payload["board_gradients"] == BOARD_GRADIENTS
     assert payload["list_colors"] == LIST_COLORS
     assert payload["label_colors"]["none"]["normal"] == "#091E420F"
 
 
-def test_unknown_api_path_returns_the_error_envelope(client: TestClient) -> None:
-    response = client.get("/api/does-not-exist")
+def test_unknown_api_path_returns_the_error_envelope(api: TestClient) -> None:
+    response = api.get("/api/does-not-exist")
 
     assert response.status_code == 404
     error = response.json()["error"]

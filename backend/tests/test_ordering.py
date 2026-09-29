@@ -60,11 +60,9 @@ def test_two_hundred_top_inserts_stay_strictly_ordered(db: Session, board_id: in
     max_examples=60,
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )
-def test_index_in_equals_index_out(
-    db: Session, owner_id: int, siblings: int, target_index: int
-) -> None:
+def test_index_in_equals_index_out(db: Session, siblings: int, target_index: int) -> None:
     """Whatever slot the client asks for, the row lands in it once the rows are re-sorted."""
-    board = Board(name="Property board", owner_id=owner_id)
+    board = Board(name="Property board")
     db.add(board)
     db.flush()
 

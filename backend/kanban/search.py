@@ -1,8 +1,8 @@
 """`GET /api/search`: the FTS5 query behind `SearchPopover` (Sections 2.1.1, 3.4, 4.7 and 6.7).
 
-Three statements answer the whole popover, whatever the install holds: the caller's open boards
-whose name contains the typed text, the ranked card hits from `cards_fts`, and one query that
-resolves the label chips of those hits. Nothing here iterates a result set into further queries.
+Three statements answer the whole popover, whatever the install holds: the open boards whose
+name contains the typed text, the ranked card hits from `cards_fts`, and one query that resolves
+the label chips of those hits. Nothing here iterates a result set into further queries.
 
 Raw SQL lives in this module by design (CLAUDE.md section 2): the cards statement is the one in
 Sections 3.4 and 6.7, run verbatim, because `MATCH` and `bm25()` are FTS5 syntax SQLAlchemy cannot
@@ -15,10 +15,9 @@ same token shape `tokenize='unicode61'` indexes - and rebuilds each one as a quo
 unbalanced bracket is searched for as text or dropped instead of being parsed as an operator (an
 FTS5 syntax error is a 500, and a bare `OR` would silently widen somebody's search).
 
-Only rows the caller may see come back: both statements join `board_members` for `user_id`, so a
-board the caller does not belong to is invisible rather than forbidden, and no id can be enumerated
-through this route. Archived cards, cards inside an archived list and closed boards are excluded,
-which is the same visibility rule as the board payload (Sections 3.7 and 4.3).
+Archived cards, cards inside an archived list and closed boards are excluded, which is the same
+visibility rule as the board payload (Sections 3.7 and 4.3): the popover offers what can be
+opened, so a hit that would land on `ClosedBoardPage` or on an archived card is not offered.
 """
 
 import re
@@ -28,7 +27,7 @@ from typing import Any, Final
 from sqlalchemy import collate, select, text
 from sqlalchemy.orm import Session
 
-from kanban.models import Board, BoardMember, BoardStar, CardLabel, Label, User
+from kanban.models import Board, BoardStar, CardLabel, Label
 from kanban.services.boards import board_summary
 
 #: `GET /api/search?limit=` (Section 4.7) and the ceiling the router validates against.
@@ -55,7 +54,6 @@ SELECT c.id, c.short_id, c.title, c.board_id, c.list_id,
   JOIN cards c ON c.id = cards_fts.rowid
   JOIN lists l ON l.id = c.list_id
   JOIN boards b ON b.id = c.board_id
-  JOIN board_members m ON m.board_id = c.board_id AND m.user_id = :user_id
  WHERE cards_fts MATCH :q
    AND c.is_archived = 0
    AND l.is_archived = 0
@@ -70,42 +68,37 @@ _BOARD_FILTER_SQL: Final[str] = "\n   AND c.board_id = :board_id"
 
 def search(
     db: Session,
-    user: User,
     *,
     q: str,
     board_id: int | None = None,
     limit: int = DEFAULT_SEARCH_LIMIT,
 ) -> dict[str, Any]:
-    """The `{boards, cards}` of Section 4.7 for `q`, as `user` may see it.
+    """The `{boards, cards}` of Section 4.7 for `q`.
 
-    Boards match `name LIKE '%q%' COLLATE NOCASE` over the caller's open boards; cards match
-    `cards_fts` as prefix terms, ranked by `bm25`. `board_id` narrows both groups to that one
-    board - a board the caller does not belong to simply matches nothing, so the answer is empty
-    results rather than a 403. Raises nothing: a query with no indexable term (empty, whitespace
-    or punctuation only) is not an error but an empty result, because `SearchPopover` sends
-    whatever has been typed so far and an error envelope is not a state it renders (Section 2.10).
+    Boards match `name LIKE '%q%' COLLATE NOCASE` over the open boards; cards match `cards_fts`
+    as prefix terms, ranked by `bm25`. `board_id` narrows both groups to that one board. Raises
+    nothing: a query with no indexable term (empty, whitespace or punctuation only) is not an
+    error but an empty result, because `SearchPopover` sends whatever has been typed so far and an
+    error envelope is not a state it renders (Section 2.10).
     """
     typed = q.strip()
     if not typed:
         return {"boards": [], "cards": []}
     return {
-        "boards": _boards(db, user_id=user.id, q=typed, board_id=board_id, limit=limit),
-        "cards": _cards(db, user_id=user.id, q=typed, board_id=board_id, limit=limit),
+        "boards": _boards(db, q=typed, board_id=board_id, limit=limit),
+        "cards": _cards(db, q=typed, board_id=board_id, limit=limit),
     }
 
 
-def _boards(
-    db: Session, *, user_id: int, q: str, board_id: int | None, limit: int
-) -> list[dict[str, Any]]:
-    """Statement 1: the caller's open boards whose name contains `q`, alphabetically.
+def _boards(db: Session, *, q: str, board_id: int | None, limit: int) -> list[dict[str, Any]]:
+    """Statement 1: the open boards whose name contains `q`, alphabetically.
 
     `board_summary()` builds the rows, so the `BoardSummary` of the search response is the same
-    shape (and the same per-user `is_starred` / `my_role`) the home page and the board page read.
+    shape (and the same `is_starred`) the home page and the board page read.
     """
     statement = (
-        select(Board, BoardMember.role, BoardStar.id.label("star_id"))
-        .join(BoardMember, (BoardMember.board_id == Board.id) & (BoardMember.user_id == user_id))
-        .outerjoin(BoardStar, (BoardStar.board_id == Board.id) & (BoardStar.user_id == user_id))
+        select(Board, BoardStar.id.label("star_id"))
+        .outerjoin(BoardStar, BoardStar.board_id == Board.id)
         .where(
             Board.is_closed == 0,
             collate(Board.name, "NOCASE").contains(q, autoescape=True),
@@ -116,20 +109,18 @@ def _boards(
     if board_id is not None:
         statement = statement.where(Board.id == board_id)
     return [
-        board_summary(row.Board, my_role=row.role, is_starred=row.star_id is not None)
+        board_summary(row.Board, is_starred=row.star_id is not None)
         for row in db.execute(statement)
     ]
 
 
-def _cards(
-    db: Session, *, user_id: int, q: str, board_id: int | None, limit: int
-) -> list[dict[str, Any]]:
+def _cards(db: Session, *, q: str, board_id: int | None, limit: int) -> list[dict[str, Any]]:
     """Statement 2 plus the labels query: the ranked `SearchCard[]` of Section 4.7."""
     match = _match_expression(q)
     if not match:
         return []
     sql = _CARDS_SQL.format(board_filter="" if board_id is None else _BOARD_FILTER_SQL)
-    parameters: dict[str, Any] = {"user_id": user_id, "q": match, "limit": limit}
+    parameters: dict[str, Any] = {"q": match, "limit": limit}
     if board_id is not None:
         parameters["board_id"] = board_id
     rows = db.execute(text(sql), parameters).mappings().all()

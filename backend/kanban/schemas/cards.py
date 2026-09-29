@@ -92,8 +92,6 @@ class CardSummary(OptionalFieldsOmitted):
     due_complete: bool
     cover: CardCover | None
     label_ids: list[int]
-    member_ids: list[int]
-    is_watching: bool
     badges: CardBadges
     created_at: str
     updated_at: str
@@ -104,13 +102,13 @@ class CardDetail(CardSummary):
 
     Section 4.5 defines it as `CardSummary` plus the fields no tile needs, which is exactly what
     subclassing expresses: the modal reads one document instead of stitching the board payload's
-    summary together with four more requests. `label_ids` and `member_ids` are inherited rather
-    than expanded into label objects, because the board payload already cached every label and
-    member of the board and a second copy here would be a second source of truth.
+    summary together with four more requests. `label_ids` is inherited rather than expanded into
+    label objects, because the board payload already cached every label of the board and a second
+    copy here would be a second source of truth.
 
-    `board_name` is what `CardModalHeader` and `SharePopover` show, and `list_name` is the
-    "in list To Do" sub-line (Section 2.6.2); both are the current names, not the denormalised
-    ones of `activities.data`, because this is live state rather than history.
+    `board_name` is what `CardModalHeader` shows and `list_name` is the "in list To Do" sub-line
+    (Section 2.6.2); both are the current names, not the denormalised ones of `activities.data`,
+    because this is live state rather than history.
 
     `attachments` is what `AttachmentsSection` renders and what the cover strip reads the original
     image out of (Sections 2.6.1 and 2.6.4); each row carries its own `is_cover`, so "Make cover" /
@@ -142,8 +140,8 @@ class CardCreateIn(BaseModel):
 
     `index` omitted or `"bottom"` appends; `"top"` inserts in front; a number is the 0-based slot
     over the list's active cards (the composer's 1-based `^N` is mapped to `N - 1` client-side,
-    Section 2.4.4). `label_ids` / `member_ids` are what the `#label` / `@member` tokens parse to.
-    `split_lines` turns a multi-line paste into one card per non-empty line, in order.
+    Section 2.4.4). `label_ids` is what the `#label` tokens parse to. `split_lines` turns a
+    multi-line paste into one card per non-empty line, in order.
     """
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -152,7 +150,6 @@ class CardCreateIn(BaseModel):
     index: CardIndex | None = None
     client_id: ClientId | None = None
     label_ids: list[RowId] = Field(default_factory=list)
-    member_ids: list[RowId] = Field(default_factory=list)
     split_lines: bool = False
 
 
@@ -197,19 +194,17 @@ class CardKeepIn(BaseModel):
     """The `keep` object of `POST /api/cards/{card_id}/copy` (Section 4.5).
 
     Every flag defaults to `false`, so a body that names none of them copies the card's own columns
-    and nothing else; `CopyCardPopover` sends all five explicitly with its own defaults of `true`
+    and nothing else; `CopyCardPopover` sends all three explicitly with its own defaults of `true`
     (Section 2.6.5). What each flag actually brings along is `kanban/copy.py`'s `Keep`, which this
-    model is validated into by the router - the field names are the same five, so the two never
-    drift, and a cross-board copy dropping labels and members stays a rule of that module.
+    model is validated into by the router - the field names are the same three, so the two never
+    drift, and a cross-board copy dropping labels stays a rule of that module.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     labels: bool = False
-    members: bool = False
     checklists: bool = False
     attachments: bool = False
-    comments: bool = False
 
 
 class CardCopyIn(BaseModel):
@@ -240,7 +235,7 @@ class CardMoveIn(MoveIn):
     `to_board_id` equal to the card's own board is the ordinary same-board move; a different one is
     the cross-board hand-over of Section 3.6, which `services.cards.move_card` runs as one
     transaction over both boards. Whether the caller may write to it is not a shape but a rule, so
-    `services.cards.target_board` decides it (403 for a board they are not a member of, and for one
+    `services.cards.target_board` decides it (404 for a board that is not there, 409 for one
     that does not exist, so ids cannot be enumerated).
     """
 

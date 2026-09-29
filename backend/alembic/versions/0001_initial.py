@@ -27,22 +27,16 @@ NOW = sa.text("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")
 
 #: Tables in creation order; the reverse is the drop order.
 TABLES = (
-    "users",
-    "sessions",
     "board_backgrounds",
     "boards",
-    "board_members",
     "board_stars",
     "board_views",
     "lists",
     "cards",
     "labels",
     "card_labels",
-    "card_members",
-    "card_watchers",
     "checklists",
     "checklist_items",
-    "comments",
     "attachments",
     "activities",
 )
@@ -57,12 +51,11 @@ def _updated_at() -> sa.Column:
 
 
 def upgrade() -> None:
-    _create_users()
     _create_boards()
     _create_lists_and_cards()
     _create_labels()
     _create_checklists()
-    _create_comments_and_attachments()
+    _create_attachments()
     _create_activities()
     _create_full_text_search()
 
@@ -75,43 +68,6 @@ def downgrade() -> None:
         op.drop_table(table)
 
 
-# =========================================================== users / auth
-
-
-def _create_users() -> None:
-    op.create_table(
-        "users",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("email", sa.Text(collation="NOCASE"), nullable=False, unique=True),
-        sa.Column("username", sa.Text(collation="NOCASE"), nullable=False, unique=True),
-        sa.Column("full_name", sa.Text(), nullable=False),
-        sa.Column("initials", sa.Text(), nullable=False),
-        sa.Column("avatar_color", sa.Text(), nullable=False, server_default=sa.text("'#0052CC'")),
-        sa.Column("password_hash", sa.Text(), nullable=False),
-        _created_at(),
-        _updated_at(),
-        **AUTOINC,
-    )
-
-    op.create_table(
-        "sessions",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=False),
-        sa.Column("token_hash", sa.Text(), nullable=False, unique=True),
-        sa.Column(
-            "user_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("user_agent", sa.Text(), nullable=True),
-        sa.Column("expires_at", sa.Text(), nullable=False),
-        _created_at(),
-        _updated_at(),
-    )
-    op.create_index("ix_sessions_user_id", "sessions", ["user_id"])
-    op.create_index("ix_sessions_expires_at", "sessions", ["expires_at"])
-
-
 # =========================================================== boards
 
 
@@ -119,12 +75,6 @@ def _create_boards() -> None:
     op.create_table(
         "board_backgrounds",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column(
-            "user_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
         sa.Column("file_path", sa.Text(), nullable=False),
         sa.Column("thumb_path", sa.Text(), nullable=False),
         sa.Column("mime_type", sa.Text(), nullable=False),
@@ -135,19 +85,12 @@ def _create_boards() -> None:
         _updated_at(),
         **AUTOINC,
     )
-    op.create_index("ix_board_backgrounds_user_id", "board_backgrounds", ["user_id"])
 
     op.create_table(
         "boards",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("description", sa.Text(), nullable=False, server_default=sa.text("''")),
-        sa.Column(
-            "owner_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="RESTRICT"),
-            nullable=False,
-        ),
         sa.Column("background_type", sa.Text(), nullable=False, server_default=sa.text("'color'")),
         sa.Column(
             "background_value", sa.Text(), nullable=False, server_default=sa.text("'#0079BF'")
@@ -158,7 +101,6 @@ def _create_boards() -> None:
             sa.ForeignKey("board_backgrounds.id", ondelete="SET NULL"),
             nullable=True,
         ),
-        sa.Column("visibility", sa.Text(), nullable=False, server_default=sa.text("'private'")),
         sa.Column("is_closed", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("version", sa.Integer(), nullable=False, server_default=sa.text("0")),
         _created_at(),
@@ -168,35 +110,10 @@ def _create_boards() -> None:
             "background_type IN ('color', 'gradient', 'image')",
             name="ck_boards_background_type",
         ),
-        sa.CheckConstraint(
-            "visibility IN ('private', 'workspace', 'public')", name="ck_boards_visibility"
-        ),
         sa.CheckConstraint("is_closed IN (0, 1)", name="ck_boards_is_closed"),
         **AUTOINC,
     )
-    op.create_index("ix_boards_owner_closed", "boards", ["owner_id", "is_closed"])
-
-    op.create_table(
-        "board_members",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=False),
-        sa.Column(
-            "board_id",
-            sa.Integer(),
-            sa.ForeignKey("boards.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "user_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("role", sa.Text(), nullable=False, server_default=sa.text("'member'")),
-        _created_at(),
-        sa.CheckConstraint("role IN ('admin', 'member', 'observer')", name="ck_board_members_role"),
-        sa.UniqueConstraint("board_id", "user_id"),
-    )
-    op.create_index("ix_board_members_user_id", "board_members", ["user_id"])
+    op.create_index("ix_boards_is_closed", "boards", ["is_closed"])
 
     op.create_table(
         "board_stars",
@@ -207,17 +124,11 @@ def _create_boards() -> None:
             sa.ForeignKey("boards.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column(
-            "user_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
         sa.Column("position", sa.Float(), nullable=False),
         _created_at(),
-        sa.UniqueConstraint("board_id", "user_id"),
+        sa.UniqueConstraint("board_id"),
     )
-    op.create_index("ix_board_stars_user_position", "board_stars", ["user_id", "position"])
+    op.create_index("ix_board_stars_position", "board_stars", ["position"])
 
     op.create_table(
         "board_views",
@@ -228,19 +139,11 @@ def _create_boards() -> None:
             sa.ForeignKey("boards.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column(
-            "user_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
         sa.Column("viewed_at", sa.Text(), nullable=False),
         _created_at(),
-        sa.UniqueConstraint("board_id", "user_id"),
+        sa.UniqueConstraint("board_id"),
     )
-    op.create_index(
-        "ix_board_views_user_viewed", "board_views", ["user_id", sa.text("viewed_at DESC")]
-    )
+    op.create_index("ix_board_views_viewed", "board_views", [sa.text("viewed_at DESC")])
 
 
 # =========================================================== lists / cards
@@ -304,12 +207,6 @@ def _create_lists_and_cards() -> None:
         sa.Column("is_archived", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("is_template", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("client_id", sa.Text(), nullable=True),
-        sa.Column(
-            "created_by",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
         _created_at(),
         _updated_at(),
         sa.CheckConstraint("length(title) BETWEEN 1 AND 16384", name="ck_cards_title_length"),
@@ -380,46 +277,6 @@ def _create_labels() -> None:
     )
     op.create_index("ix_card_labels_label_id", "card_labels", ["label_id"])
 
-    op.create_table(
-        "card_members",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=False),
-        sa.Column(
-            "card_id",
-            sa.Integer(),
-            sa.ForeignKey("cards.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "user_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        _created_at(),
-        sa.UniqueConstraint("card_id", "user_id"),
-    )
-    op.create_index("ix_card_members_user_id", "card_members", ["user_id"])
-
-    op.create_table(
-        "card_watchers",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=False),
-        sa.Column(
-            "card_id",
-            sa.Integer(),
-            sa.ForeignKey("cards.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "user_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        _created_at(),
-        sa.UniqueConstraint("card_id", "user_id"),
-    )
-    op.create_index("ix_card_watchers_user_id", "card_watchers", ["user_id"])
-
 
 # =========================================================== checklists
 
@@ -456,12 +313,6 @@ def _create_checklists() -> None:
         sa.Column("is_checked", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("checked_at", sa.Text(), nullable=True),
         sa.Column("due_at", sa.Text(), nullable=True),
-        sa.Column(
-            "assignee_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
         _created_at(),
         _updated_at(),
         sa.CheckConstraint(
@@ -475,34 +326,10 @@ def _create_checklists() -> None:
     )
 
 
-# =========================================================== comments / attachments
+# =========================================================== attachments
 
 
-def _create_comments_and_attachments() -> None:
-    op.create_table(
-        "comments",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column(
-            "card_id",
-            sa.Integer(),
-            sa.ForeignKey("cards.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "user_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("body", sa.Text(), nullable=False),
-        sa.Column("edited_at", sa.Text(), nullable=True),
-        _created_at(),
-        _updated_at(),
-        sa.CheckConstraint("length(body) BETWEEN 1 AND 16384", name="ck_comments_body_length"),
-        **AUTOINC,
-    )
-    op.create_index("ix_comments_card_created", "comments", ["card_id", sa.text("created_at DESC")])
-
+def _create_attachments() -> None:
     op.create_table(
         "attachments",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
@@ -511,12 +338,6 @@ def _create_comments_and_attachments() -> None:
             sa.Integer(),
             sa.ForeignKey("cards.id", ondelete="CASCADE"),
             nullable=False,
-        ),
-        sa.Column(
-            "user_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="SET NULL"),
-            nullable=True,
         ),
         sa.Column("kind", sa.Text(), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
@@ -562,12 +383,6 @@ def _create_activities() -> None:
             "list_id",
             sa.Integer(),
             sa.ForeignKey("lists.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-        sa.Column(
-            "user_id",
-            sa.Integer(),
-            sa.ForeignKey("users.id", ondelete="SET NULL"),
             nullable=True,
         ),
         sa.Column("type", sa.Text(), nullable=False),

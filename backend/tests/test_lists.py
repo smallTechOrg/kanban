@@ -15,33 +15,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select, text
 
 from kanban import db as db_module
-from kanban.models import Card, CardLabel, CardMember, User
+from kanban.models import Card, CardLabel
 from kanban.ordering import STEP
 from kanban.schemas.lists import UNARCHIVE_CARDS_LIMIT
 from tests.conftest import CSRF_HEADERS
 
 BoardFactory = Callable[..., dict[str, Any]]
-LoggedIn = tuple[TestClient, User]
 
 
 # --------------------------------------------------------------------------- helpers
-
-
-def _register(api: TestClient, username: str) -> tuple[TestClient, dict[str, Any]]:
-    """A second user with a session of their own; `TestClient` keeps its own cookie jar."""
-    other = TestClient(api.app)
-    response = other.post(
-        "/api/auth/register",
-        json={
-            "email": f"{username}@example.com",
-            "username": username,
-            "full_name": f"{username.title()} Tester",
-            "password": "correct-horse-battery",
-        },
-        headers=CSRF_HEADERS,
-    )
-    assert response.status_code == 201, response.text
-    return other, response.json()
 
 
 def _lists(api: TestClient, board_id: int) -> list[dict[str, Any]]:
@@ -104,7 +86,7 @@ def _insert_cards(board_id: int, list_id: int, cards: Sequence[dict[str, Any]]) 
     """
     session = db_module.SessionLocal()
     try:
-        with db_module.user_write(session):
+        with db_module.unversioned_write(session):
             highest = session.execute(
                 select(func.max(Card.short_id)).where(Card.board_id == board_id)
             ).scalar()
@@ -136,9 +118,8 @@ def empty_board(board_factory: BoardFactory) -> dict[str, Any]:
 # --------------------------------------------------------------------------- create
 
 
-def test_create_appends_at_the_end(logged_in: LoggedIn, board: dict[str, Any]) -> None:
+def test_create_appends_at_the_end(api: TestClient, board: dict[str, Any]) -> None:
     """`index` omitted appends, at `max(position) + STEP` (Section 3.6)."""
-    api, _user = logged_in
     created = _create(api, board["id"], "Shipped")
     assert created["item"]["position"] == STEP * 4  # after the three seeded lists
     assert created["item"]["color"] is None
@@ -147,22 +128,19 @@ def test_create_appends_at_the_end(logged_in: LoggedIn, board: dict[str, Any]) -
     assert _names(api, board["id"]) == ["To Do", "Doing", "Done", "Shipped"]
 
 
-def test_create_at_index_zero_goes_to_the_top(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_create_at_index_zero_goes_to_the_top(api: TestClient, board: dict[str, Any]) -> None:
     created = _create(api, board["id"], "Inbox", index=0)
     assert created["item"]["position"] == STEP / 2
     assert _names(api, board["id"])[0] == "Inbox"
 
 
-def test_create_clamps_an_index_past_the_end(logged_in: LoggedIn, board: dict[str, Any]) -> None:
+def test_create_clamps_an_index_past_the_end(api: TestClient, board: dict[str, Any]) -> None:
     """The server clamps to append; the client's view may be stale (Section 3.6)."""
-    api, _user = logged_in
     _create(api, board["id"], "Last", index=99)
     assert _names(api, board["id"])[-1] == "Last"
 
 
-def test_create_rejects_a_blank_name(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_create_rejects_a_blank_name(api: TestClient, board: dict[str, Any]) -> None:
     response = api.post(
         f"/api/boards/{board['id']}/lists", json={"name": " "}, headers=CSRF_HEADERS
     )
@@ -173,9 +151,8 @@ def test_create_rejects_a_blank_name(logged_in: LoggedIn, board: dict[str, Any])
 
 
 def test_read_lists_carries_the_active_card_count(
-    logged_in: LoggedIn, empty_board: dict[str, Any]
+    api: TestClient, empty_board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     list_id = _create(api, empty_board["id"], "To Do")["item"]["id"]
     _insert_cards(
         empty_board["id"],
@@ -190,8 +167,7 @@ def test_read_lists_carries_the_active_card_count(
 # --------------------------------------------------------------------------- patch
 
 
-def test_rename_records_list_renamed(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_rename_records_list_renamed(api: TestClient, board: dict[str, Any]) -> None:
     list_id = _lists(api, board["id"])[0]["id"]
     response = api.patch(
         f"/api/lists/{list_id}", json={"name": "In progress"}, headers=CSRF_HEADERS
@@ -201,8 +177,7 @@ def test_rename_records_list_renamed(logged_in: LoggedIn, board: dict[str, Any])
     assert _activity_types(board["id"])[-1] == "list.renamed"
 
 
-def test_color_is_set_and_removed(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_color_is_set_and_removed(api: TestClient, board: dict[str, Any]) -> None:
     list_id = _lists(api, board["id"])[0]["id"]
     set_response = api.patch(f"/api/lists/{list_id}", json={"color": "green"}, headers=CSRF_HEADERS)
     assert set_response.status_code == 200, set_response.text
@@ -214,19 +189,15 @@ def test_color_is_set_and_removed(logged_in: LoggedIn, board: dict[str, Any]) ->
 
 
 def test_patch_rejects_an_unknown_colour_a_null_name_and_an_empty_body(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     list_id = _lists(api, board["id"])[0]["id"]
     for body in ({"color": "turquoise"}, {"name": None}, {}):
         response = api.patch(f"/api/lists/{list_id}", json=body, headers=CSRF_HEADERS)
         assert response.status_code == 422, (body, response.text)
 
 
-def test_patching_a_name_to_itself_records_nothing(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
-    api, _user = logged_in
+def test_patching_a_name_to_itself_records_nothing(api: TestClient, board: dict[str, Any]) -> None:
     row = _lists(api, board["id"])[0]
     before = _activity_types(board["id"])
     response = api.patch(
@@ -239,8 +210,7 @@ def test_patching_a_name_to_itself_records_nothing(
 # --------------------------------------------------------------------------- move
 
 
-def test_move_to_index_zero_and_to_the_end(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_move_to_index_zero_and_to_the_end(api: TestClient, board: dict[str, Any]) -> None:
     rows = _lists(api, board["id"])
     done = rows[2]["id"]
     to_top = api.post(f"/api/lists/{done}/move", json={"index": 0}, headers=CSRF_HEADERS)
@@ -253,11 +223,8 @@ def test_move_to_index_zero_and_to_the_end(logged_in: LoggedIn, board: dict[str,
     assert to_end.json()["item"]["position"] > _lists(api, board["id"])[1]["position"]
 
 
-def test_move_with_neighbours_lands_between_them(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
+def test_move_with_neighbours_lands_between_them(api: TestClient, board: dict[str, Any]) -> None:
     """`onDragEnd` sends `index` and both neighbours; the neighbours win (Section 4.9)."""
-    api, _user = logged_in
     to_do, doing, done = (row["id"] for row in _lists(api, board["id"]))
     response = api.post(
         f"/api/lists/{done}/move",
@@ -268,10 +235,7 @@ def test_move_with_neighbours_lands_between_them(
     assert _names(api, board["id"]) == ["To Do", "Done", "Doing"]
 
 
-def test_move_rejects_the_list_as_its_own_neighbour(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
-    api, _user = logged_in
+def test_move_rejects_the_list_as_its_own_neighbour(api: TestClient, board: dict[str, Any]) -> None:
     list_id = _lists(api, board["id"])[0]["id"]
     response = api.post(
         f"/api/lists/{list_id}/move",
@@ -283,9 +247,8 @@ def test_move_rejects_the_list_as_its_own_neighbour(
 
 
 def test_move_rejects_a_neighbour_from_another_board(
-    logged_in: LoggedIn, board: dict[str, Any], board_factory: BoardFactory
+    api: TestClient, board: dict[str, Any], board_factory: BoardFactory
 ) -> None:
-    api, _user = logged_in
     other = board_factory("Other board")
     foreign = _lists(api, other["id"])[0]["id"]
     list_id = _lists(api, board["id"])[0]["id"]
@@ -297,22 +260,18 @@ def test_move_rejects_a_neighbour_from_another_board(
     assert response.status_code == 400, response.text
 
 
-def test_move_rejects_a_negative_index(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_move_rejects_a_negative_index(api: TestClient, board: dict[str, Any]) -> None:
     list_id = _lists(api, board["id"])[0]["id"]
     response = api.post(f"/api/lists/{list_id}/move", json={"index": -1}, headers=CSRF_HEADERS)
     assert response.status_code == 422, response.text
 
 
-def test_a_move_reports_a_renumbered_board(
-    logged_in: LoggedIn, empty_board: dict[str, Any]
-) -> None:
+def test_a_move_reports_a_renumbered_board(api: TestClient, empty_board: dict[str, Any]) -> None:
     """Two lists taking turns in the same slot halve the gap until `MIN_GAP` forces a renumber.
 
     `MoveResult.positions` then carries every other list the renumbering rewrote, which is what
     the client writes into its cache instead of refetching the board (Sections 3.6 and 4.9).
     """
-    api, _user = logged_in
     board_id = empty_board["id"]
     _create(api, board_id, "Anchor")
     first = _create(api, board_id, "Leapfrog A")["item"]["id"]
@@ -335,9 +294,8 @@ def test_a_move_reports_a_renumbered_board(
 
 
 def test_copy_duplicates_the_list_and_its_cards(
-    logged_in: LoggedIn, empty_board: dict[str, Any]
+    api: TestClient, empty_board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     board_id = empty_board["id"]
     source = _create(api, board_id, "Backlog", index=0)["item"]["id"]
     _create(api, board_id, "Done")
@@ -366,8 +324,7 @@ def test_copy_duplicates_the_list_and_its_cards(
     assert types[-3:] == ["list.copied", "card.copied", "card.copied"]
 
 
-def test_copied_cards_get_fresh_short_ids(logged_in: LoggedIn, empty_board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_copied_cards_get_fresh_short_ids(api: TestClient, empty_board: dict[str, Any]) -> None:
     board_id = empty_board["id"]
     source = _create(api, board_id, "Backlog")["item"]["id"]
     _insert_cards(board_id, source, [{"title": "Plan"}, {"title": "Build"}])
@@ -391,9 +348,8 @@ def test_copied_cards_get_fresh_short_ids(logged_in: LoggedIn, empty_board: dict
 
 
 def test_copying_an_archived_list_appends_the_copy(
-    logged_in: LoggedIn, empty_board: dict[str, Any]
+    api: TestClient, empty_board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     board_id = empty_board["id"]
     source = _create(api, board_id, "Backlog", index=0)["item"]["id"]
     _create(api, board_id, "Done")
@@ -403,8 +359,7 @@ def test_copying_an_archived_list_appends_the_copy(
     assert _names(api, board_id) == ["Done", "Copy"]
 
 
-def test_copy_honours_an_explicit_index(logged_in: LoggedIn, empty_board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_copy_honours_an_explicit_index(api: TestClient, empty_board: dict[str, Any]) -> None:
     board_id = empty_board["id"]
     source = _create(api, board_id, "Backlog")["item"]["id"]
     _create(api, board_id, "Done")
@@ -412,41 +367,35 @@ def test_copy_honours_an_explicit_index(logged_in: LoggedIn, empty_board: dict[s
     assert _names(api, board_id) == ["Copy", "Backlog", "Done"]
 
 
-def test_copied_cards_keep_their_labels_and_members(
-    logged_in: LoggedIn, empty_board: dict[str, Any]
-) -> None:
-    """A list copy never leaves the board, so both join rows stay valid (Section 4.4).
+def test_copied_cards_keep_their_labels(api: TestClient, empty_board: dict[str, Any]) -> None:
+    """A list copy never leaves the board, so the join row stays valid (Section 4.4).
 
-    `card_labels` and `card_members` have no endpoints before M3, so the two rows are written and
-    read with SQL; the copy itself still goes through `POST /api/lists/{list_id}/copy`.
+    The cards of this module are inserted rather than composed (see the module docstring), so the
+    `card_labels` row is written with SQL too; the copy itself still goes through
+    `POST /api/lists/{list_id}/copy`.
     """
-    api, user = logged_in
     board_id = empty_board["id"]
     source = _create(api, board_id, "Backlog")["item"]["id"]
     (card_id,) = _insert_cards(board_id, source, [{"title": "Tagged"}])
     label_id = api.get(f"/api/boards/{board_id}").json()["labels"][0]["id"]
     session = db_module.SessionLocal()
     try:
-        with db_module.user_write(session):
+        with db_module.unversioned_write(session):
             session.add(CardLabel(card_id=card_id, label_id=label_id))
-            session.add(CardMember(card_id=card_id, user_id=user.id))
     finally:
         session.close()
 
     copy_id = api.post(
         f"/api/lists/{source}/copy", json={"name": "Copy"}, headers=CSRF_HEADERS
     ).json()["item"]["id"]
+
     (copied_card,) = (row[0] for row in _card_rows(copy_id))
     session = db_module.SessionLocal()
     try:
         labels = session.execute(
             select(CardLabel.label_id).where(CardLabel.card_id == copied_card)
         ).scalars()
-        members = session.execute(
-            select(CardMember.user_id).where(CardMember.card_id == copied_card)
-        ).scalars()
         assert list(labels) == [label_id]
-        assert list(members) == [user.id]
     finally:
         session.rollback()
         session.close()
@@ -456,10 +405,9 @@ def test_copied_cards_keep_their_labels_and_members(
 
 
 def test_archive_hides_the_list_and_unarchive_restores_its_slot(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
     """The archived list keeps its `position`, so "Send to board" restores the slot (3.6)."""
-    api, _user = logged_in
     doing = _lists(api, board["id"])[1]
     archived = api.post(f"/api/lists/{doing['id']}/archive", headers=CSRF_HEADERS)
     assert archived.status_code == 200, archived.text
@@ -473,10 +421,7 @@ def test_archive_hides_the_list_and_unarchive_restores_its_slot(
     assert _activity_types(board["id"])[-2:] == ["list.archived", "list.unarchived"]
 
 
-def test_delete_is_409_before_archive_and_204_after(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
-    api, _user = logged_in
+def test_delete_is_409_before_archive_and_204_after(api: TestClient, board: dict[str, Any]) -> None:
     list_id = _lists(api, board["id"])[0]["id"]
     refused = api.delete(f"/api/lists/{list_id}", headers=CSRF_HEADERS)
     assert refused.status_code == 409, refused.text
@@ -488,8 +433,7 @@ def test_delete_is_409_before_archive_and_204_after(
     assert api.delete(f"/api/lists/{list_id}", headers=CSRF_HEADERS).status_code == 404
 
 
-def test_delete_cascades_the_cards(logged_in: LoggedIn, empty_board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_delete_cascades_the_cards(api: TestClient, empty_board: dict[str, Any]) -> None:
     list_id = _create(api, empty_board["id"], "Doomed")["item"]["id"]
     _insert_cards(empty_board["id"], list_id, [{"title": "Goes away"}])
     api.post(f"/api/lists/{list_id}/archive", headers=CSRF_HEADERS)
@@ -501,9 +445,8 @@ def test_delete_cascades_the_cards(logged_in: LoggedIn, empty_board: dict[str, A
 
 
 def test_move_all_cards_appends_in_order_and_renumbers(
-    logged_in: LoggedIn, empty_board: dict[str, Any]
+    api: TestClient, empty_board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     board_id = empty_board["id"]
     source = _create(api, board_id, "To Do")["item"]["id"]
     target = _create(api, board_id, "Doing")["item"]["id"]
@@ -526,9 +469,8 @@ def test_move_all_cards_appends_in_order_and_renumbers(
 
 
 def test_move_all_cards_refuses_another_board_and_itself(
-    logged_in: LoggedIn, empty_board: dict[str, Any], board_factory: BoardFactory
+    api: TestClient, empty_board: dict[str, Any], board_factory: BoardFactory
 ) -> None:
-    api, _user = logged_in
     source = _create(api, empty_board["id"], "To Do")["item"]["id"]
     foreign = _lists(api, board_factory("Elsewhere")["id"])[0]["id"]
     for to_list_id in (foreign, source):
@@ -541,9 +483,8 @@ def test_move_all_cards_refuses_another_board_and_itself(
 
 
 def test_move_all_cards_refuses_an_archived_destination(
-    logged_in: LoggedIn, empty_board: dict[str, Any]
+    api: TestClient, empty_board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     source = _create(api, empty_board["id"], "To Do")["item"]["id"]
     target = _create(api, empty_board["id"], "Doing")["item"]["id"]
     api.post(f"/api/lists/{target}/archive", headers=CSRF_HEADERS)
@@ -554,10 +495,9 @@ def test_move_all_cards_refuses_an_archived_destination(
 
 
 def test_archive_all_cards_returns_the_ids_and_unarchive_cards_restores_them(
-    logged_in: LoggedIn, empty_board: dict[str, Any]
+    api: TestClient, empty_board: dict[str, Any]
 ) -> None:
     """`archived_ids` is the Undo toast's payload and goes straight back (Section 4.4)."""
-    api, _user = logged_in
     board_id = empty_board["id"]
     list_id = _create(api, board_id, "To Do")["item"]["id"]
     card_ids = _insert_cards(board_id, list_id, [{"title": "One"}, {"title": "Two"}])
@@ -582,9 +522,8 @@ def test_archive_all_cards_returns_the_ids_and_unarchive_cards_restores_them(
 
 
 def test_unarchive_cards_ignores_ids_that_are_not_archived_cards_of_the_list(
-    logged_in: LoggedIn, empty_board: dict[str, Any]
+    api: TestClient, empty_board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     board_id = empty_board["id"]
     list_id = _create(api, board_id, "To Do")["item"]["id"]
     other_id = _create(api, board_id, "Doing")["item"]["id"]
@@ -600,9 +539,8 @@ def test_unarchive_cards_ignores_ids_that_are_not_archived_cards_of_the_list(
 
 
 def test_unarchive_cards_refuses_a_card_of_another_board(
-    logged_in: LoggedIn, empty_board: dict[str, Any], board_factory: BoardFactory
+    api: TestClient, empty_board: dict[str, Any], board_factory: BoardFactory
 ) -> None:
-    api, _user = logged_in
     list_id = _create(api, empty_board["id"], "To Do")["item"]["id"]
     other = board_factory("Elsewhere")
     foreign_list = _lists(api, other["id"])[0]["id"]
@@ -616,8 +554,7 @@ def test_unarchive_cards_refuses_a_card_of_another_board(
     assert response.json()["error"]["code"] == "bad_request"
 
 
-def test_unarchive_cards_bounds_the_batch(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_unarchive_cards_bounds_the_batch(api: TestClient, board: dict[str, Any]) -> None:
     list_id = _lists(api, board["id"])[0]["id"]
     for card_ids in ([], list(range(1, UNARCHIVE_CARDS_LIMIT + 2))):
         response = api.post(
@@ -631,8 +568,7 @@ def test_unarchive_cards_bounds_the_batch(logged_in: LoggedIn, board: dict[str, 
 # --------------------------------------------------------------------------- sort
 
 
-def test_sort_by_name_reorders_the_cards(logged_in: LoggedIn, empty_board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_sort_by_name_reorders_the_cards(api: TestClient, empty_board: dict[str, Any]) -> None:
     board_id = empty_board["id"]
     list_id = _create(api, board_id, "To Do")["item"]["id"]
     _insert_cards(board_id, list_id, [{"title": "banana"}, {"title": "Apple"}, {"title": "cherry"}])
@@ -656,10 +592,9 @@ def test_sort_by_name_reorders_the_cards(logged_in: LoggedIn, empty_board: dict[
     ],
 )
 def test_sort_by_creation_and_due_date(
-    logged_in: LoggedIn, empty_board: dict[str, Any], by: str, expected: list[str]
+    api: TestClient, empty_board: dict[str, Any], by: str, expected: list[str]
 ) -> None:
     """`due` sorts cards without a due date last (Section 4.4)."""
-    api, _user = logged_in
     board_id = empty_board["id"]
     list_id = _create(api, board_id, f"Sort by {by}")["item"]["id"]
     _insert_cards(
@@ -684,61 +619,19 @@ def test_sort_by_creation_and_due_date(
     assert [title for _id, title, _position, _archived in _card_rows(list_id)] == expected
 
 
-def test_sort_rejects_an_unknown_order(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_sort_rejects_an_unknown_order(api: TestClient, board: dict[str, Any]) -> None:
     list_id = _lists(api, board["id"])[0]["id"]
     response = api.post(f"/api/lists/{list_id}/sort", json={"by": "colour"}, headers=CSRF_HEADERS)
     assert response.status_code == 422, response.text
 
 
-# --------------------------------------------------------------------------- permissions
-
-
-def test_a_non_member_gets_404_for_every_list_route(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
-    """404, not 403, so board and list ids cannot be enumerated (Section 6.6)."""
-    api, _user = logged_in
-    list_id = _lists(api, board["id"])[0]["id"]
-    stranger, _account = _register(api, "stranger")
-    assert stranger.get(f"/api/boards/{board['id']}/lists").status_code == 404
-    assert (
-        stranger.patch(
-            f"/api/lists/{list_id}", json={"name": "Mine now"}, headers=CSRF_HEADERS
-        ).status_code
-        == 404
-    )
-    assert stranger.post(f"/api/lists/{list_id}/archive", headers=CSRF_HEADERS).status_code == 404
-
-
-def test_an_observer_may_read_but_not_write(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
-    list_id = _lists(api, board["id"])[0]["id"]
-    observer, account = _register(api, "onlooker")
-    granted = api.put(
-        f"/api/boards/{board['id']}/members/{account['id']}",
-        json={"role": "observer"},
-        headers=CSRF_HEADERS,
-    )
-    assert granted.status_code == 200, granted.text
-    assert observer.get(f"/api/boards/{board['id']}/lists").status_code == 200
-    refused = observer.post(
-        f"/api/boards/{board['id']}/lists", json={"name": "Nope"}, headers=CSRF_HEADERS
-    )
-    assert refused.status_code == 403, refused.text
-    assert (
-        observer.patch(
-            f"/api/lists/{list_id}", json={"name": "Nope"}, headers=CSRF_HEADERS
-        ).status_code
-        == 403
-    )
+# --------------------------------------------------------------------------- access
 
 
 def test_a_closed_board_refuses_list_mutations_but_still_reads(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
     """The closed-board guard of Section 4.1 reaches the children through `board_access`."""
-    api, _user = logged_in
     closed = board_factory("Closing down")
     list_id = _lists(api, closed["id"])[0]["id"]
     assert api.post(f"/api/boards/{closed['id']}/close", headers=CSRF_HEADERS).status_code == 200
@@ -748,18 +641,14 @@ def test_a_closed_board_refuses_list_mutations_but_still_reads(
     assert api.get(f"/api/boards/{closed['id']}/lists").status_code == 200
 
 
-def test_an_unknown_list_is_404_and_an_anonymous_caller_is_401(
-    logged_in: LoggedIn, api: TestClient
-) -> None:
-    signed_in, _user = logged_in
+def test_an_unknown_list_is_404_for_every_verb(api: TestClient) -> None:
+    """`list_access()` resolves the list's board first, so no id can be probed (Section 6.6)."""
     assert (
-        signed_in.patch(
-            "/api/lists/9999999", json={"name": "Ghost"}, headers=CSRF_HEADERS
-        ).status_code
+        api.patch("/api/lists/9999999", json={"name": "Ghost"}, headers=CSRF_HEADERS).status_code
         == 404
     )
-    signed_in.cookies.clear()
-    assert api.post("/api/lists/1/archive", headers=CSRF_HEADERS).status_code == 401
+    assert api.post("/api/lists/9999999/archive", headers=CSRF_HEADERS).status_code == 404
+    assert api.delete("/api/lists/9999999", headers=CSRF_HEADERS).status_code == 404
 
 
 # ------------------------------------------------- one version bump, one activity row per mutation
@@ -809,14 +698,13 @@ def _prepare_archive(api: TestClient, board_id: int, list_id: int) -> None:
     ],
 )
 def test_every_mutation_bumps_the_version_once_and_records_one_row(
-    logged_in: LoggedIn,
+    api: TestClient,
     board: dict[str, Any],
     prepare: Callable[[TestClient, int, int], None],
     mutate: Callable[[TestClient, int, int], Any],
     expected_type: str,
 ) -> None:
     """CLAUDE.md section 4: one `write_tx`, one version bump, one activity row per mutation."""
-    api, _user = logged_in
     board_id = board["id"]
     list_id = _lists(api, board_id)[2]["id"]
     prepare(api, board_id, list_id)

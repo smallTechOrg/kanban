@@ -96,17 +96,16 @@ describe('CopyCardPopover', () => {
   it('prefills the title and ticks every keep the card has data for', async () => {
     open();
 
-    // `GET /api/cards/101` answers with the fixture card: one checklist, two labels, one member,
-    // no attachments and no comments — so exactly three rows, all ticked (Section 2.6.5).
+    // `GET /api/cards/101` answers with the fixture card: one checklist, two labels and no
+    // attachments — so exactly two rows, both ticked (Section 2.6.5).
     expect(await screen.findByLabelText('Title')).toHaveValue('Write launch announcement');
-    for (const label of ['Checklists (1)', 'Labels (2)', 'Members (1)']) {
+    for (const label of ['Checklists (1)', 'Labels (2)']) {
       expect(screen.getByRole('checkbox', { name: label })).toBeChecked();
     }
     expect(screen.queryByRole('checkbox', { name: /Attachments/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: /Comments/ })).not.toBeInTheDocument();
   });
 
-  it('disables the label and member keeps for another board and restores them on the way back', async () => {
+  it('disables the label keep for another board and restores it on the way back', async () => {
     const user = userEvent.setup();
     open();
 
@@ -116,22 +115,18 @@ describe('CopyCardPopover', () => {
     await user.selectOptions(board, String(OTHER_BOARD));
 
     const labels = screen.getByRole('checkbox', { name: 'Labels (2)' });
-    const members = screen.getByRole('checkbox', { name: 'Members (1)' });
     await waitFor(() => expect(labels).toBeDisabled());
     expect(labels).not.toBeChecked();
-    expect(members).toBeDisabled();
-    expect(members).not.toBeChecked();
-    // Only those two: the server copies checklists across boards (Section 4.5).
+    // Only that one: the server copies checklists across boards (Section 4.5).
     expect(screen.getByRole('checkbox', { name: 'Checklists (1)' })).toBeEnabled();
 
     await user.selectOptions(board, String(BOARD_ID));
 
     await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Labels (2)' })).toBeEnabled());
     expect(screen.getByRole('checkbox', { name: 'Labels (2)' })).toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Members (1)' })).toBeChecked();
   });
 
-  it('sends every flag explicitly, with the two the target board cannot keep as false', async () => {
+  it('sends every flag explicitly, with the one the target board cannot keep as false', async () => {
     const user = userEvent.setup();
     const bodies = recordCopies();
     open();
@@ -152,9 +147,7 @@ describe('CopyCardPopover', () => {
           keep: {
             checklists: true,
             labels: false,
-            members: false,
             attachments: false,
-            comments: false,
           },
         },
       ]),

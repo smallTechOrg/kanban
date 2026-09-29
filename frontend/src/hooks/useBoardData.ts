@@ -29,7 +29,6 @@ import {
   selectList,
   selectListOrder,
   selectMatchedCardCount,
-  selectMembers,
   setBoardVersion,
   type BoardMeta,
   type BoardState,
@@ -37,7 +36,6 @@ import {
   type Id,
   type LabelRow,
   type ListRow,
-  type MemberRow,
 } from '@/lib/boardState';
 import { normalizeBoard } from '@/lib/normalize';
 
@@ -78,7 +76,7 @@ export function useBoardState(boardId: number): UseQueryResult<BoardState, Error
   return useQuery(boardQuery(boardId));
 }
 
-/** The board row behind `BoardHeader`: name, background, role, star and closed flag. */
+/** The board row behind `BoardHeader`: name, background, star and closed flag. */
 export function useBoardMeta(boardId: number): UseQueryResult<BoardMeta, Error> {
   return useBoardSelector(boardId, selectBoardMeta);
 }
@@ -131,11 +129,6 @@ export function useActiveCardCount(boardId: number, listId: Id): UseQueryResult<
 /** The board's labels in `position` order: label chips and the composer's `#` tokens. */
 export function useLabels(boardId: number): UseQueryResult<LabelRow[], Error> {
   return useBoardSelector(boardId, selectLabels);
-}
-
-/** The board's members: header avatars, tile avatars and the composer's `@` tokens. */
-export function useMembers(boardId: number): UseQueryResult<MemberRow[], Error> {
-  return useBoardSelector(boardId, selectMembers);
 }
 
 // ------------------------------------------------------------------ the writes into this entry

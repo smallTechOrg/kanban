@@ -27,20 +27,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from kanban.constants import (
-    DEFAULT_AVATAR_COLOR,
-    DEFAULT_BOARD_COLOR,
-    LABEL_COLORS,
-    LIST_COLORS,
-    ROLES,
-)
+from kanban.constants import DEFAULT_BOARD_COLOR, LABEL_COLORS, LIST_COLORS
 
-#: Every user-visible entity table carries `INTEGER PRIMARY KEY AUTOINCREMENT`; join tables and
-#: `sessions` use the plain rowid alias (Section 6.5.3). SQLAlchemy only emits AUTOINCREMENT when
-#: asked, and a batch migration must pass the same flag or the rebuilt table loses it. The plain
-#: rowid tables therefore say nothing at all: `autoincrement=False` would change no DDL (SQLite
-#: writes `id INTEGER` + `PRIMARY KEY (id)` either way) but would stop the ORM reading the rowid
-#: back, so `db.add(BoardMember(...))` would raise `FlushError: NULL identity key`.
+#: Every user-visible entity table carries `INTEGER PRIMARY KEY AUTOINCREMENT`; the join tables
+#: use the plain rowid alias (Section 6.5.3). SQLAlchemy only emits AUTOINCREMENT when asked, and
+#: a batch migration must pass the same flag or the rebuilt table loses it. The plain rowid tables
+#: therefore say nothing at all: `autoincrement=False` would change no DDL (SQLite writes
+#: `id INTEGER` + `PRIMARY KEY (id)` either way) but would stop the ORM reading the rowid back, so
+#: `db.add(CardLabel(...))` would raise `FlushError: NULL identity key`.
 AUTOINC: Final[dict[str, bool]] = {"sqlite_autoincrement": True}
 
 #: The DDL default of every `created_at` / `updated_at` column.
@@ -82,62 +76,16 @@ class CreatedAtMixin:
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=text(NOW_SQL))
 
 
-# =========================================================== users / auth
-
-
-class User(TimestampMixin, Base):
-    __tablename__ = "users"
-    __table_args__ = AUTOINC
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    email: Mapped[str] = mapped_column(Text(collation="NOCASE"), nullable=False, unique=True)
-    username: Mapped[str] = mapped_column(Text(collation="NOCASE"), nullable=False, unique=True)
-    full_name: Mapped[str] = mapped_column(Text, nullable=False)
-    #: First letters of the first two words of `full_name`, upper-cased.
-    initials: Mapped[str] = mapped_column(Text, nullable=False)
-    avatar_color: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default=text(f"'{DEFAULT_AVATAR_COLOR}'")
-    )
-    #: argon2id digest ($argon2id$...).
-    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
-
-
-class UserSession(TimestampMixin, Base):
-    """A row of `sessions`, named so it never shadows `sqlalchemy.orm.Session`."""
-
-    __tablename__ = "sessions"
-    __table_args__ = (
-        Index("ix_sessions_user_id", "user_id"),
-        Index("ix_sessions_expires_at", "expires_at"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    #: sha256 hex of the raw 43-char urlsafe token; the cookie carries the signed raw token.
-    token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    user_agent: Mapped[str | None] = mapped_column(Text)
-    #: created_at + KANBAN_SESSION_DAYS, slid at most once every 10 minutes.
-    expires_at: Mapped[str] = mapped_column(Text, nullable=False)
-
-
 # =========================================================== boards
 
 
 class BoardBackground(TimestampMixin, Base):
-    """Custom uploaded background images: a per-user library."""
+    """Custom uploaded background images: the install's library."""
 
     __tablename__ = "board_backgrounds"
-    __table_args__ = (
-        Index("ix_board_backgrounds_user_id", "user_id"),
-        AUTOINC,
-    )
+    __table_args__ = AUTOINC
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
     #: 'backgrounds/{id}.{ext}' relative to data/uploads/.
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
     #: 'backgrounds/{id}.thumb.jpg' (400x240 cover crop).
@@ -156,12 +104,8 @@ class Board(TimestampMixin, Base):
             _in_check("background_type", ("color", "gradient", "image")),
             name="ck_boards_background_type",
         ),
-        CheckConstraint(
-            _in_check("visibility", ("private", "workspace", "public")),
-            name="ck_boards_visibility",
-        ),
         CheckConstraint("is_closed IN (0, 1)", name="ck_boards_is_closed"),
-        Index("ix_boards_owner_closed", "owner_id", "is_closed"),
+        Index("ix_boards_is_closed", "is_closed"),
         AUTOINC,
     )
 
@@ -169,9 +113,6 @@ class Board(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     #: Markdown, "About this board".
     description: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("''"))
-    owner_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
-    )
     background_type: Mapped[str] = mapped_column(
         Text, nullable=False, server_default=text("'color'")
     )
@@ -182,64 +123,39 @@ class Board(TimestampMixin, Base):
     background_image_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("board_backgrounds.id", ondelete="SET NULL")
     )
-    visibility: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'private'"))
     is_closed: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     #: Bumped by every write inside the board; the realtime cursor.
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
 
 
-class BoardMember(CreatedAtMixin, Base):
-    __tablename__ = "board_members"
-    __table_args__ = (
-        CheckConstraint(_in_check("role", ROLES), name="ck_board_members_role"),
-        UniqueConstraint("board_id", "user_id"),
-        Index("ix_board_members_user_id", "user_id"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    board_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("boards.id", ondelete="CASCADE"), nullable=False
-    )
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    role: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'member'"))
-
-
 class BoardStar(CreatedAtMixin, Base):
-    """Per-user "Starred boards", ordered."""
+    """The starred boards of Section 2.2, ordered."""
 
     __tablename__ = "board_stars"
     __table_args__ = (
-        UniqueConstraint("board_id", "user_id"),
-        Index("ix_board_stars_user_position", "user_id", "position"),
+        UniqueConstraint("board_id"),
+        Index("ix_board_stars_position", "position"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     board_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("boards.id", ondelete="CASCADE"), nullable=False
-    )
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     position: Mapped[float] = mapped_column(Float, nullable=False)
 
 
 class BoardView(CreatedAtMixin, Base):
-    """Per-user "Recently viewed" (the top 4 by `viewed_at`)."""
+    """The recently viewed boards of Section 2.2: the top 4 by `viewed_at`."""
 
     __tablename__ = "board_views"
     __table_args__ = (
-        UniqueConstraint("board_id", "user_id"),
-        Index("ix_board_views_user_viewed", "user_id", text("viewed_at DESC")),
+        UniqueConstraint("board_id"),
+        Index("ix_board_views_viewed", text("viewed_at DESC")),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     board_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("boards.id", ondelete="CASCADE"), nullable=False
-    )
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     viewed_at: Mapped[str] = mapped_column(Text, nullable=False)
 
@@ -315,9 +231,6 @@ class Card(TimestampMixin, Base):
     is_template: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     #: Optional 'tmp_<32 hex>' echoed back for an optimistic create.
     client_id: Mapped[str | None] = mapped_column(Text)
-    created_by: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL")
-    )
 
 
 # =========================================================== labels
@@ -358,38 +271,6 @@ class CardLabel(CreatedAtMixin, Base):
     )
 
 
-class CardMember(CreatedAtMixin, Base):
-    __tablename__ = "card_members"
-    __table_args__ = (
-        UniqueConstraint("card_id", "user_id"),
-        Index("ix_card_members_user_id", "user_id"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    card_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False
-    )
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-
-
-class CardWatcher(CreatedAtMixin, Base):
-    __tablename__ = "card_watchers"
-    __table_args__ = (
-        UniqueConstraint("card_id", "user_id"),
-        Index("ix_card_watchers_user_id", "user_id"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    card_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False
-    )
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-
-
 # =========================================================== checklists
 
 
@@ -426,33 +307,9 @@ class ChecklistItem(TimestampMixin, Base):
     is_checked: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     checked_at: Mapped[str | None] = mapped_column(Text)
     due_at: Mapped[str | None] = mapped_column(Text)
-    assignee_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL")
-    )
 
 
-# =========================================================== comments / attachments
-
-
-class Comment(TimestampMixin, Base):
-    __tablename__ = "comments"
-    __table_args__ = (
-        CheckConstraint("length(body) BETWEEN 1 AND 16384", name="ck_comments_body_length"),
-        Index("ix_comments_card_created", "card_id", text("created_at DESC")),
-        AUTOINC,
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    card_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False
-    )
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    #: Markdown.
-    body: Mapped[str] = mapped_column(Text, nullable=False)
-    #: NULL until the first edit; the UI then shows "(edited)".
-    edited_at: Mapped[str | None] = mapped_column(Text)
+# =========================================================== attachments
 
 
 class Attachment(TimestampMixin, Base):
@@ -467,9 +324,6 @@ class Attachment(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     card_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False
-    )
-    user_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL")
     )
     kind: Mapped[str] = mapped_column(Text, nullable=False)
     #: Original filename or link display text.
@@ -512,12 +366,9 @@ class Activity(CreatedAtMixin, Base):
     list_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("lists.id", ondelete="SET NULL")
     )
-    user_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL")
-    )
     #: One of `constants.ACTIVITY_TYPES` (Section 3.8).
     type: Mapped[str] = mapped_column(Text, nullable=False)
-    #: JSON object; names are denormalised at write time.
+    #: JSON object; the names a sentence needs are denormalised at write time.
     data: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'{}'"))
     #: `boards.version` after this write; the SSE cursor.
     board_version: Mapped[int] = mapped_column(Integer, nullable=False)

@@ -4,19 +4,21 @@
  * The table in Section 3.8 is the single source of truth for every sentence, and this module is
  * the only place any of them is written down: the server stores `type` plus a `data` object whose
  * names were denormalised at write time, and never a sentence, so a rename or a deletion cannot
- * make history lie. The actor prefix ("**Vivek** ") belongs to the row that renders this string,
- * not to the string.
+ * make history lie.
+ *
+ * The sentences are written in sentence case and name no actor. One person uses this board, so
+ * "added this card to To Do" would have had nobody to attribute it to and the feed reads as the
+ * record of what happened rather than of who did it.
  *
  * The card feed applies exactly one substitution on top of that table (Section 2.6.3): when the
  * row's `card_id` is the open card, `card_title` reads "this card", so `card.created` becomes
- * "added this card to To Do" while the board feed keeps "added Write plan to To Do". Pass
+ * "Added this card to To Do" while the board feed keeps "Added Write plan to To Do". Pass
  * `openCardId` for the card feed and leave it out for the board feed.
  *
- * Five types have no sentence and `activitySentence` answers `null` for them, which is how the
+ * Three types have no sentence and `activitySentence` answers `null` for them, which is how the
  * feed skips a row: `card.reordered`, `checklist.moved` and `checklist.item_moved` are reorders
- * that travel over SSE only, and `card.watched` / `card.unwatched` are reserved in
- * `ACTIVITY_TYPES` but never written (watch toggles bypass `write_tx`). An unknown type — one a
- * newer server writes — is answered the same way rather than with a broken sentence.
+ * that travel over SSE only. An unknown type — one a newer server writes — is answered the same
+ * way rather than with a broken sentence.
  */
 import { formatDateTime } from './dates';
 
@@ -56,10 +58,6 @@ function count(data: ActivityData, key: string): number {
   return typeof value === 'number' ? value : 0;
 }
 
-function flag(data: ActivityData, key: string): boolean {
-  return data[key] === true;
-}
-
 /** The "(from Doing)" tail the rename sentences and `label.updated` share (Section 3.8). */
 function withFrom(sentence: string, from: string): string {
   return from === '' ? sentence : `${sentence} (from ${from})`;
@@ -94,126 +92,101 @@ function itemOn(data: ActivityData): string {
  */
 const RENDERERS: Readonly<Record<string, Renderer>> = {
   // --------------------------------------------------------------------------- board
-  'board.created': () => 'created this board',
-  'board.renamed': ({ data }) => withFrom('renamed this board', text(data, 'from')),
-  'board.description_changed': () => 'updated the description of this board',
-  'board.visibility_changed': ({ data }) =>
-    `changed the visibility of this board to ${text(data, 'to')}`,
-  'board.background_changed': () => 'changed the background of this board',
-  'board.closed': () => 'closed this board',
-  'board.reopened': () => 're-opened this board',
-
-  // -------------------------------------------------------------------------- member
-  'member.added': ({ data }) => `added ${text(data, 'member_name')} to this board`,
-  'member.removed': ({ data }) =>
-    flag(data, 'self') ? 'left this board' : `removed ${text(data, 'member_name')} from this board`,
-  'member.role_changed': ({ data }) =>
-    withFrom(
-      `changed ${text(data, 'member_name')}'s role to ${text(data, 'role')}`,
-      text(data, 'from_role'),
-    ),
+  'board.created': () => 'Created this board',
+  'board.renamed': ({ data }) => withFrom('Renamed this board', text(data, 'from')),
+  'board.description_changed': () => 'Updated the description of this board',
+  'board.background_changed': () => 'Changed the background of this board',
+  'board.closed': () => 'Closed this board',
+  'board.reopened': () => 'Re-opened this board',
 
   // ---------------------------------------------------------------------------- list
-  'list.created': ({ data }) => `added list ${text(data, 'list_name')} to this board`,
-  'list.renamed': ({ data }) => withFrom(`renamed list ${text(data, 'to')}`, text(data, 'from')),
-  'list.moved': ({ data }) => `moved list ${text(data, 'list_name')}`,
+  'list.created': ({ data }) => `Added list ${text(data, 'list_name')} to this board`,
+  'list.renamed': ({ data }) => withFrom(`Renamed list ${text(data, 'to')}`, text(data, 'from')),
+  'list.moved': ({ data }) => `Moved list ${text(data, 'list_name')}`,
   'list.moved_out': ({ data }) =>
-    `moved list ${text(data, 'list_name')} to board ${text(data, 'other_board_name')}`,
+    `Moved list ${text(data, 'list_name')} to board ${text(data, 'other_board_name')}`,
   'list.moved_in': ({ data }) =>
-    `moved list ${text(data, 'list_name')} from board ${text(data, 'other_board_name')}`,
+    `Moved list ${text(data, 'list_name')} from board ${text(data, 'other_board_name')}`,
   'list.copied': ({ data }) =>
-    `copied list ${text(data, 'list_name')} from ${text(data, 'source_list_name')}`,
-  'list.archived': ({ data }) => `archived list ${text(data, 'list_name')}`,
-  'list.unarchived': ({ data }) => `sent list ${text(data, 'list_name')} to the board`,
+    `Copied list ${text(data, 'list_name')} from ${text(data, 'source_list_name')}`,
+  'list.archived': ({ data }) => `Archived list ${text(data, 'list_name')}`,
+  'list.unarchived': ({ data }) => `Sent list ${text(data, 'list_name')} to the board`,
   'list.color_changed': ({ data }) =>
     text(data, 'color') === ''
-      ? `removed the color from list ${text(data, 'list_name')}`
-      : `changed the color of list ${text(data, 'list_name')}`,
+      ? `Removed the color from list ${text(data, 'list_name')}`
+      : `Changed the color of list ${text(data, 'list_name')}`,
 
   // ---------------------------------------------------------------------------- card
-  'card.created': ({ data, card }) => `added ${card} to ${text(data, 'list_name')}`,
+  'card.created': ({ data, card }) => `Added ${card} to ${text(data, 'list_name')}`,
   'card.copied': ({ data, card }) =>
-    `copied ${card} from ${text(data, 'source_card_title')} in list ${text(
+    `Copied ${card} from ${text(data, 'source_card_title')} in list ${text(
       data,
       'source_list_name',
     )}`,
-  'card.renamed': ({ data }) => withFrom('renamed this card', text(data, 'from')),
-  'card.description_changed': () => 'updated the description of this card',
+  'card.renamed': ({ data }) => withFrom('Renamed this card', text(data, 'from')),
+  'card.description_changed': () => 'Updated the description of this card',
   'card.moved': ({ data }) =>
-    `moved this card from ${text(data, 'from_list_name')} to ${text(data, 'to_list_name')}`,
-  'card.moved_out': ({ data }) => `moved this card to board ${text(data, 'other_board_name')}`,
-  'card.moved_in': ({ data }) => `moved this card from board ${text(data, 'other_board_name')}`,
-  'card.archived': () => 'archived this card',
-  'card.unarchived': () => 'sent this card to the board',
+    `Moved this card from ${text(data, 'from_list_name')} to ${text(data, 'to_list_name')}`,
+  'card.moved_out': ({ data }) => `Moved this card to board ${text(data, 'other_board_name')}`,
+  'card.moved_in': ({ data }) => `Moved this card from board ${text(data, 'other_board_name')}`,
+  'card.archived': () => 'Archived this card',
+  'card.unarchived': () => 'Sent this card to the board',
   'card.deleted': ({ data }) =>
-    `deleted card ${text(data, 'card_title')} from ${text(data, 'list_name')}`,
+    `Deleted card ${text(data, 'card_title')} from ${text(data, 'list_name')}`,
   // One row covers both date columns (Section 4.5), so it also has to read as a sentence when
   // the card was given a start date and no due date at all.
   'card.due_set': ({ data, now }) => {
     const due = text(data, 'due_at');
     return due === ''
-      ? `set this card to start ${formatDateTime(text(data, 'start_at'), now)}`
-      : `set this card to be due ${formatDateTime(due, now)}`;
+      ? `Set this card to start ${formatDateTime(text(data, 'start_at'), now)}`
+      : `Set this card to be due ${formatDateTime(due, now)}`;
   },
-  'card.due_removed': () => 'removed the due date from this card',
-  'card.due_completed': () => 'marked the due date complete',
-  'card.due_incompleted': () => 'marked the due date incomplete',
-  'card.cover_changed': () => 'updated the cover of this card',
-  'card.cover_removed': () => 'removed the cover from this card',
-  'card.template_set': () => 'made this card a template',
-  'card.template_unset': () => 'converted this card from a template to a normal card',
-  'card.label_added': ({ data }) => `added ${labelPhrase(data)} to this card`,
-  'card.label_removed': ({ data }) => `removed ${labelPhrase(data)} from this card`,
-  'card.member_added': ({ data }) =>
-    flag(data, 'self') ? 'joined this card' : `added ${text(data, 'member_name')} to this card`,
-  'card.member_removed': ({ data }) =>
-    flag(data, 'self') ? 'left this card' : `removed ${text(data, 'member_name')} from this card`,
+  'card.due_removed': () => 'Removed the due date from this card',
+  'card.due_completed': () => 'Marked the due date complete',
+  'card.due_incompleted': () => 'Marked the due date incomplete',
+  'card.cover_changed': () => 'Updated the cover of this card',
+  'card.cover_removed': () => 'Removed the cover from this card',
+  'card.template_set': () => 'Made this card a template',
+  'card.template_unset': () => 'Converted this card from a template to a normal card',
+  'card.label_added': ({ data }) => `Added ${labelPhrase(data)} to this card`,
+  'card.label_removed': ({ data }) => `Removed ${labelPhrase(data)} from this card`,
 
   // --------------------------------------------------------------------------- label
-  'label.created': ({ data }) => `created ${labelTarget(data)}`,
-  'label.updated': ({ data }) => withFrom(`updated ${labelTarget(data)}`, text(data, 'from_name')),
+  'label.created': ({ data }) => `Created ${labelTarget(data)}`,
+  'label.updated': ({ data }) => withFrom(`Updated ${labelTarget(data)}`, text(data, 'from_name')),
   'label.deleted': ({ data }) =>
-    `deleted ${labelTarget(data)} (removed from ${cardCount(count(data, 'card_count'))})`,
+    `Deleted ${labelTarget(data)} (removed from ${cardCount(count(data, 'card_count'))})`,
 
   // ----------------------------------------------------------------------- checklist
-  'checklist.added': ({ data }) => `added checklist ${text(data, 'checklist_name')} to this card`,
+  'checklist.added': ({ data }) => `Added checklist ${text(data, 'checklist_name')} to this card`,
   'checklist.renamed': ({ data }) =>
-    withFrom(`renamed checklist ${text(data, 'checklist_name')}`, text(data, 'from')),
+    withFrom(`Renamed checklist ${text(data, 'checklist_name')}`, text(data, 'from')),
   'checklist.deleted': ({ data }) =>
-    `removed checklist ${text(data, 'checklist_name')} from this card`,
+    `Removed checklist ${text(data, 'checklist_name')} from this card`,
   'checklist.item_added': ({ data }) =>
-    `added ${text(data, 'item_name')} to ${text(data, 'checklist_name')}`,
-  'checklist.item_renamed': ({ data }) => withFrom(`renamed ${itemOn(data)}`, text(data, 'from')),
+    `Added ${text(data, 'item_name')} to ${text(data, 'checklist_name')}`,
+  'checklist.item_renamed': ({ data }) => withFrom(`Renamed ${itemOn(data)}`, text(data, 'from')),
   'checklist.item_deleted': ({ data }) =>
-    `removed ${text(data, 'item_name')} from ${text(data, 'checklist_name')}`,
-  'checklist.item_checked': ({ data }) => `completed ${itemOn(data)}`,
+    `Removed ${text(data, 'item_name')} from ${text(data, 'checklist_name')}`,
+  'checklist.item_checked': ({ data }) => `Completed ${itemOn(data)}`,
   'checklist.item_unchecked': ({ data }) =>
-    `marked ${text(data, 'item_name')} incomplete on ${text(data, 'checklist_name')}`,
+    `Marked ${text(data, 'item_name')} incomplete on ${text(data, 'checklist_name')}`,
   'checklist.item_due_set': ({ data, now }) =>
-    `set ${itemOn(data)} to be due ${formatDateTime(text(data, 'due_at'), now)}`,
-  'checklist.item_due_removed': ({ data }) => `removed the due date from ${itemOn(data)}`,
-  'checklist.item_assigned': ({ data }) =>
-    `assigned ${itemOn(data)} to ${text(data, 'member_name')}`,
-  'checklist.item_unassigned': ({ data }) =>
-    `unassigned ${text(data, 'member_name')} from ${itemOn(data)}`,
-  'checklist.item_converted': ({ data }) => `converted ${text(data, 'item_name')} to a card`,
+    `Set ${itemOn(data)} to be due ${formatDateTime(text(data, 'due_at'), now)}`,
+  'checklist.item_due_removed': ({ data }) => `Removed the due date from ${itemOn(data)}`,
+  'checklist.item_converted': ({ data }) => `Converted ${text(data, 'item_name')} to a card`,
 
   // ---------------------------------------------------------------------- attachment
-  'attachment.added': ({ data }) => `attached ${text(data, 'attachment_name')} to this card`,
+  'attachment.added': ({ data }) => `Attached ${text(data, 'attachment_name')} to this card`,
   'attachment.renamed': ({ data }) =>
-    withFrom(`renamed the attachment ${text(data, 'attachment_name')}`, text(data, 'from')),
+    withFrom(`Renamed the attachment ${text(data, 'attachment_name')}`, text(data, 'from')),
   'attachment.deleted': ({ data }) =>
-    `deleted the ${text(data, 'attachment_name')} attachment from this card`,
-
-  // ------------------------------------------------------------------------- comment
-  'comment.added': () => 'commented on this card',
-  'comment.edited': () => 'edited a comment on this card',
-  'comment.deleted': () => 'deleted a comment from this card',
+    `Deleted the ${text(data, 'attachment_name')} attachment from this card`,
 };
 
 /**
  * The Section 3.8 sentence for one activity row, or `null` when the type has none and the feed
- * should skip the row. The actor is not part of it: the feed renders "**Vivek** " in front.
+ * should skip the row.
  */
 export function activitySentence(row: ActivityRow, options: SentenceOptions = {}): string | null {
   const render = RENDERERS[row.type];

@@ -1,11 +1,6 @@
 import { memo, type ReactElement } from 'react';
 import { Plus } from 'lucide-react';
-import {
-  useActiveCardCount,
-  useBoardMeta,
-  useList,
-  useMatchedCardCount,
-} from '@/hooks/useBoardData';
+import { useActiveCardCount, useList, useMatchedCardCount } from '@/hooks/useBoardData';
 import { useBoardFilter } from '@/hooks/useBoardFilter';
 import { useMeta } from '@/hooks/useMeta';
 import { listBackground, type ListPalette } from '@/lib/colors';
@@ -49,21 +44,19 @@ function ListColumnView({ boardId, listId, index }: ListColumnProps): ReactEleme
   const cardCount = useActiveCardCount(boardId, listId).data ?? 0;
   const { active: filterActive, matches } = useBoardFilter(boardId);
   const matchedCount = useMatchedCardCount(boardId, listId, filterActive ? matches : null).data;
-  const role = useBoardMeta(boardId).data?.my_role;
   const palette: ListPalette = useMeta().data?.list_colors ?? NO_PALETTE;
   const composer = useUiStore((state) => state.composer);
   const setComposer = useUiStore((state) => state.setComposer);
 
   if (list === undefined) return null;
 
-  const canEdit = role !== undefined && role !== 'observer';
   const openComposer =
     composer !== null && composer.kind === 'card' && composer.listId === listId ? composer : null;
   const composerAtTop = openComposer?.index === 'top';
   const closeComposer = (): void => setComposer(null);
 
   return (
-    <ListDraggable boardId={boardId} listId={listId} index={index}>
+    <ListDraggable listId={listId} index={index}>
       {({ handleProps }) => (
         <section
           className={styles.column}
@@ -76,7 +69,6 @@ function ListColumnView({ boardId, listId, index }: ListColumnProps): ReactEleme
             name={list.name}
             cardCount={cardCount}
             matchedCount={matchedCount}
-            canEdit={canEdit}
             handleProps={handleProps}
           />
 
@@ -88,27 +80,25 @@ function ListColumnView({ boardId, listId, index }: ListColumnProps): ReactEleme
 
           <CardList boardId={boardId} listId={listId} />
 
-          {!canEdit ? null : (
-            <div className={styles.footer}>
-              {openComposer !== null && !composerAtTop ? (
-                <CardComposer
-                  boardId={boardId}
-                  listId={listId}
-                  index={openComposer.index}
-                  onClose={closeComposer}
-                />
-              ) : composerAtTop ? null : (
-                <button
-                  type="button"
-                  className={styles.addCard}
-                  onClick={() => setComposer({ kind: 'card', listId })}
-                >
-                  <Plus aria-hidden="true" className={styles.plus} />
-                  Add a card
-                </button>
-              )}
-            </div>
-          )}
+          <div className={styles.footer}>
+            {openComposer !== null && !composerAtTop ? (
+              <CardComposer
+                boardId={boardId}
+                listId={listId}
+                index={openComposer.index}
+                onClose={closeComposer}
+              />
+            ) : composerAtTop ? null : (
+              <button
+                type="button"
+                className={styles.addCard}
+                onClick={() => setComposer({ kind: 'card', listId })}
+              >
+                <Plus aria-hidden="true" className={styles.plus} />
+                Add a card
+              </button>
+            )}
+          </div>
         </section>
       )}
     </ListDraggable>

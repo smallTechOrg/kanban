@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { normalizeBoard } from '@/lib/normalize';
 import { EMPTY_FILTER, useUiStore } from '@/store/uiStore';
-import { boardPayloadFixture, userFixture } from '@/test/handlers';
+import { boardPayloadFixture } from '@/test/handlers';
 import { server } from '@/test/server';
 import { boardKey } from './useBoardData';
 import { SHORTCUT_ANCHOR_ATTR, useKeyboardShortcuts } from './useKeyboardShortcuts';
@@ -34,8 +34,6 @@ function mount(scope: 'global' | 'board' = 'board'): void {
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
   queryClient.setQueryData(boardKey(BOARD_ID), normalizeBoard(boardPayloadFixture));
-  // `Space` assigns *me*, so the signed-in user has to be in the cache before the key is pressed.
-  queryClient.setQueryData(['me'], userFixture);
   renderHook(
     () => {
       useKeyboardShortcuts(scope, scope === 'board' ? BOARD_ID : undefined);
@@ -111,16 +109,15 @@ describe('useKeyboardShortcuts', () => {
     expect(useUiStore.getState().boardMenuOpen).toBe(false);
   });
 
-  it('drives the filter with F, Q and X and the drawer with W', () => {
+  it('drives the filter with F and X and the drawer with W', () => {
     anchor('filter');
     mount();
 
     press('F');
     expect(useUiStore.getState().openPopover?.kind).toBe('filter');
 
-    useUiStore.getState().setOpenPopover(null);
-    press('Q');
-    expect(useUiStore.getState().filter.mine).toBe(true);
+    set(() => useUiStore.getState().setOpenPopover(null));
+    set(() => useUiStore.getState().setFilter({ q: 'launch' }));
 
     press('X');
     expect(useUiStore.getState().filter).toEqual(EMPTY_FILTER);
@@ -217,7 +214,7 @@ describe('useKeyboardShortcuts', () => {
     expect(useUiStore.getState().quickEditSelectsTitle).toBe(true);
   });
 
-  it('anchors the L popover to the tile and the modal sidebar row', () => {
+  it('anchors a card panel to the tile, and to the modal sidebar row when it exists', () => {
     const tile = anchor(`card-${String(FIRST)}`);
     mount();
     set(() => useUiStore.getState().setHoveredCardId(FIRST));
@@ -229,15 +226,15 @@ describe('useKeyboardShortcuts', () => {
       props: { cardId: FIRST, shortcut: true },
     });
 
-    const row = anchor('members');
+    const row = anchor('dates');
     set(() => useUiStore.getState().setOpenPopover(null));
     set(() => useUiStore.getState().setOpenCardId(FIRST));
-    press('M');
-    expect(useUiStore.getState().openPopover).toMatchObject({ kind: 'members', anchor: row });
+    press('D');
+    expect(useUiStore.getState().openPopover).toMatchObject({ kind: 'dates', anchor: row });
     expect(useUiStore.getState().openPopover?.props).toBeUndefined();
   });
 
-  it('assigns me with Space and toggles the first label with 1', async () => {
+  it('toggles the first label of the board with 1', async () => {
     const seen: string[] = [];
     server.events.on('request:start', ({ request }) => {
       if (request.method !== 'GET') seen.push(`${request.method} ${new URL(request.url).pathname}`);
@@ -245,14 +242,10 @@ describe('useKeyboardShortcuts', () => {
     mount();
     set(() => useUiStore.getState().setHoveredCardId(FIRST));
 
-    // Card 101 already carries member 1 (me) and labels 31 and 32, so both keys detach.
-    press('Space');
+    // Card 101 already carries labels 31 and 32, so the key detaches the first of them.
     press('1');
 
-    await waitFor(() => {
-      expect(seen).toContain('DELETE /api/cards/101/members/1');
-      expect(seen).toContain('DELETE /api/cards/101/labels/31');
-    });
+    await waitFor(() => expect(seen).toContain('DELETE /api/cards/101/labels/31'));
     server.events.removeAllListeners();
   });
 

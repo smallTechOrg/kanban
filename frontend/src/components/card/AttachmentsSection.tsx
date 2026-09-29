@@ -38,13 +38,6 @@ interface RowPopover {
 export interface AttachmentsSectionProps {
   boardId: number;
   card: CardDetail;
-  readOnly?: boolean;
-  /**
-   * Section 2.6.3's "Comment" action: it focuses the comment box with `[name](url)` already in
-   * it, so the insertion belongs to whoever owns that draft. The action is omitted without it
-   * rather than rendered as a control that does nothing.
-   */
-  onComment?: (markdown: string) => void;
 }
 
 /**
@@ -63,12 +56,7 @@ export interface AttachmentsSectionProps {
  * cover endpoints `CoverPopover` uses, so a row's own button and the popover agree without either
  * knowing about the other (`is_cover` is derived from the card's cover, never stored twice).
  */
-export function AttachmentsSection({
-  boardId,
-  card,
-  readOnly = false,
-  onComment,
-}: AttachmentsSectionProps): ReactElement {
+export function AttachmentsSection({ boardId, card }: AttachmentsSectionProps): ReactElement {
   const [addAnchor, setAddAnchor] = useState<HTMLElement | null>(null);
   const [rowPopover, setRowPopover] = useState<RowPopover | null>(null);
   const [dialog, setDialog] = useState<HTMLElement | null>(null);
@@ -87,7 +75,7 @@ export function AttachmentsSection({
   }, []);
 
   useEffect(() => {
-    if (dialog === null || readOnly) return undefined;
+    if (dialog === null) return undefined;
 
     function carriesFiles(event: DragEvent): boolean {
       return Array.from(event.dataTransfer?.types ?? []).includes('Files');
@@ -118,7 +106,7 @@ export function AttachmentsSection({
       dialog.removeEventListener('dragleave', onDragLeave);
       dialog.removeEventListener('drop', onDrop);
     };
-  }, [dialog, readOnly, upload]);
+  }, [dialog, upload]);
 
   const size = card.cover?.size ?? 'normal';
 
@@ -133,16 +121,6 @@ export function AttachmentsSection({
   function rowActions(attachment: Attachment): ReactElement {
     return (
       <div className={styles.actions}>
-        {onComment === undefined ? null : (
-          <span className={styles.action}>
-            <Button
-              variant="link"
-              onClick={() => onComment(`[${attachment.name}](${attachment.url})`)}
-            >
-              Comment
-            </Button>
-          </span>
-        )}
         <span className={styles.action}>
           <a
             className={styles.download}
@@ -203,20 +181,12 @@ export function AttachmentsSection({
         <h3 className={styles.heading} id="card-attachments-heading">
           Attachments
         </h3>
-        {readOnly ? null : (
-          <Button onClick={(event) => setAddAnchor(event.currentTarget)}>Add</Button>
-        )}
+        <Button onClick={(event) => setAddAnchor(event.currentTarget)}>Add</Button>
       </div>
 
       <div className={styles.body}>
         {card.attachments.length === 0 && pending.length === 0 ? (
-          <EmptyState
-            message={
-              readOnly
-                ? 'No attachments'
-                : 'No attachments yet. Drop files on this card, or use Add.'
-            }
-          />
+          <EmptyState message="No attachments yet. Drop files on this card, or use Add." />
         ) : null}
 
         <ul className={styles.rows}>
@@ -239,7 +209,7 @@ export function AttachmentsSection({
                   {attachment.name}
                 </a>
                 <p className={styles.meta}>{`Added ${formatDateTime(attachment.created_at)}`}</p>
-                {readOnly ? null : rowActions(attachment)}
+                {rowActions(attachment)}
               </div>
             </li>
           ))}

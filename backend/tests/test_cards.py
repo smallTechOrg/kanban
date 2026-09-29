@@ -16,12 +16,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, update
 
 from kanban import db as db_module
-from kanban.models import Card, List, User
+from kanban.models import Card, List
 from kanban.ordering import STEP
 from tests.conftest import CSRF_HEADERS
 
 BoardFactory = Callable[..., dict[str, Any]]
-LoggedIn = tuple[TestClient, User]
 
 
 # --------------------------------------------------------------------------- shared helpers
@@ -30,8 +29,8 @@ LoggedIn = tuple[TestClient, User]
 def session() -> Iterator[Any]:
     """A short-lived Session, closed at once so it never holds a WAL read snapshot open.
 
-    The reason is the one `conftest._detached_user` documents: a Session kept open across API
-    calls would not see the rows those calls write (Section 6.5.2).
+    A Session kept open across API calls would hold a WAL read snapshot, so the rows those calls
+    write would be invisible to it (Section 6.5.2).
     """
     db = db_module.SessionLocal()
     try:
@@ -56,7 +55,7 @@ def archive_list(list_id: int) -> None:
     """Archive one list through the app's own lock discipline (`routers/lists.py` is M2 too)."""
     db = db_module.SessionLocal()
     try:
-        with db_module.user_write(db):
+        with db_module.unversioned_write(db):
             db.execute(update(List).where(List.id == list_id).values(is_archived=1))
     finally:
         db.close()
@@ -115,23 +114,6 @@ def board_version(api: TestClient, board_id: int) -> int:
     return int(api.get(f"/api/boards/{board_id}").json()["board"]["version"])
 
 
-def register(api: TestClient, username: str) -> tuple[TestClient, dict[str, Any]]:
-    """A second account with its own cookie jar, for the 404 / 403 permission tests."""
-    other = TestClient(api.app)
-    response = other.post(
-        "/api/auth/register",
-        json={
-            "email": f"{username}@example.com",
-            "username": username,
-            "full_name": f"{username.title()} Tester",
-            "password": "correct-horse-battery",
-        },
-        headers=CSRF_HEADERS,
-    )
-    assert response.status_code == 201, response.text
-    return other, response.json()
-
-
 @pytest.fixture
 def todo(board: dict[str, Any]) -> int:
     """The id of the seeded `To Do` list of the module's board."""
@@ -142,10 +124,8 @@ def todo(board: dict[str, Any]) -> int:
 
 
 def test_create_appends_at_the_bottom_and_numbers_short_ids(
-    logged_in: LoggedIn, board: dict[str, Any], todo: int
+    api: TestClient, board: dict[str, Any], todo: int
 ) -> None:
-    api, _user = logged_in
-
     first = create_card(api, todo, "First")
     second = create_card(api, todo, "Second")
 
@@ -156,8 +136,7 @@ def test_create_appends_at_the_bottom_and_numbers_short_ids(
     assert second["board_version"] == board_version(api, board["id"])
 
 
-def test_create_at_the_top_halves_the_first_position(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_create_at_the_top_halves_the_first_position(api: TestClient, todo: int) -> None:
     create_card(api, todo, "Bottom")
 
     top = create_card(api, todo, "Top", index="top")["item"]
@@ -166,8 +145,7 @@ def test_create_at_the_top_halves_the_first_position(logged_in: LoggedIn, todo: 
     assert [card_id for card_id, _ in active_cards(todo)][0] == top["id"]
 
 
-def test_create_at_an_index_lands_between_its_neighbours(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_create_at_an_index_lands_between_its_neighbours(api: TestClient, todo: int) -> None:
     create_card(api, todo, "A")
     create_card(api, todo, "B")
 
@@ -177,8 +155,7 @@ def test_create_at_an_index_lands_between_its_neighbours(logged_in: LoggedIn, to
     assert [card_id for card_id, _ in active_cards(todo)][1] == middle["id"]
 
 
-def test_create_with_bottom_appends_like_an_absent_index(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_create_with_bottom_appends_like_an_absent_index(api: TestClient, todo: int) -> None:
     create_card(api, todo, "A")
 
     last = create_card(api, todo, "B", index="bottom")["item"]
@@ -186,9 +163,7 @@ def test_create_with_bottom_appends_like_an_absent_index(logged_in: LoggedIn, to
     assert last["position"] == 2 * STEP
 
 
-def test_split_lines_creates_one_card_per_non_empty_line(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
-
+def test_split_lines_creates_one_card_per_non_empty_line(api: TestClient, todo: int) -> None:
     created = create_card(api, todo, "One\n  Two  \n\nThree", split_lines=True)
 
     assert [item["title"] for item in created["items"]] == ["One", "Two", "Three"]
@@ -198,8 +173,7 @@ def test_split_lines_creates_one_card_per_non_empty_line(logged_in: LoggedIn, to
     assert created["board_version"] == 2
 
 
-def test_split_lines_at_the_top_keeps_the_pasted_order(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_split_lines_at_the_top_keeps_the_pasted_order(api: TestClient, todo: int) -> None:
     anchor = create_card(api, todo, "Anchor")["item"]
 
     created = create_card(api, todo, "One\nTwo", split_lines=True, index="top")
@@ -211,9 +185,7 @@ def test_split_lines_at_the_top_keeps_the_pasted_order(logged_in: LoggedIn, todo
     ]
 
 
-def test_client_id_is_echoed_for_the_rows_lifetime(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
-
+def test_client_id_is_echoed_for_the_rows_lifetime(api: TestClient, todo: int) -> None:
     item = create_card(api, todo, "Optimistic", client_id="tmp_deadbeef01")["item"]
 
     assert item["client_id"] == "tmp_deadbeef01"
@@ -227,19 +199,15 @@ def test_client_id_is_echoed_for_the_rows_lifetime(logged_in: LoggedIn, todo: in
     assert moved.json()["item"]["client_id"] == "tmp_deadbeef01"
 
 
-def test_a_card_without_a_client_id_omits_the_field(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
-
+def test_a_card_without_a_client_id_omits_the_field(api: TestClient, todo: int) -> None:
     item = create_card(api, todo, "Plain")["item"]
 
     assert "client_id" not in item
 
 
 def test_split_lines_stores_the_client_id_on_the_first_card_only(
-    logged_in: LoggedIn, todo: int
+    api: TestClient, todo: int
 ) -> None:
-    api, _user = logged_in
-
     created = create_card(api, todo, "One\nTwo", split_lines=True, client_id="tmp_paste1")
 
     assert created["items"][0]["client_id"] == "tmp_paste1"
@@ -248,10 +216,8 @@ def test_split_lines_stores_the_client_id_on_the_first_card_only(
 
 @pytest.mark.parametrize("client_id", ["nope", "tmp_", "tmp_not-hex!"])
 def test_create_rejects_a_client_id_outside_the_documented_pattern(
-    logged_in: LoggedIn, todo: int, client_id: str
+    api: TestClient, todo: int, client_id: str
 ) -> None:
-    api, _user = logged_in
-
     response = api.post(
         f"/api/lists/{todo}/cards",
         json={"title": "Bad id", "client_id": client_id},
@@ -262,37 +228,31 @@ def test_create_rejects_a_client_id_outside_the_documented_pattern(
     assert response.json()["error"]["code"] == "validation_error"
 
 
-def test_create_requires_a_title(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
-
+def test_create_requires_a_title(api: TestClient, todo: int) -> None:
     response = api.post(f"/api/lists/{todo}/cards", json={"title": "   "}, headers=CSRF_HEADERS)
 
     assert response.status_code == 422
 
 
-def test_create_attaches_the_composer_labels_and_members(
-    logged_in: LoggedIn, board: dict[str, Any], todo: int
+def test_create_attaches_the_composer_labels(
+    api: TestClient, board: dict[str, Any], todo: int
 ) -> None:
-    api, user = logged_in
     labels = api.get(f"/api/boards/{board['id']}").json()["labels"]
 
     item = create_card(
         api,
         todo,
-        "#green Tagged @ada_lovelace",
+        "#green Tagged",
         label_ids=[labels[1]["id"], labels[0]["id"], labels[0]["id"]],
-        member_ids=[user.id],
     )["item"]
 
-    # `label_ids` come back in label `position` order, not request order.
+    # `label_ids` come back in label `position` order, not request order, and a repeat is one row.
     assert item["label_ids"] == [labels[0]["id"], labels[1]["id"]]
-    assert item["member_ids"] == [user.id]
 
 
 def test_create_rejects_a_label_of_another_board(
-    logged_in: LoggedIn, board_factory: BoardFactory, todo: int
+    api: TestClient, board_factory: BoardFactory, todo: int
 ) -> None:
-    api, _user = logged_in
     other_board = board_factory("Other board")
     foreign = api.get(f"/api/boards/{other_board['id']}").json()["labels"][0]["id"]
 
@@ -306,22 +266,7 @@ def test_create_rejects_a_label_of_another_board(
     assert response.json()["error"]["details"] == {"label_ids": [foreign]}
 
 
-def test_create_rejects_a_member_who_is_not_on_the_board(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
-    _other, stranger = register(api, "outsider_create")
-
-    response = api.post(
-        f"/api/lists/{todo}/cards",
-        json={"title": "Foreign member", "member_ids": [stranger["id"]]},
-        headers=CSRF_HEADERS,
-    )
-
-    assert response.status_code == 400
-    assert response.json()["error"]["details"] == {"member_ids": [stranger["id"]]}
-
-
-def test_create_in_an_archived_list_is_400(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_create_in_an_archived_list_is_400(api: TestClient, todo: int) -> None:
     archive_list(todo)
 
     response = api.post(f"/api/lists/{todo}/cards", json={"title": "Hidden"}, headers=CSRF_HEADERS)
@@ -331,10 +276,9 @@ def test_create_in_an_archived_list_is_400(logged_in: LoggedIn, todo: int) -> No
 
 
 def test_a_pasted_url_becomes_a_link_attachment_named_after_its_host(
-    logged_in: LoggedIn, todo: int
+    api: TestClient, todo: int
 ) -> None:
     """Section 4.4: a bare `http(s)` title is a pasted link, so the host becomes the title."""
-    api, _user = logged_in
 
     item = create_card(api, todo, "https://example.com/launch")["item"]
 
@@ -348,21 +292,19 @@ def test_a_pasted_url_becomes_a_link_attachment_named_after_its_host(
 
 
 def test_the_pasted_url_records_its_attachment_after_the_card(
-    logged_in: LoggedIn, todo: int
+    api: TestClient, board: dict[str, Any], todo: int
 ) -> None:
     """Section 4.4 orders the two rows: `card.created` first, then `attachment.added`."""
-    api, _user = logged_in
 
     card_id = create_card(api, todo, "https://example.com/launch")["item"]["id"]
 
-    feed = [row["activity"] for row in api.get(f"/api/cards/{card_id}/feed").json()["items"]]
-    assert [row["type"] for row in feed] == ["attachment.added", "card.created"]
-    assert feed[0]["data"]["attachment_name"] == "example.com"
+    page = api.get(f"/api/boards/{board['id']}/activity", params={"card_id": card_id}).json()
+    assert [row["type"] for row in page["items"]] == ["attachment.added", "card.created"]
+    assert page["items"][0]["data"]["attachment_name"] == "example.com"
 
 
-def test_a_title_that_only_looks_like_a_link_is_kept(logged_in: LoggedIn, todo: int) -> None:
+def test_a_title_that_only_looks_like_a_link_is_kept(api: TestClient, todo: int) -> None:
     """A scheme-less host, a spaced sentence and a non-http scheme are all ordinary titles."""
-    api, _user = logged_in
 
     for title in ("example.com/launch", "Read https://example.com now", "ftp://example.com"):
         item = create_card(api, todo, title)["item"]
@@ -370,9 +312,8 @@ def test_a_title_that_only_looks_like_a_link_is_kept(logged_in: LoggedIn, todo: 
         assert item["badges"]["attachments"] == 0
 
 
-def test_a_url_with_no_host_stays_the_title(logged_in: LoggedIn, todo: int) -> None:
+def test_a_url_with_no_host_stays_the_title(api: TestClient, todo: int) -> None:
     """There is no host to name the card after, so nothing the person pasted is lost."""
-    api, _user = logged_in
 
     item = create_card(api, todo, "https:///launch")["item"]
 
@@ -380,9 +321,8 @@ def test_a_url_with_no_host_stays_the_title(logged_in: LoggedIn, todo: int) -> N
     assert item["badges"]["attachments"] == 0
 
 
-def test_every_pasted_line_that_is_a_url_gets_its_own_link(logged_in: LoggedIn, todo: int) -> None:
+def test_every_pasted_line_that_is_a_url_gets_its_own_link(api: TestClient, todo: int) -> None:
     """`split_lines` creates one card per line, so the rule applies per card (Section 4.4)."""
-    api, _user = logged_in
 
     response = api.post(
         f"/api/lists/{todo}/cards",
@@ -399,9 +339,7 @@ def test_every_pasted_line_that_is_a_url_gets_its_own_link(logged_in: LoggedIn, 
     assert [row["badges"]["attachments"] for row in items] == [1, 0, 1]
 
 
-def test_create_needs_a_list_that_exists(logged_in: LoggedIn) -> None:
-    api, _user = logged_in
-
+def test_create_needs_a_list_that_exists(api: TestClient) -> None:
     response = api.post("/api/lists/999999/cards", json={"title": "Nowhere"}, headers=CSRF_HEADERS)
 
     assert response.status_code == 404
@@ -410,8 +348,7 @@ def test_create_needs_a_list_that_exists(logged_in: LoggedIn) -> None:
 # --------------------------------------------------------------------------- read and patch
 
 
-def test_the_summary_carries_every_documented_field(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_the_summary_carries_every_documented_field(api: TestClient, todo: int) -> None:
     item = create_card(api, todo, "Shape")["item"]
 
     assert set(item) == {
@@ -428,27 +365,20 @@ def test_the_summary_carries_every_documented_field(logged_in: LoggedIn, todo: i
         "due_complete",
         "cover",
         "label_ids",
-        "member_ids",
-        "is_watching",
         "badges",
         "created_at",
         "updated_at",
     }
     assert item["cover"] is None
-    assert item["is_watching"] is False
     assert item["badges"] == {
         "description": False,
-        "comments": 0,
         "attachments": 0,
         "checklist_done": 0,
         "checklist_total": 0,
     }
 
 
-def test_a_stored_cover_is_rendered_as_the_documented_object(
-    logged_in: LoggedIn, todo: int
-) -> None:
-    api, _user = logged_in
+def test_a_stored_cover_is_rendered_as_the_documented_object(api: TestClient, todo: int) -> None:
     item = create_card(api, todo, "With a cover")["item"]
     set_color_cover(api, item["id"], "green")
 
@@ -461,10 +391,7 @@ def test_a_stored_cover_is_rendered_as_the_documented_object(
     }
 
 
-def test_rename_records_the_new_title(
-    logged_in: LoggedIn, board: dict[str, Any], todo: int
-) -> None:
-    api, _user = logged_in
+def test_rename_records_the_new_title(api: TestClient, board: dict[str, Any], todo: int) -> None:
     item = create_card(api, todo, "Draft")["item"]
 
     response = api.patch(f"/api/cards/{item['id']}", json={"title": "Final"}, headers=CSRF_HEADERS)
@@ -479,9 +406,8 @@ def test_rename_records_the_new_title(
 # non-nullable ones are pinned here, and the M3 body itself in `test_cards_patch.py`.
 @pytest.mark.parametrize("body", [{"title": None}, {"is_archived": True}, {"list_id": 1}])
 def test_patch_refuses_null_and_fields_that_are_not_scalars_of_a_card(
-    logged_in: LoggedIn, todo: int, body: dict[str, Any]
+    api: TestClient, todo: int, body: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     item = create_card(api, todo, "Locked")["item"]
 
     response = api.patch(f"/api/cards/{item['id']}", json=body, headers=CSRF_HEADERS)
@@ -489,17 +415,14 @@ def test_patch_refuses_null_and_fields_that_are_not_scalars_of_a_card(
     assert response.status_code == 422
 
 
-def test_reading_a_card_that_does_not_exist_is_404(logged_in: LoggedIn) -> None:
-    api, _user = logged_in
-
+def test_reading_a_card_that_does_not_exist_is_404(api: TestClient) -> None:
     assert api.get("/api/cards/999999").status_code == 404
 
 
 # --------------------------------------------------------------------------- archive / delete
 
 
-def test_archive_flags_the_card_and_keeps_its_position(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_archive_flags_the_card_and_keeps_its_position(api: TestClient, todo: int) -> None:
     item = create_card(api, todo, "Done with this")["item"]
 
     response = api.post(f"/api/cards/{item['id']}/archive", headers=CSRF_HEADERS)
@@ -513,8 +436,7 @@ def test_archive_flags_the_card_and_keeps_its_position(logged_in: LoggedIn, todo
     assert api.get(f"/api/cards/{item['id']}").json()["is_archived"] is True
 
 
-def test_an_archived_card_is_not_an_active_sibling(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_an_archived_card_is_not_an_active_sibling(api: TestClient, todo: int) -> None:
     first = create_card(api, todo, "A")["item"]
     second = create_card(api, todo, "B")["item"]
     api.post(f"/api/cards/{first['id']}/archive", headers=CSRF_HEADERS)
@@ -525,8 +447,7 @@ def test_an_archived_card_is_not_an_active_sibling(logged_in: LoggedIn, todo: in
     assert card_row(first["id"]).position == first["position"]  # type: ignore[union-attr]
 
 
-def test_archive_is_idempotent(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_archive_is_idempotent(api: TestClient, todo: int) -> None:
     item = create_card(api, todo, "Twice")["item"]
 
     api.post(f"/api/cards/{item['id']}/archive", headers=CSRF_HEADERS)
@@ -536,8 +457,7 @@ def test_archive_is_idempotent(logged_in: LoggedIn, todo: int) -> None:
     assert again.json()["item"]["is_archived"] is True
 
 
-def test_delete_before_archive_is_409(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_delete_before_archive_is_409(api: TestClient, todo: int) -> None:
     item = create_card(api, todo, "Still active")["item"]
 
     response = api.delete(f"/api/cards/{item['id']}", headers=CSRF_HEADERS)
@@ -547,8 +467,7 @@ def test_delete_before_archive_is_409(logged_in: LoggedIn, todo: int) -> None:
     assert card_row(item["id"]) is not None
 
 
-def test_delete_after_archive_removes_the_row(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_delete_after_archive_removes_the_row(api: TestClient, todo: int) -> None:
     item = create_card(api, todo, "Goodbye")["item"]
     api.post(f"/api/cards/{item['id']}/archive", headers=CSRF_HEADERS)
 
@@ -559,8 +478,7 @@ def test_delete_after_archive_removes_the_row(logged_in: LoggedIn, todo: int) ->
     assert api.get(f"/api/cards/{item['id']}").status_code == 404
 
 
-def test_unarchive_restores_the_original_slot(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_unarchive_restores_the_original_slot(api: TestClient, todo: int) -> None:
     first = create_card(api, todo, "A")["item"]
     middle = create_card(api, todo, "B")["item"]
     last = create_card(api, todo, "C")["item"]
@@ -580,9 +498,8 @@ def test_unarchive_restores_the_original_slot(logged_in: LoggedIn, todo: int) ->
 
 
 def test_unarchive_from_an_archived_list_appends_to_the_first_active_list(
-    logged_in: LoggedIn, board: dict[str, Any], todo: int
+    api: TestClient, board: dict[str, Any], todo: int
 ) -> None:
-    api, _user = logged_in
     doing = list_ids(board["id"])[1]
     parked = create_card(api, todo, "Parked")["item"]
     create_card(api, doing, "Already here")
@@ -597,9 +514,8 @@ def test_unarchive_from_an_archived_list_appends_to_the_first_active_list(
 
 
 def test_unarchive_into_a_board_with_no_active_list_is_409_and_changes_nothing(
-    logged_in: LoggedIn, board: dict[str, Any], todo: int
+    api: TestClient, board: dict[str, Any], todo: int
 ) -> None:
-    api, _user = logged_in
     item = create_card(api, todo, "Nowhere to go")["item"]
     api.post(f"/api/cards/{item['id']}/archive", headers=CSRF_HEADERS)
     for list_id in list_ids(board["id"]):
@@ -618,8 +534,7 @@ def test_unarchive_into_a_board_with_no_active_list_is_409_and_changes_nothing(
     assert stored.list_id == todo
 
 
-def test_unarchive_is_idempotent_for_an_active_card(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
+def test_unarchive_is_idempotent_for_an_active_card(api: TestClient, todo: int) -> None:
     item = create_card(api, todo, "Already here")["item"]
 
     response = api.post(f"/api/cards/{item['id']}/unarchive", headers=CSRF_HEADERS)
@@ -628,52 +543,23 @@ def test_unarchive_is_idempotent_for_an_active_card(logged_in: LoggedIn, todo: i
     assert response.json()["item"]["position"] == item["position"]
 
 
-# --------------------------------------------------------------------------- permissions
+# --------------------------------------------------------------------------- access
 
 
-def test_a_non_member_never_learns_a_card_exists(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
-    item = create_card(api, todo, "Private")["item"]
-    stranger, _account = register(api, "outsider_cards")
-
-    assert stranger.get(f"/api/cards/{item['id']}").status_code == 404
+def test_a_card_id_that_does_not_exist_is_404_for_every_verb(api: TestClient) -> None:
+    """`card_access` resolves the card's board first, so a missing card never reaches a service."""
+    assert api.get("/api/cards/999999").status_code == 404
     assert (
-        stranger.patch(
-            f"/api/cards/{item['id']}", json={"title": "Mine now"}, headers=CSRF_HEADERS
-        ).status_code
+        api.patch("/api/cards/999999", json={"title": "Ghost"}, headers=CSRF_HEADERS).status_code
         == 404
     )
-    assert (
-        stranger.post(f"/api/lists/{todo}/cards", json={"title": "Mine"}, headers=CSRF_HEADERS)
-    ).status_code == 404
-
-
-def test_an_observer_may_read_but_not_write(
-    logged_in: LoggedIn, board: dict[str, Any], todo: int
-) -> None:
-    api, _user = logged_in
-    item = create_card(api, todo, "Read only")["item"]
-    observer, account = register(api, "observer_cards")
-    added = api.put(
-        f"/api/boards/{board['id']}/members/{account['id']}",
-        json={"role": "observer"},
-        headers=CSRF_HEADERS,
-    )
-    assert added.status_code == 200, added.text
-
-    assert observer.get(f"/api/cards/{item['id']}").status_code == 200
-    assert (
-        observer.post(f"/api/cards/{item['id']}/archive", headers=CSRF_HEADERS).status_code == 403
-    )
-    assert (
-        observer.post(f"/api/lists/{todo}/cards", json={"title": "Nope"}, headers=CSRF_HEADERS)
-    ).status_code == 403
+    assert api.post("/api/cards/999999/archive", headers=CSRF_HEADERS).status_code == 404
+    assert api.delete("/api/cards/999999", headers=CSRF_HEADERS).status_code == 404
 
 
 def test_a_closed_board_freezes_its_cards(
-    logged_in: LoggedIn, board: dict[str, Any], todo: int
+    api: TestClient, board: dict[str, Any], todo: int
 ) -> None:
-    api, _user = logged_in
     item = create_card(api, todo, "Frozen")["item"]
     assert api.post(f"/api/boards/{board['id']}/close", headers=CSRF_HEADERS).status_code == 200
 
@@ -687,9 +573,7 @@ def test_a_closed_board_freezes_its_cards(
     assert api.get(f"/api/cards/{item['id']}").status_code == 200
 
 
-def test_a_mutation_without_the_csrf_header_is_refused(logged_in: LoggedIn, todo: int) -> None:
-    api, _user = logged_in
-
+def test_a_mutation_without_the_csrf_header_is_refused(api: TestClient, todo: int) -> None:
     response = api.post(f"/api/lists/{todo}/cards", json={"title": "No header"})
 
     assert response.status_code == 403

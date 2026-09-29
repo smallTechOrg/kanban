@@ -24,10 +24,8 @@ export interface ClosedBoardPageProps {
  * payload for a closed board, so a direct link or the Back button lands here rather than on
  * an editable board.
  *
- * Reopen and delete are admin-only on the server (Section 4.3), so a member or observer is
- * told why the buttons are missing instead of meeting a 403 after pressing one. Reopening
- * needs no navigation: the mutation writes the fresh row into `['board', id]` and `BoardPage`
- * re-renders the real board in place.
+ * Reopening needs no navigation: the mutation writes the fresh row into `['board', id]` and
+ * `BoardPage` re-renders the real board in place.
  */
 export function ClosedBoardPage({ board }: ClosedBoardPageProps): ReactElement {
   const navigate = useNavigate();
@@ -42,27 +40,21 @@ export function ClosedBoardPage({ board }: ClosedBoardPageProps): ReactElement {
         <h2 className={styles.heading}>{board.name} is closed</h2>
         <p className={styles.body}>{BODY}</p>
 
-        {board.my_role === 'admin' ? (
-          <>
-            <Button
-              variant="primary"
-              fullWidth
-              loading={reopen.isPending}
-              onClick={() => reopen.mutate()}
-            >
-              Reopen board
-            </Button>
-            <Button
-              variant="danger"
-              fullWidth
-              onClick={(event) => setConfirmAnchor(event.currentTarget)}
-            >
-              Delete board
-            </Button>
-          </>
-        ) : (
-          <p className={styles.note}>Only a board admin can reopen or delete this board.</p>
-        )}
+        <Button
+          variant="primary"
+          fullWidth
+          loading={reopen.isPending}
+          onClick={() => reopen.mutate()}
+        >
+          Reopen board
+        </Button>
+        <Button
+          variant="danger"
+          fullWidth
+          onClick={(event) => setConfirmAnchor(event.currentTarget)}
+        >
+          Delete board
+        </Button>
 
         <Button variant="link" onClick={() => navigate('/')}>
           Back to boards

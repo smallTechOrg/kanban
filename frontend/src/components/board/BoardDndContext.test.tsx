@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import type { BoardRole } from '@/api/types';
 import { boardKey } from '@/hooks/useBoardData';
 import { normalizeBoard } from '@/lib/normalize';
 import {
@@ -24,7 +23,7 @@ const DROPPABLE_ID = 'data-rfd-droppable-id';
 const DRAGGABLE_ID = 'data-rfd-draggable-id';
 const DRAG_HANDLE_ID = 'data-rfd-drag-handle-draggable-id';
 
-function renderBoard(children: ReactNode, role: BoardRole): void {
+function renderBoard(children: ReactNode): void {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -33,7 +32,7 @@ function renderBoard(children: ReactNode, role: BoardRole): void {
     boardKey(BOARD_ID),
     normalizeBoard({
       ...boardPayloadFixture,
-      board: makeBoardSummary({ id: BOARD_ID, my_role: role }),
+      board: makeBoardSummary({ id: BOARD_ID }),
       cards: [makeCardSummary({ id: CARD_ID })],
     }),
   );
@@ -50,7 +49,7 @@ function renderBoard(children: ReactNode, role: BoardRole): void {
 function Column(): ReactElement {
   return (
     <ListsDroppable>
-      <ListDraggable boardId={BOARD_ID} listId={LIST_ID} index={0}>
+      <ListDraggable listId={LIST_ID} index={0}>
         {({ handleProps }) => (
           <div>
             <h2 {...handleProps} data-testid="header">
@@ -68,7 +67,7 @@ function Column(): ReactElement {
 
 describe('BoardDndContext', () => {
   it('registers the ids the move contract is parsed from', () => {
-    renderBoard(<Column />, 'member');
+    renderBoard(<Column />);
 
     // One horizontal droppable for the columns, one "list-{id}" droppable per list body, and
     // the list's own draggable carrying the same "list-{id}" string (Section 5.5).
@@ -82,15 +81,6 @@ describe('BoardDndContext', () => {
     expect(screen.getByRole('link', { name: /Write launch announcement/ })).toHaveAttribute(
       DRAG_HANDLE_ID,
       `card-${CARD_ID}`,
-    );
-  });
-
-  it('gives an observer no drag handles at all', () => {
-    renderBoard(<Column />, 'observer');
-
-    expect(screen.getByTestId('header')).not.toHaveAttribute(DRAG_HANDLE_ID);
-    expect(screen.getByRole('link', { name: /Write launch announcement/ })).not.toHaveAttribute(
-      DRAG_HANDLE_ID,
     );
   });
 });

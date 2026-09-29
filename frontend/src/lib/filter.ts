@@ -2,17 +2,17 @@
  * The board filter: what it is, whether one card passes it, and how it travels in the URL
  * (Section 2.3.3). The one place any of that is decided (CLAUDE.md section 3).
  *
- * `FilterPopover` collects six groups of criteria — keyword, members, card status, due date,
- * labels and activity — plus the Match select. Inside a group the selections are OR'd (two labels
- * means "either label"); between groups the Match select decides: "Any match" (the default) passes
- * a card that satisfies at least one *selected* group, "Exact match" one that satisfies all of
- * them. A filter with nothing selected passes every card, which is what makes the filter-off state
- * free of special cases.
+ * `FilterPopover` collects five groups of criteria — keyword, card status, due date, labels and
+ * activity — plus the Match select. Inside a group the selections are OR'd (two labels means
+ * "either label"); between groups the Match select decides: "Any match" (the default) passes a
+ * card that satisfies at least one *selected* group, "Exact match" one that satisfies all of
+ * them. A filter with nothing selected passes every card, which is what makes the filter-off
+ * state free of special cases.
  *
- * The predicate is pure and takes `now` plus the board's own label and member maps, because the
- * keyword searches names the card only carries as ids and every date rule is relative
- * (`matchesFilter(card, filter, {now, labelsById, membersById, meId})`). Descriptions and comments
- * are deliberately not searched: that is `GET /api/search`, Section 4.7.
+ * The predicate is pure and takes `now` plus the board's own label map, because the keyword
+ * searches label names the card only carries as ids and every date rule is relative
+ * (`matchesFilter(card, filter, {now, labelsById})`). Descriptions are deliberately not
+ * searched: that is `GET /api/search`, Section 4.7.
  *
  * The state lives in `uiStore.filter` and is mirrored to the query string by
  * `filterToSearchParams` / `filterFromSearchParams`, so a filtered board survives a reload and can
@@ -30,14 +30,10 @@ export type MatchMode = 'any' | 'all';
 export interface BoardFilter {
   q: string;
   labelIds: Id[];
-  memberIds: Id[];
-  noMembers: boolean;
   noLabels: boolean;
   due: DueFilter;
   status: StatusFilter;
   activity: ActivityFilter;
-  /** "Cards assigned to me" (shortcut Q), resolved against `FilterContext.meId`. */
-  mine: boolean;
   match: MatchMode;
 }
 
@@ -45,20 +41,17 @@ export interface BoardFilter {
 export const EMPTY_FILTER: BoardFilter = {
   q: '',
   labelIds: [],
-  memberIds: [],
-  noMembers: false,
   noLabels: false,
   due: 'any',
   status: 'any',
   activity: 'any',
-  mine: false,
   match: 'any',
 };
 
 /** What the predicate reads off a card; a `CardRow` of the board cache satisfies it. */
 export type FilterCard = Pick<
   CardRow,
-  'title' | 'label_ids' | 'member_ids' | 'due_at' | 'due_complete' | 'is_template' | 'updated_at'
+  'title' | 'label_ids' | 'due_at' | 'due_complete' | 'is_template' | 'updated_at'
 >;
 
 /** A label as the keyword search reads it: `BoardState.labels` satisfies this. */
@@ -66,19 +59,10 @@ export interface FilterLabel {
   name: string;
 }
 
-/** A member as the keyword search reads them: `BoardState.members` satisfies this. */
-export interface FilterMember {
-  full_name: string;
-  username: string;
-}
-
 export interface FilterContext {
   /** Passed in so both the board and its test are deterministic. */
   now: Date;
   labelsById: Readonly<Record<Id, FilterLabel | undefined>>;
-  membersById: Readonly<Record<Id, FilterMember | undefined>>;
-  /** The signed-in user, for "Cards assigned to me"; `null` before `['me']` has resolved. */
-  meId: Id | null;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -109,8 +93,8 @@ function includesAny(haystack: readonly Id[], needles: readonly Id[]): boolean {
 }
 
 /**
- * The keyword: a case-insensitive substring of the title, of any of the card's label names, or of
- * any of its members' full names and usernames (Section 2.3.3).
+ * The keyword: a case-insensitive substring of the title or of any of the card's label names
+ * (Section 2.3.3).
  */
 function keywordCriterion(
   card: FilterCard,
@@ -119,34 +103,10 @@ function keywordCriterion(
 ): Criterion {
   const needle = filter.q.trim().toLowerCase();
   if (needle === '') return { selected: false, matched: false };
-  const words = [
-    card.title,
-    ...card.label_ids.map((id) => context.labelsById[id]?.name ?? ''),
-    ...card.member_ids.flatMap((id) => {
-      const member = context.membersById[id];
-      return member === undefined ? [] : [member.full_name, member.username];
-    }),
-  ];
+  const words = [card.title, ...card.label_ids.map((id) => context.labelsById[id]?.name ?? '')];
   return {
     selected: true,
     matched: words.some((word) => word.toLowerCase().includes(needle)),
-  };
-}
-
-function membersCriterion(
-  card: FilterCard,
-  filter: BoardFilter,
-  context: FilterContext,
-): Criterion {
-  const selected = filter.noMembers || filter.mine || filter.memberIds.length > 0;
-  const mineMatches =
-    filter.mine && context.meId !== null && card.member_ids.includes(context.meId);
-  return {
-    selected,
-    matched:
-      (filter.noMembers && card.member_ids.length === 0) ||
-      mineMatches ||
-      includesAny(card.member_ids, filter.memberIds),
   };
 }
 
@@ -220,7 +180,6 @@ export function matchesFilter(
 ): boolean {
   const criteria = [
     keywordCriterion(card, filter, context),
-    membersCriterion(card, filter, context),
     statusCriterion(card, filter),
     dueCriterion(card, filter, context.now),
     labelsCriterion(card, filter),
@@ -242,9 +201,6 @@ export function activeFilterCount(filter: BoardFilter): number {
     (filter.q.trim() === '' ? 0 : 1) +
     (filter.noLabels ? 1 : 0) +
     filter.labelIds.length +
-    (filter.noMembers ? 1 : 0) +
-    (filter.mine ? 1 : 0) +
-    filter.memberIds.length +
     (filter.status === 'any' ? 0 : 1) +
     (filter.due === 'any' ? 0 : 1) +
     (filter.activity === 'any' ? 0 : 1)
@@ -256,7 +212,7 @@ export function isFilterActive(filter: BoardFilter): boolean {
   return activeFilterCount(filter) > 0;
 }
 
-/** The "No labels" / "No members" token of the `labels=` and `members=` keys (Section 2.3.3). */
+/** The "No labels" token of the `labels=` key (Section 2.3.3). */
 const NONE = 'none';
 
 const DUE_VALUES: readonly DueFilter[] = ['none', 'overdue', 'day', 'week', 'month'];
@@ -270,7 +226,7 @@ function idList(ids: readonly Id[], none: boolean): string {
 
 /**
  * The filter as query parameters, every key omitted at its default (Section 2.3.3):
- * `?q=launch&labels=1,2&members=3&due=overdue&status=incomplete&activity=week&match=all`.
+ * `?q=launch&labels=1,2&due=overdue&status=incomplete&activity=week&match=all`.
  * "No labels" is the token `none` in the same key, so `labels=none` and `labels=1,2` are the two
  * forms the plan lists and `labels=none,1,2` is the one the popover allows by checking both.
  */
@@ -281,10 +237,6 @@ export function filterToSearchParams(filter: BoardFilter): URLSearchParams {
   if (filter.noLabels || filter.labelIds.length > 0) {
     params.set('labels', idList(filter.labelIds, filter.noLabels));
   }
-  if (filter.noMembers || filter.memberIds.length > 0) {
-    params.set('members', idList(filter.memberIds, filter.noMembers));
-  }
-  if (filter.mine) params.set('mine', '1');
   if (filter.status !== 'any') params.set('status', filter.status);
   if (filter.due !== 'any') params.set('due', filter.due);
   if (filter.activity !== 'any') params.set('activity', filter.activity);
@@ -292,7 +244,7 @@ export function filterToSearchParams(filter: BoardFilter): URLSearchParams {
   return params;
 }
 
-/** One `labels=` / `members=` value: the `none` flag and the ids, ignoring anything else. */
+/** One `labels=` value: the `none` flag and the ids, ignoring anything else. */
 function parseIdList(raw: string | null): { ids: Id[]; none: boolean } {
   if (raw === null) return { ids: [], none: false };
   const tokens = raw.split(',');
@@ -316,14 +268,10 @@ function parseChoice<T extends string>(raw: string | null, allowed: readonly T[]
  */
 export function filterFromSearchParams(params: URLSearchParams): BoardFilter {
   const labels = parseIdList(params.get('labels'));
-  const members = parseIdList(params.get('members'));
   return {
     q: params.get('q') ?? '',
     labelIds: labels.ids,
     noLabels: labels.none,
-    memberIds: members.ids,
-    noMembers: members.none,
-    mine: params.get('mine') === '1',
     status: parseChoice(params.get('status'), STATUS_VALUES) ?? 'any',
     due: parseChoice(params.get('due'), DUE_VALUES) ?? 'any',
     activity: parseChoice(params.get('activity'), ACTIVITY_VALUES) ?? 'any',

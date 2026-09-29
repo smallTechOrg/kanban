@@ -3,14 +3,14 @@ import { Draggable } from '@hello-pangea/dnd';
 import { Pencil } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { Avatar, IconButton, cx } from '@/components/ui';
+import { IconButton, cx } from '@/components/ui';
 import { LabelChip } from '@/components/ui/LabelChip';
-import { useBoardMeta, useCard, useLabels, useMembers } from '@/hooks/useBoardData';
+import { useCard, useLabels } from '@/hooks/useBoardData';
 import { useUpdateCardFields } from '@/hooks/useCardMutations';
 import { SHORTCUT_ANCHOR_ATTR, cardAnchorName } from '@/hooks/useKeyboardShortcuts';
 import { useMeta } from '@/hooks/useMeta';
-import { cardDragId, isDragLocked } from '@/lib/boardDnd';
-import type { LabelRow, MemberRow } from '@/lib/boardState';
+import { cardDragId } from '@/lib/boardDnd';
+import type { LabelRow } from '@/lib/boardState';
 import { coverStyle, type CoverPalette, type LabelPalette } from '@/lib/colors';
 import { useUiStore } from '@/store/uiStore';
 import { CardBadges } from './CardBadges';
@@ -18,7 +18,6 @@ import { QuickCardEditor } from './QuickCardEditor';
 import styles from './CardTile.module.css';
 
 const NO_LABELS: readonly LabelRow[] = [];
-const NO_MEMBERS: readonly MemberRow[] = [];
 const NO_PALETTE: LabelPalette = {};
 const NO_COVER_PALETTE: CoverPalette = {};
 
@@ -60,12 +59,10 @@ function CardTileView({
 }: CardTileProps): ReactElement | null {
   const card = useCard(boardId, cardId).data;
   const labels = useLabels(boardId).data ?? NO_LABELS;
-  const members = useMembers(boardId).data ?? NO_MEMBERS;
   const meta = useMeta().data;
   const palette: LabelPalette = meta?.label_colors ?? NO_PALETTE;
   const coverPalette: CoverPalette = meta?.cover_colors ?? NO_COVER_PALETTE;
   const coversEnabled = useUiStore((state) => state.cardCoversEnabled);
-  const role = useBoardMeta(boardId).data?.my_role;
   const labelTextMode = useUiStore((state) => state.labelTextMode);
   const setLabelTextMode = useUiStore((state) => state.setLabelTextMode);
   const patterned = useUiStore((state) => state.colorBlindLabels);
@@ -104,16 +101,12 @@ function CardTileView({
     .map((labelId) => labels.find((label) => label.id === labelId))
     .filter((label): label is LabelRow => label !== undefined);
 
-  const assigned = card.member_ids
-    .map((userId) => members.find((member) => member.id === userId))
-    .filter((member): member is MemberRow => member !== undefined);
-
   const cover = coversEnabled ? card.cover : null;
   const isFullCover = cover?.size === 'full';
   const fill = cover === null ? null : coverStyle(cover, coverPalette);
 
   return (
-    <Draggable draggableId={cardDragId(card.id)} index={index} isDragDisabled={isDragLocked(role)}>
+    <Draggable draggableId={cardDragId(card.id)} index={index}>
       {(provided, snapshot) => (
         <div
           ref={(node) => {
@@ -127,7 +120,7 @@ function CardTileView({
             hidden && styles.hidden,
           )}
           data-is-dragging={snapshot.isDragging ? 'true' : undefined}
-          // The anchor the `L`, `M` and `D` keys hang their panel off (Section 5.9).
+          // The anchor the `L` and `D` keys hang their panel off (Section 5.9).
           {...{ [SHORTCUT_ANCHOR_ATTR]: cardAnchorName(card.id) }}
           {...provided.draggableProps}
           onMouseEnter={onEnter}
@@ -188,19 +181,6 @@ function CardTileView({
                 card={card}
                 onToggleDueComplete={(due_complete) => updateCard.mutate({ due_complete })}
               />
-            </div>
-          )}
-
-          {assigned.length === 0 ? null : (
-            <div className={styles.members}>
-              {assigned.map((member) => (
-                <Avatar
-                  key={member.id}
-                  name={member.full_name}
-                  color={member.avatar_color}
-                  tooltip
-                />
-              ))}
             </div>
           )}
 

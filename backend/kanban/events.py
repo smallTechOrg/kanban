@@ -60,23 +60,19 @@ RESYNC: Final[str] = "resync"
 #: is not its prefix (it is `item`), and is handled by `entity_of()`.
 ENTITY_BY_PREFIX: Final[dict[str, str]] = {
     "board": "board",
-    "member": "member",
     "list": "list",
     "card": "card",
     "label": "label",
     "checklist": "checklist",
-    "comment": "comment",
     "attachment": "attachment",
 }
 
 #: For the entities whose id is not a column of `activities`, the `data` key that carries it
 #: (Section 4.8). `card`, `list` and `board` read their own column instead.
 ID_DATA_KEY: Final[dict[str, str]] = {
-    "member": "member_id",
     "label": "label_id",
     "checklist": "checklist_id",
     "item": "item_id",
-    "comment": "comment_id",
     "attachment": "attachment_id",
 }
 
@@ -187,7 +183,6 @@ def event_from_activity(row: Activity, *, position: float | None = None) -> Even
         "card_id": row.card_id,
         "list_id": row.list_id,
         "position": position,
-        "actor_id": row.user_id,
         "at": row.created_at,
     }
 
@@ -195,8 +190,8 @@ def event_from_activity(row: Activity, *, position: float | None = None) -> Even
 def board_event(type: str, board_id: int, version: int) -> Event:
     """One of the two synthetic events (`hello`, `resync`) that describe the stream itself.
 
-    They belong to no activity row, so `actor_id` is `None` and `at` is the moment they are sent;
-    `version` is the board's current version, which is what the client gates against.
+    They belong to no activity row, so `at` is the moment they are sent; `version` is the board's
+    current version, which is what the client gates against.
     """
     return {
         "version": version,
@@ -206,7 +201,6 @@ def board_event(type: str, board_id: int, version: int) -> Event:
         "card_id": None,
         "list_id": None,
         "position": None,
-        "actor_id": None,
         "at": utcnow_iso(),
     }
 

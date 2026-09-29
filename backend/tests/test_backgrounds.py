@@ -4,9 +4,8 @@
 Everything runs through the public API (CLAUDE.md section 6). The disk is inspected only where a
 test is *about* it - that an upload really lands in `data/uploads/backgrounds/` under the id, and
 that the preview really is the documented 400x240 - which is the one thing no response can show.
-The second account, the PNG builder and the over-cap constant come from `test_attachments.py`,
-which documents them; the board-background cap is the 10 MB of Section 6.9, not
-`KANBAN_MAX_UPLOAD_MB`.
+The PNG builder comes from `test_attachments.py`, which documents it; the board-background cap is
+the 10 MB of Section 6.9, not `KANBAN_MAX_UPLOAD_MB`.
 """
 
 import io
@@ -22,14 +21,11 @@ from kanban import storage
 from kanban.bodylimit import BACKGROUND_MAX_BYTES
 from kanban.config import settings
 from kanban.constants import BOARD_COLORS, BOARD_GRADIENTS
-from kanban.models import User
 from kanban.storage import BACKGROUND_THUMB_SIZE
 from tests.conftest import CSRF_HEADERS
 from tests.test_attachments import PDF_BYTES, png_bytes
-from tests.test_cards import register
 
 BoardFactory = Callable[..., dict[str, Any]]
-LoggedIn = tuple[TestClient, User]
 
 #: One byte past the 10 MB Section 6.9 caps a background at, which the middleware refuses unread.
 OVER_CAP_BYTES = BACKGROUND_MAX_BYTES + 1
@@ -96,10 +92,9 @@ def image_id(item: dict[str, Any]) -> int:
 
 
 def test_upload_sets_the_board_background_and_returns_a_thumbnail_url(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
     """The documented 200 `Mutated<BoardSummary>` with the three background columns written."""
-    api, _user = logged_in
 
     response = upload(api, board["id"])
 
@@ -114,10 +109,9 @@ def test_upload_sets_the_board_background_and_returns_a_thumbnail_url(
 
 
 def test_upload_stores_the_original_and_a_400x240_preview(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
     """Section 3.11's two files, named after the row's id, with the preview Pillow cropped."""
-    api, _user = logged_in
 
     background_id = image_id(upload_item(api, board["id"]))
 
@@ -129,10 +123,8 @@ def test_upload_stores_the_original_and_a_400x240_preview(
 
 
 def test_upload_records_one_background_changed_activity(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
-
     upload_item(api, board["id"])
 
     feed = api.get(f"/api/boards/{board['id']}/activity").json()["items"]
@@ -141,19 +133,17 @@ def test_upload_records_one_background_changed_activity(
 
 
 def test_upload_accepts_webp_and_stores_its_own_extension(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
     """The extension follows the *sniffed* type, not the filename (Section 6.9)."""
-    api, _user = logged_in
 
     item = upload_item(api, board["id"], filename="photo.png", content=webp_bytes())
 
     assert item["background_value"].endswith(".webp")
 
 
-def test_upload_of_a_non_image_is_415(logged_in: LoggedIn, board: dict[str, Any]) -> None:
+def test_upload_of_a_non_image_is_415(api: TestClient, board: dict[str, Any]) -> None:
     """A PDF dressed as a PNG: the type comes from Pillow, so the header does not save it."""
-    api, _user = logged_in
 
     response = upload(api, board["id"], filename="notes.png", content=PDF_BYTES)
 
@@ -163,10 +153,9 @@ def test_upload_of_a_non_image_is_415(logged_in: LoggedIn, board: dict[str, Any]
 
 
 def test_upload_leaves_no_temp_file_behind_when_it_is_refused(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
     """Section 6.9's "any failure deletes the files": `tmp/` is empty after a 415."""
-    api, _user = logged_in
 
     assert upload(api, board["id"], content=PDF_BYTES).status_code == 415
 
@@ -175,7 +164,7 @@ def test_upload_leaves_no_temp_file_behind_when_it_is_refused(
 
 
 def test_a_failed_transaction_rolls_back_and_takes_the_renamed_files_with_it(
-    logged_in: LoggedIn, board: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    api: TestClient, board: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Section 6.9's "any failure rolls back and deletes the files", after the rename.
 
@@ -183,7 +172,6 @@ def test_a_failed_transaction_rolls_back_and_takes_the_renamed_files_with_it(
     `backgrounds/{id}.*` when the transaction dies, so the row must go *and* so must they -
     otherwise the crash leaves a file the library will never list and nothing will ever delete.
     """
-    api, _user = logged_in
     before = backgrounds(api, board["id"])["custom"]
     placed: list[int] = []
     real_place = storage.place_background
@@ -205,9 +193,8 @@ def test_a_failed_transaction_rolls_back_and_takes_the_renamed_files_with_it(
     assert api.get(f"/api/boards/{board['id']}").json()["board"]["background_type"] == "color"
 
 
-def test_upload_over_the_10mb_cap_is_413(logged_in: LoggedIn, board: dict[str, Any]) -> None:
+def test_upload_over_the_10mb_cap_is_413(api: TestClient, board: dict[str, Any]) -> None:
     """`BodySizeLimitMiddleware` refuses the body before a byte of it is read (Section 6.9)."""
-    api, _user = logged_in
 
     response = upload(api, board["id"], filename="huge.png", content=bytes(OVER_CAP_BYTES))
 
@@ -215,9 +202,8 @@ def test_upload_over_the_10mb_cap_is_413(logged_in: LoggedIn, board: dict[str, A
     assert response.json()["error"]["code"] == "payload_too_large"
 
 
-def test_upload_without_a_content_length_is_411(logged_in: LoggedIn, board: dict[str, Any]) -> None:
+def test_upload_without_a_content_length_is_411(api: TestClient, board: dict[str, Any]) -> None:
     """An upload must declare its length so the cap can be applied unread (Section 6.9)."""
-    api, _user = logged_in
 
     response = api.post(
         f"/api/boards/{board['id']}/background",
@@ -229,9 +215,7 @@ def test_upload_without_a_content_length_is_411(logged_in: LoggedIn, board: dict
     assert response.json()["error"]["code"] == "length_required"
 
 
-def test_upload_without_a_file_field_is_422(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
-
+def test_upload_without_a_file_field_is_422(api: TestClient, board: dict[str, Any]) -> None:
     response = api.post(
         f"/api/boards/{board['id']}/background",
         files={"wrong": ("beach.png", png_bytes(), "image/png")},
@@ -241,40 +225,18 @@ def test_upload_without_a_file_field_is_422(logged_in: LoggedIn, board: dict[str
     assert response.status_code == 422, response.text
 
 
-# --------------------------------------------------------------------------- permissions
+# --------------------------------------------------------------------------- access
 
 
-def test_an_observer_cannot_upload_a_background(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    """Changing the background is a board write, so `member` is the floor (Sections 4.3, 6.6)."""
-    api, _user = logged_in
-    other, profile = register(api, "observer_of_boards")
-    assert (
-        api.put(
-            f"/api/boards/{board['id']}/members/{profile['id']}",
-            json={"role": "observer"},
-            headers=CSRF_HEADERS,
-        ).status_code
-        == 200
-    )
+def test_uploading_to_a_board_that_does_not_exist_is_404(api: TestClient) -> None:
+    """`board_access` answers before the upload is read at all (Sections 6.4 and 6.6)."""
+    response = upload(api, 424242)
 
-    response = upload(other, board["id"])
-
-    assert response.status_code == 403, response.text
-    assert response.json()["error"]["code"] == "forbidden"
+    assert response.status_code == 404, response.text
+    assert response.json()["error"]["code"] == "not_found"
 
 
-def test_a_non_member_gets_404_rather_than_403(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    """A board id reveals nothing about a board the caller cannot see (Section 6.6)."""
-    api, _user = logged_in
-    other, _profile = register(api, "stranger_to_boards")
-
-    assert upload(other, board["id"]).status_code == 404
-
-
-def test_uploading_to_a_closed_board_is_409(
-    logged_in: LoggedIn, board_factory: BoardFactory
-) -> None:
-    api, _user = logged_in
+def test_uploading_to_a_closed_board_is_409(api: TestClient, board_factory: BoardFactory) -> None:
     board = board_factory("Closing soon")
     assert api.post(f"/api/boards/{board['id']}/close", headers=CSRF_HEADERS).status_code == 200
 
@@ -286,38 +248,27 @@ def test_uploading_to_a_closed_board_is_409(
 # --------------------------------------------------------------------------- the library
 
 
-def test_the_library_lists_the_presets_and_only_the_callers_own_images(
-    logged_in: LoggedIn, board: dict[str, Any]
+def test_the_library_lists_the_presets_and_every_uploaded_image(
+    api: TestClient, board: dict[str, Any], board_factory: BoardFactory
 ) -> None:
-    """`custom[]` is the caller's `board_backgrounds` rows: another member's upload is absent."""
-    api, _user = logged_in
-    other, profile = register(api, "second_uploader")
-    assert (
-        api.put(
-            f"/api/boards/{board['id']}/members/{profile['id']}",
-            json={"role": "admin"},
-            headers=CSRF_HEADERS,
-        ).status_code
-        == 200
-    )
-    mine = image_id(upload_item(api, board["id"]))
-    theirs = image_id(upload_item(other, board["id"]))
+    """`custom[]` is the whole `board_backgrounds` table: one install, one library (Section 4.3)."""
+    elsewhere = board_factory("Another board")
+    here = image_id(upload_item(api, board["id"]))
+    there = image_id(upload_item(api, elsewhere["id"]))
 
     body = backgrounds(api, board["id"])
 
     assert [row["key"] for row in body["colors"]] == list(BOARD_COLORS)
     assert [row["key"] for row in body["gradients"]] == list(BOARD_GRADIENTS)
     ids = [row["id"] for row in body["custom"]]
-    assert mine in ids
-    assert theirs not in ids
-    assert [row["id"] for row in backgrounds(other, board["id"])["custom"]] == [theirs]
+    # An image no board wears any more is still in the library, so `there` is listed here too.
+    assert {here, there} <= set(ids)
 
 
 def test_a_library_image_can_be_reselected_and_a_colour_clears_it(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
     """Section 4.3: a colour or gradient clears `background_image_id`; the image stays listed."""
-    api, _user = logged_in
     board = board_factory("Repainted")
     background_id = image_id(upload_item(api, board["id"]))
 
@@ -337,9 +288,8 @@ def test_a_library_image_can_be_reselected_and_a_colour_clears_it(
 
 
 def test_a_gradient_also_clears_the_image_reference(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
-    api, _user = logged_in
     board = board_factory("Gradient board")
     upload_item(api, board["id"])
 
@@ -352,21 +302,11 @@ def test_a_gradient_also_clears_the_image_reference(
     assert response.json()["item"]["background_value"] == "gradient-dusk"
 
 
-def test_selecting_another_users_image_is_404(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    """`background_image_id` must be in the caller's own library (Section 4.3)."""
-    api, _user = logged_in
-    other, profile = register(api, "library_owner")
-    assert (
-        api.put(
-            f"/api/boards/{board['id']}/members/{profile['id']}",
-            json={"role": "admin"},
-            headers=CSRF_HEADERS,
-        ).status_code
-        == 200
-    )
-    theirs = image_id(upload_item(other, board["id"]))
-
-    response = patch_board(api, board["id"], background_image_id=theirs)
+def test_selecting_an_image_that_is_not_in_the_library_is_404(
+    api: TestClient, board: dict[str, Any]
+) -> None:
+    """`background_image_id` must name a `board_backgrounds` row (Section 4.3)."""
+    response = patch_board(api, board["id"], background_image_id=424242)
 
     assert response.status_code == 404, response.text
     assert response.json()["error"]["code"] == "not_found"
@@ -376,44 +316,18 @@ def test_selecting_another_users_image_is_404(logged_in: LoggedIn, board: dict[s
 
 
 @pytest.mark.parametrize("name", ["{id}.png", "{id}.thumb.jpg"])
-def test_the_uploader_and_board_members_can_read_the_files(
-    logged_in: LoggedIn, board: dict[str, Any], name: str
+def test_a_background_and_its_thumbnail_are_served_inline(
+    api: TestClient, board: dict[str, Any], name: str
 ) -> None:
-    """Section 6.9: the uploader, or a member of a board using the image."""
-    api, _user = logged_in
-    other, profile = register(api, f"reader_{name.count('thumb')}")
-    assert (
-        api.put(
-            f"/api/boards/{board['id']}/members/{profile['id']}",
-            json={"role": "observer"},
-            headers=CSRF_HEADERS,
-        ).status_code
-        == 200
-    )
-    background_id = image_id(upload_item(api, board["id"]))
-    path = f"/uploads/backgrounds/{name.format(id=background_id)}"
-
-    mine = api.get(path)
-    theirs = other.get(path)
-
-    assert mine.status_code == 200, mine.text
-    assert mine.headers["X-Content-Type-Options"] == "nosniff"
-    assert mine.headers["Content-Disposition"].startswith("inline")
-    assert theirs.status_code == 200, theirs.text
-
-
-def test_a_stranger_cannot_read_a_background(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    """No board of theirs uses it and they did not upload it, so it does not exist for them."""
-    api, _user = logged_in
-    other, _profile = register(api, "stranger_to_files")
+    """Section 6.9: the `board_backgrounds` row is what makes the file servable."""
     background_id = image_id(upload_item(api, board["id"]))
 
-    response = other.get(f"/uploads/backgrounds/{background_id}.png")
+    response = api.get(f"/uploads/backgrounds/{name.format(id=background_id)}")
 
-    assert response.status_code == 404, response.text
+    assert response.status_code == 200, response.text
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Content-Disposition"].startswith("inline")
 
 
-def test_a_missing_background_file_is_404(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
-
+def test_a_missing_background_file_is_404(api: TestClient, board: dict[str, Any]) -> None:
     assert api.get("/uploads/backgrounds/999999.png").status_code == 404

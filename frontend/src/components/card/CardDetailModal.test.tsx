@@ -134,14 +134,13 @@ describe('CardDetailModal', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('mounts the attachments section and the Watch badge of Section 2.6.3', async () => {
+  it('mounts the attachments section and the activity feed of Section 2.6.3', async () => {
     renderAt(CARD_URL);
     const dialog = await openModal();
 
     // `AttachmentsSection` renders with no attachments, because it owns the modal-wide drop zone.
     expect(within(dialog).getByRole('heading', { name: 'Attachments' })).toBeInTheDocument();
-    // Two Watch buttons by design: the Notifications quick badge and the sidebar row (2.6.3/2.6.4).
-    expect(within(dialog).getAllByRole('button', { name: 'Watch' })).toHaveLength(2);
+    expect(within(dialog).getByRole('heading', { name: 'Activity' })).toBeInTheDocument();
   });
 
   it('shows the cover strip and the archived band the card asks for', async () => {

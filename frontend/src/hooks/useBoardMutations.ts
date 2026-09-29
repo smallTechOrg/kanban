@@ -268,7 +268,7 @@ export interface MoveListVariables {
  * 2.4.3, which is the one caller that can name another board.
  *
  * A cross-board move is a different shape of write: the column and every card under it change
- * `board_id`, each card gets a fresh `short_id` and loses its labels and members (Section 3.6),
+ * `board_id`, each card gets a fresh `short_id` and loses its labels (Section 3.6),
  * and the response's `board_version` is the **target** board's. Writing that number into this
  * board's cache would shut its version gate against every later event, so the column is spliced
  * out of this board instead and both boards are refetched — the same rule `useMoveCardTo`
@@ -446,7 +446,6 @@ export interface CreateCardVariables {
   title: string;
   index?: SlotIndex;
   label_ids?: Id[];
-  member_ids?: Id[];
 }
 
 interface CardCreateContext extends BoardSnapshot {
@@ -477,8 +476,8 @@ export function useCreateCard(boardId: number): CreateCardResult {
     CreateCardVariables & { clientId: string; tempId: Id },
     CardCreateContext
   >({
-    mutationFn: ({ listId, title, index, label_ids, member_ids, clientId }) =>
-      createCard(listId, { title, index, client_id: clientId, label_ids, member_ids }),
+    mutationFn: ({ listId, title, index, label_ids, clientId }) =>
+      createCard(listId, { title, index, client_id: clientId, label_ids }),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: key });
       const state = queryClient.getQueryData<BoardState>(key);
@@ -490,7 +489,6 @@ export function useCreateCard(boardId: number): CreateCardResult {
           listId: variables.listId,
           title: variables.title,
           labelIds: variables.label_ids,
-          memberIds: variables.member_ids,
           now: new Date().toISOString(),
         });
         queryClient.setQueryData<BoardState>(

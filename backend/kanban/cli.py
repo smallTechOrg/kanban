@@ -21,13 +21,12 @@ from sqlalchemy.orm import Session
 from kanban import __version__, seed
 from kanban.config import settings
 from kanban.db import SessionLocal, engine, upgrade_to_head
-from kanban.errors import ApiError
 from kanban.logging_conf import configure_logging
 from kanban.models import Attachment, BoardBackground
 from kanban.static import require_frontend_build
 
 #: Every subcommand name, used to recognise a bare invocation as `run`.
-COMMANDS = ("run", "migrate", "seed", "backup", "cleanup-orphans", "create-user")
+COMMANDS = ("run", "migrate", "seed", "backup", "cleanup-orphans")
 
 #: `tmp/` holds in-flight uploads; anything older than this was left by a crash (Section 3.11).
 _TMP_MAX_AGE_SECONDS = 3600
@@ -62,7 +61,7 @@ def _build_parser() -> argparse.ArgumentParser:
     migrate = subparsers.add_parser("migrate", help="apply migrations without starting the server")
     migrate.set_defaults(handler=_migrate)
 
-    seed = subparsers.add_parser("seed", help="bootstrap admin and optional fixtures")
+    seed = subparsers.add_parser("seed", help="create one of the demo fixtures")
     seed.add_argument("--demo", action="store_true", help='the "Welcome to Kan Ban" fixture')
     seed.add_argument("--big", action="store_true", help="30 lists x 100 cards for perf checks")
     seed.set_defaults(handler=_seed)
@@ -74,13 +73,6 @@ def _build_parser() -> argparse.ArgumentParser:
     orphans = subparsers.add_parser("cleanup-orphans", help="remove upload files with no row")
     orphans.add_argument("--dry-run", action="store_true", help="list without deleting")
     orphans.set_defaults(handler=_cleanup_orphans)
-
-    create_user = subparsers.add_parser("create-user", help="create a user without the web form")
-    create_user.add_argument("--email", required=True)
-    create_user.add_argument("--username", required=True)
-    create_user.add_argument("--password", required=True)
-    create_user.add_argument("--name", default=None, help="full name (defaults to the username)")
-    create_user.set_defaults(handler=_create_user)
 
     return parser
 
@@ -132,7 +124,7 @@ def _backup(args: argparse.Namespace) -> int:
 
 
 def _seed(args: argparse.Namespace) -> int:
-    """Bootstrap `admin`, plus the `--demo` and `--big` fixtures; idempotent (Section 3.10)."""
+    """Create the `--demo` or `--big` fixture; idempotent (Section 3.10)."""
     _prepare_database()
     with _session() as db:
         if args.big:
@@ -152,12 +144,8 @@ def _seed(args: argparse.Namespace) -> int:
                 if created
                 else f'Demo board "{seed.DEMO_BOARD_NAME}" is already present; nothing to do.'
             )
-        elif seed.bootstrap_admin(db):
-            print(f"Created user {seed.ADMIN_USERNAME!r} from KANBAN_ADMIN_PASSWORD.")
-        elif settings.single_user:
-            print(f"User {seed.ADMIN_USERNAME!r} already exists; nothing to do.")
         else:
-            print("Nothing to seed: set KANBAN_SINGLE_USER=1, or pass --demo.")
+            print("Nothing to seed: pass --demo or --big.")
     return 0
 
 
@@ -207,25 +195,6 @@ def _cleanup_orphans(args: argparse.Namespace) -> int:
         # with no file is a restore-from-backup decision, not one a cleanup pass may take.
         print(f"dangling row: no file at {uploads / path}")
     print(f"{len(orphans)} orphaned path(s), {len(missing)} row(s) with a missing file.")
-    return 0
-
-
-def _create_user(args: argparse.Namespace) -> int:
-    """Register a user from the command line, bypassing `KANBAN_ALLOW_SIGNUP`."""
-    _prepare_database()
-    with _session() as db:
-        try:
-            user = seed.create_user(
-                db,
-                email=args.email,
-                username=args.username,
-                full_name=args.name or args.username,
-                password=args.password,
-            )
-        except ApiError as exc:
-            print(f"kanban create-user: {exc.message}", file=sys.stderr)
-            return 1
-    print(f"Created user {user.username!r} (id {user.id}).")
     return 0
 
 

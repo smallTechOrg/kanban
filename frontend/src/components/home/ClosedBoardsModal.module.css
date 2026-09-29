@@ -41,9 +41,3 @@
   flex: 0 0 auto;
   gap: 8px;
 }
-
-.note {
-  flex: 0 0 auto;
-  font-size: var(--fs-meta);
-  color: var(--text-muted);
-}

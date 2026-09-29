@@ -11,7 +11,6 @@ const EMPTY_PROMPT = 'Add a more detailed description…';
 export interface DescriptionEditorProps {
   boardId: number;
   card: CardDetail;
-  readOnly?: boolean;
 }
 
 /**
@@ -25,11 +24,7 @@ export interface DescriptionEditorProps {
  * `PATCH /api/cards/{card_id} {description}` through `useUpdateCardFields`, which patches the
  * card cache, the tile's `CardRow` and the description badge in one pass (Section 5.4.3).
  */
-export function DescriptionEditor({
-  boardId,
-  card,
-  readOnly = false,
-}: DescriptionEditorProps): ReactElement {
+export function DescriptionEditor({ boardId, card }: DescriptionEditorProps): ReactElement {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(card.description);
   const update = useUpdateCardFields(boardId, card.id);
@@ -54,7 +49,7 @@ export function DescriptionEditor({
         <h3 className={styles.heading} id="card-description-heading">
           Description
         </h3>
-        {hasText && !editing && !readOnly ? <Button onClick={startEditing}>Edit</Button> : null}
+        {hasText && !editing ? <Button onClick={startEditing}>Edit</Button> : null}
       </div>
 
       <div className={styles.body}>
@@ -69,8 +64,6 @@ export function DescriptionEditor({
           />
         ) : hasText ? (
           <MarkdownView>{card.description}</MarkdownView>
-        ) : readOnly ? (
-          <p className={styles.none}>No description</p>
         ) : (
           <button type="button" className={styles.emptyBox} onClick={startEditing}>
             {EMPTY_PROMPT}

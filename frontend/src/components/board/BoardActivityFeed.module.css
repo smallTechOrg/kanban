@@ -1,6 +1,6 @@
 /*
- * Section 2.3.4's Activity panel: one 32px avatar per row, the sentence, and the relative time
- * under it. The panel it sits in scrolls (`BoardMenuDrawer`), so nothing here sets a height.
+ * Section 2.3.4's Activity panel: one sentence per row with the relative time under it. The panel
+ * it sits in scrolls (`BoardMenuDrawer`), so nothing here sets a height.
  */
 .feed {
   display: flex;
@@ -15,15 +15,8 @@
 }
 
 .row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  margin-bottom: 16px;
-}
-
-.content {
-  flex: 1;
   min-width: 0;
+  margin-bottom: 16px;
 }
 
 .sentence {
@@ -31,10 +24,6 @@
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   color: var(--text);
-}
-
-.name {
-  font-weight: 700;
 }
 
 /* The sentence carries the card title, so the whole line is the link to the card. */
@@ -53,15 +42,6 @@
   font-size: var(--fs-meta);
   line-height: 16px;
   color: var(--text-muted);
-}
-
-/* A row the server wrote with no actor (a deleted user). */
-.systemAvatar {
-  flex: none;
-  width: var(--avatar-modal);
-  height: var(--avatar-modal);
-  background: var(--hover);
-  border-radius: 50%;
 }
 
 .loading {

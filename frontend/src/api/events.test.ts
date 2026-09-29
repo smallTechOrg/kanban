@@ -56,7 +56,6 @@ function event(overrides: Partial<BoardEvent> = {}): BoardEvent {
     entity: 'card',
     id: 101,
     card_id: 101,
-    actor_id: 1,
     at: '2026-09-25T09:00:00.000Z',
     ...overrides,
   };

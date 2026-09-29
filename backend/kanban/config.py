@@ -6,9 +6,6 @@ relative `KANBAN_*` path is resolved against it, so `python -m kanban`, `uvicorn
 and `pytest backend` all see the same absolute paths.
 """
 
-import contextlib
-import os
-import secrets
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -18,9 +15,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 #: backend/kanban/config.py -> backend/kanban -> backend -> the repository root.
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-
-#: Mode of the auto-generated secret file, where the operating system supports it.
-_SECRET_FILE_MODE = 0o600
 
 
 def _absolute(path: Path) -> Path:
@@ -43,13 +37,6 @@ class Settings(BaseSettings):
     port: int = 8000
     data_dir: Path = Path("./data")
     db_path: Path | None = None
-    secret: str = ""
-    https: bool = False
-    session_days: int = 30
-    single_user: bool = False
-    admin_password: str = "admin"
-    allow_signup: bool = True
-    login_rate_limit: str = "10/300"
     max_upload_mb: int = 25
     frontend_dist: Path = Path("./frontend/dist")
     log_level: str = "info"
@@ -97,26 +84,6 @@ class Settings(BaseSettings):
             self.uploads_dir / "tmp",
         ):
             directory.mkdir(parents=True, exist_ok=True)
-
-    def resolve_secret(self) -> str:
-        """Return the session-signing key, generating `<data_dir>/.secret` when unset.
-
-        An empty `KANBAN_SECRET` counts as unset (Section 1.9), which is what `.env.example`
-        ships; the generated file is created with mode 0600 where the OS honours it.
-        """
-        if self.secret.strip():
-            return self.secret
-        secret_file = self.data_dir / ".secret"
-        if secret_file.is_file():
-            stored = secret_file.read_text(encoding="utf-8").strip()
-            if stored:
-                return stored
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        generated = secrets.token_urlsafe(48)
-        secret_file.write_text(generated, encoding="utf-8")
-        with contextlib.suppress(OSError):  # POSIX mode bits are advisory on Windows
-            os.chmod(secret_file, _SECRET_FILE_MODE)
-        return generated
 
 
 #: Instantiated once; `db.py` and the lifespan read this module-level object directly.

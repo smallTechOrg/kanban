@@ -22,7 +22,7 @@
   padding: 32px;
   background: var(--surface);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-auth-card);
+  box-shadow: var(--shadow-panel);
   text-align: center;
 }
 
@@ -39,13 +39,6 @@
 .body {
   margin-bottom: 8px;
   font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  color: var(--text-muted);
-}
-
-/* Members and observers read this where the two buttons would have been. */
-.note {
-  font-size: var(--fs-meta);
   line-height: var(--lh-body);
   color: var(--text-muted);
 }

@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { X } from 'lucide-react';
 import { Button, IconButton, Popover, Textarea } from '@/components/ui';
-import { useActiveCardCount, useLabels, useMembers } from '@/hooks/useBoardData';
+import { useActiveCardCount, useLabels } from '@/hooks/useBoardData';
 import {
   useCreateCard,
   useCreateCards,
@@ -46,7 +46,7 @@ export interface CardComposerProps {
  * and Escape or a click outside closes it and discards the draft. Every submit scrolls the
  * composer back into view, because the list has just grown by one tile.
  *
- * `#label`, `@member` and `^top` / `^bottom` / `^N` are parsed by `lib/composerTokens.ts` and
+ * `#label` and `^top` / `^bottom` / `^N` are parsed by `lib/composerTokens.ts` and
  * previewed as chips under the textarea. A multi-line paste asks whether it should become one
  * card per line and, if so, goes as a single `split_lines` request. A pasted URL is sent exactly
  * as pasted: the server turns it into a link attachment and stores its host as the title.
@@ -60,15 +60,14 @@ export function CardComposer({ boardId, listId, index, onClose }: CardComposerPr
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const labels = useLabels(boardId).data;
-  const members = useMembers(boardId).data;
   const activeCount = useActiveCardCount(boardId, listId).data;
   const palette: LabelPalette = useMeta().data?.label_colors ?? NO_PALETTE;
   const { addCard } = useCreateCard(boardId);
   const createCards = useCreateCards(boardId);
 
   const parsed = useMemo(
-    () => parseComposerTokens(text, { labels, members, activeCount }),
-    [text, labels, members, activeCount],
+    () => parseComposerTokens(text, { labels, activeCount }),
+    [text, labels, activeCount],
   );
 
   function focusInput(): void {
@@ -100,7 +99,6 @@ export function CardComposer({ boardId, listId, index, onClose }: CardComposerPr
     const slot = parsed.index ?? index;
     if (slot !== undefined) variables.index = slot;
     if (parsed.label_ids.length > 0) variables.label_ids = parsed.label_ids;
-    if (parsed.member_ids.length > 0) variables.member_ids = parsed.member_ids;
     addCard(variables);
     setText('');
     focusInput();
@@ -181,7 +179,7 @@ export function CardComposer({ boardId, listId, index, onClose }: CardComposerPr
             }
             return (
               <span key={`${token.kind}-${at}`} className={styles.token}>
-                {token.kind === 'member' ? token.name : `Position ${String(token.index)}`}
+                {`Position ${String(token.index)}`}
               </span>
             );
           })}

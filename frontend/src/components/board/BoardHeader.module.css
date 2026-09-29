@@ -30,41 +30,6 @@
   max-width: 320px;
 }
 
-.divider {
-  flex: none;
-  width: 1px;
-  height: 16px;
-  margin: 0 8px;
-  background: var(--divider-white);
-}
-
-.members {
-  display: flex;
-  align-items: center;
-}
-
-.member {
-  display: flex;
-}
-
-/* Stacked with a 4px overlap, first one flush (2.3.1). */
-.member + .member {
-  margin-left: -4px;
-}
-
-.more {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--avatar-nav);
-  height: var(--avatar-nav);
-  font-size: var(--fs-meta);
-  font-weight: 700;
-  color: var(--text-inverse);
-  background: var(--chip-white);
-  border-radius: 50%;
-}
-
 /* Filter and Show menu sit at the far end of the bar (2.3.1). */
 .right {
   display: flex;

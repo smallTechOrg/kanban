@@ -157,13 +157,12 @@ describe('QuickCardEditor', () => {
     expect(await screen.findByText('Card modal')).toBeInTheDocument();
   });
 
-  it('renders all eight actions of Section 2.5.4 live', () => {
+  it('renders every action of Section 2.5.4 live', () => {
     renderEditor();
 
     for (const label of [
       'Open card',
       'Edit labels',
-      'Change members',
       'Change cover',
       'Move',
       'Copy',

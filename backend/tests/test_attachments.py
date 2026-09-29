@@ -2,11 +2,10 @@
 and `GET /uploads/{path}` (Sections 4.5, 4.6, 4.11 and 6.9).
 
 Everything runs through the public API (CLAUDE.md section 6): the card is created with the
-composer, the second account is registered through `/api/auth/register`, and a stored file is only
-ever inspected where the test is *about* the disk - that an upload really lands in
-`data/uploads/attachments/{id}/` and that deleting the row really removes it - which is the one
-thing no response can show. The two helpers borrowed from `test_cards.py` (`create_card`,
-`list_ids`) are the ones that module documents.
+composer, and a stored file is only ever inspected where the test is *about* the disk - that an
+upload really lands in `data/uploads/attachments/{id}/` and that deleting the row really removes
+it - which is the one thing no response can show. The two helpers borrowed from `test_cards.py`
+(`create_card`, `list_ids`) are the ones that module documents.
 """
 
 import io
@@ -19,13 +18,11 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from kanban.config import settings
-from kanban.models import User
 from kanban.storage import THUMB_SIZE
 from tests.conftest import CSRF_HEADERS
-from tests.test_cards import create_card, list_ids, register
+from tests.test_cards import create_card, list_ids
 
 BoardFactory = Callable[..., dict[str, Any]]
-LoggedIn = tuple[TestClient, User]
 
 #: A body larger than `KANBAN_MAX_UPLOAD_MB` (25), which the middleware refuses unread.
 OVER_CAP_BYTES = (settings.max_upload_mb + 1) * 1024 * 1024
@@ -42,9 +39,8 @@ BROKEN_PNG_BYTES = b"\x89PNG\r\n\x1a\n" + bytes(32)
 
 
 @pytest.fixture
-def card(logged_in: LoggedIn, board: dict[str, Any]) -> dict[str, Any]:
+def card(api: TestClient, board: dict[str, Any]) -> dict[str, Any]:
     """One card in the seeded `To Do` list, which every attachment here hangs off."""
-    api, _user = logged_in
     return create_card(api, list_ids(board["id"])[0], "Design home page")["item"]
 
 
@@ -117,28 +113,22 @@ def set_cover(api: TestClient, card_id: int, **body: Any) -> Any:
     return api.put(f"/api/cards/{card_id}/cover", json=body, headers=CSRF_HEADERS)
 
 
-def feed_types(api: TestClient, card_id: int) -> list[str]:
-    """Every activity `type` on the card's feed, newest first (Section 4.5)."""
-    response = api.get(f"/api/cards/{card_id}/feed", params={"details": 1})
+def feed_types(api: TestClient, card: dict[str, Any]) -> list[str]:
+    """Every activity `type` on the card's feed, newest first (Sections 4.3 and 4.5)."""
+    response = api.get(f"/api/boards/{card['board_id']}/activity", params={"card_id": card["id"]})
     assert response.status_code == 200, response.text
-    return [
-        entry["activity"]["type"]
-        for entry in response.json()["items"]
-        if entry["kind"] == "activity"
-    ]
+    return [row["type"] for row in response.json()["items"]]
 
 
 # --------------------------------------------------------------------------- uploads
 
 
 def test_upload_stores_the_file_and_a_two_to_one_thumbnail(
-    logged_in: LoggedIn, card: dict[str, Any]
+    api: TestClient, card: dict[str, Any]
 ) -> None:
-    api, user = logged_in
     item = upload_item(api, card["id"], filename="photo.png")
 
     assert item["kind"] == "upload"
-    assert item["user_id"] == user.id
     assert item["name"] == "photo.png"
     assert item["mime_type"] == "image/png"
     assert item["is_image"] is True
@@ -154,13 +144,12 @@ def test_upload_stores_the_file_and_a_two_to_one_thumbnail(
     with Image.open(directory / "thumb.jpg") as thumb:
         assert thumb.size == THUMB_SIZE
         assert thumb.format == "JPEG"
-    assert "attachment.added" in feed_types(api, card["id"])
+    assert "attachment.added" in feed_types(api, card)
 
 
 def test_upload_sanitises_the_filename_and_the_reserved_device_names(
-    logged_in: LoggedIn, card: dict[str, Any]
+    api: TestClient, card: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     traversal = upload_item(api, card["id"], filename="../../My Photo!!.png")
     reserved = upload_item(api, card["id"], filename="NUL.png")
     dots = upload_item(api, card["id"], filename="..")
@@ -174,9 +163,8 @@ def test_upload_sanitises_the_filename_and_the_reserved_device_names(
 
 
 def test_upload_type_is_sniffed_from_the_content_not_the_header(
-    logged_in: LoggedIn, card: dict[str, Any]
+    api: TestClient, card: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     pdf = upload_item(api, card["id"], filename="brief.pdf", content=PDF_BYTES)
     lying = upload_item(api, card["id"], filename="photo.png", content=PDF_BYTES)
     opaque = upload_item(api, card["id"], filename="blob.bin", content=OPAQUE_BYTES)
@@ -190,9 +178,8 @@ def test_upload_type_is_sniffed_from_the_content_not_the_header(
 
 
 def test_a_transparent_image_gets_a_thumbnail_over_white(
-    logged_in: LoggedIn, card: dict[str, Any]
+    api: TestClient, card: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     item = upload_item(api, card["id"], filename="logo.png", content=rgba_png_bytes())
 
     # Compositing onto white is what keeps a logo-on-nothing PNG from becoming a black box.
@@ -202,10 +189,7 @@ def test_a_transparent_image_gets_a_thumbnail_over_white(
         assert thumb.size == THUMB_SIZE
 
 
-def test_a_broken_image_is_stored_as_a_plain_file(
-    logged_in: LoggedIn, card: dict[str, Any]
-) -> None:
-    api, _user = logged_in
+def test_a_broken_image_is_stored_as_a_plain_file(api: TestClient, card: dict[str, Any]) -> None:
     item = upload_item(api, card["id"], filename="truncated.png", content=BROKEN_PNG_BYTES)
 
     # Sniffed as a PNG by its magic number, but Pillow cannot open it, so there is no thumbnail
@@ -217,16 +201,14 @@ def test_a_broken_image_is_stored_as_a_plain_file(
     assert set_cover(api, card["id"], kind="attachment", value=item["id"]).status_code == 400
 
 
-def test_upload_over_the_cap_is_413(logged_in: LoggedIn, card: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_upload_over_the_cap_is_413(api: TestClient, card: dict[str, Any]) -> None:
     response = upload(api, card["id"], filename="huge.bin", content=bytes(OVER_CAP_BYTES))
 
     assert response.status_code == 413, response.text
     assert response.json()["error"]["code"] == "payload_too_large"
 
 
-def test_a_body_with_no_file_and_no_link_is_422(logged_in: LoggedIn, card: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_a_body_with_no_file_and_no_link_is_422(api: TestClient, card: dict[str, Any]) -> None:
     path = f"/api/cards/{card['id']}/attachments"
 
     # A real multipart body whose one part is not called `file`, and a body that is neither.
@@ -239,8 +221,7 @@ def test_a_body_with_no_file_and_no_link_is_422(logged_in: LoggedIn, card: dict[
     assert not_json.json()["error"]["code"] == "validation_error"
 
 
-def test_an_unknown_attachment_id_is_404(logged_in: LoggedIn, card: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_an_unknown_attachment_id_is_404(api: TestClient, card: dict[str, Any]) -> None:
     unknown = upload_item(api, card["id"], filename="photo.png")["id"] + 10_000
 
     assert (
@@ -255,8 +236,7 @@ def test_an_unknown_attachment_id_is_404(logged_in: LoggedIn, card: dict[str, An
 # --------------------------------------------------------------------------- links
 
 
-def test_link_attachment_needs_no_file(logged_in: LoggedIn, card: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_link_attachment_needs_no_file(api: TestClient, card: dict[str, Any]) -> None:
     item = link_item(api, card["id"], "https://example.com/specs/plan.pdf")
 
     assert item["kind"] == "link"
@@ -269,9 +249,8 @@ def test_link_attachment_needs_no_file(logged_in: LoggedIn, card: dict[str, Any]
 
 
 def test_link_display_text_is_kept_and_a_non_http_url_is_422(
-    logged_in: LoggedIn, card: dict[str, Any]
+    api: TestClient, card: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     named = link_item(api, card["id"], "https://example.com/", name="The spec")
     refused = api.post(
         f"/api/cards/{card['id']}/attachments",
@@ -287,8 +266,7 @@ def test_link_display_text_is_kept_and_a_non_http_url_is_422(
 # --------------------------------------------------------------------------- rename and delete
 
 
-def test_rename_changes_the_display_name_only(logged_in: LoggedIn, card: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_rename_changes_the_display_name_only(api: TestClient, card: dict[str, Any]) -> None:
     item = upload_item(api, card["id"], filename="photo.png")
 
     response = api.patch(
@@ -300,13 +278,10 @@ def test_rename_changes_the_display_name_only(logged_in: LoggedIn, card: dict[st
     assert renamed["name"] == "Mock-up"
     assert renamed["url"] == item["url"]  # the file on disk keeps its own name
     assert stored(item["id"]).joinpath("photo.png").is_file()
-    assert "attachment.renamed" in feed_types(api, card["id"])
+    assert "attachment.renamed" in feed_types(api, card)
 
 
-def test_renaming_to_the_same_name_records_nothing(
-    logged_in: LoggedIn, card: dict[str, Any]
-) -> None:
-    api, _user = logged_in
+def test_renaming_to_the_same_name_records_nothing(api: TestClient, card: dict[str, Any]) -> None:
     item = upload_item(api, card["id"], filename="photo.png")
 
     response = api.patch(
@@ -314,13 +289,12 @@ def test_renaming_to_the_same_name_records_nothing(
     )
 
     assert response.status_code == 200, response.text
-    assert "attachment.renamed" not in feed_types(api, card["id"])
+    assert "attachment.renamed" not in feed_types(api, card)
 
 
 def test_deleting_the_cover_attachment_clears_the_cover_and_the_files(
-    logged_in: LoggedIn, card: dict[str, Any]
+    api: TestClient, card: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     item = upload_item(api, card["id"], filename="photo.png")
     assert set_cover(api, card["id"], kind="attachment", value=item["id"]).status_code == 200
 
@@ -334,12 +308,11 @@ def test_deleting_the_cover_attachment_clears_the_cover_and_the_files(
     assert response.status_code == 204, response.text
     assert card_body(api, card["id"])["cover"] is None
     assert not stored(item["id"]).exists()
-    types = feed_types(api, card["id"])
+    types = feed_types(api, card)
     assert "attachment.deleted" in types and "card.cover_removed" in types
 
 
-def test_deleting_a_link_leaves_the_cover_alone(logged_in: LoggedIn, card: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_deleting_a_link_leaves_the_cover_alone(api: TestClient, card: dict[str, Any]) -> None:
     upload_item(api, card["id"], filename="photo.png")
     assert set_cover(api, card["id"], kind="color", value="green").status_code == 200
     link = link_item(api, card["id"], "https://example.com/")
@@ -352,9 +325,8 @@ def test_deleting_a_link_leaves_the_cover_alone(logged_in: LoggedIn, card: dict[
 
 
 def test_a_colour_cover_and_an_attachment_cover_both_work(
-    logged_in: LoggedIn, card: dict[str, Any]
+    api: TestClient, card: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     item = upload_item(api, card["id"], filename="photo.png")
 
     colored = set_cover(api, card["id"], kind="color", value="green", size="full")
@@ -367,11 +339,10 @@ def test_a_colour_cover_and_an_attachment_cover_both_work(
     assert cover["kind"] == "attachment"
     assert cover["value"] == str(item["id"])
     assert cover["size"] == "normal"
-    assert "card.cover_changed" in feed_types(api, card["id"])
+    assert "card.cover_changed" in feed_types(api, card)
 
 
-def test_clear_cover_is_idempotent(logged_in: LoggedIn, card: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_clear_cover_is_idempotent(api: TestClient, card: dict[str, Any]) -> None:
     assert set_cover(api, card["id"], kind="color", value="blue").status_code == 200
 
     first = api.delete(f"/api/cards/{card['id']}/cover", headers=CSRF_HEADERS)
@@ -379,13 +350,12 @@ def test_clear_cover_is_idempotent(logged_in: LoggedIn, card: dict[str, Any]) ->
 
     assert first.status_code == 200 and first.json()["item"]["cover"] is None
     assert second.status_code == 200 and second.json()["item"]["cover"] is None
-    assert feed_types(api, card["id"]).count("card.cover_removed") == 1
+    assert feed_types(api, card).count("card.cover_removed") == 1
 
 
 def test_a_cover_must_be_a_palette_key_or_a_thumbnailed_attachment_of_this_card(
-    logged_in: LoggedIn, board: dict[str, Any], card: dict[str, Any]
+    api: TestClient, board: dict[str, Any], card: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     other = create_card(api, list_ids(board["id"])[1], "Another card")["item"]
     elsewhere = upload_item(api, other["id"], filename="photo.png")
     link = link_item(api, card["id"], "https://example.com/")
@@ -401,9 +371,8 @@ def test_a_cover_must_be_a_palette_key_or_a_thumbnailed_attachment_of_this_card(
 
 
 def test_an_image_is_served_inline_and_a_document_as_a_download(
-    logged_in: LoggedIn, card: dict[str, Any]
+    api: TestClient, card: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     image = upload_item(api, card["id"], filename="photo.png")
     document = upload_item(api, card["id"], filename="brief.pdf", content=PDF_BYTES)
 
@@ -423,9 +392,8 @@ def test_an_image_is_served_inline_and_a_document_as_a_download(
 
 
 def test_a_traversal_path_is_400_and_a_missing_file_is_404(
-    logged_in: LoggedIn, card: dict[str, Any]
+    api: TestClient, card: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     item = upload_item(api, card["id"], filename="photo.png")
 
     escape = api.get("/uploads/attachments%2F..%2F..%2Fkanban.db")
@@ -439,35 +407,25 @@ def test_a_traversal_path_is_400_and_a_missing_file_is_404(
     assert missing.json()["error"]["code"] == "not_found"
 
 
-def test_only_a_board_member_may_read_an_uploaded_file(
-    logged_in: LoggedIn, card: dict[str, Any]
-) -> None:
-    api, _user = logged_in
+def test_a_deleted_attachment_stops_serving_its_file(api: TestClient, card: dict[str, Any]) -> None:
+    """Section 4.11: the row is what makes the file servable, so a path with none is a 404."""
     item = upload_item(api, card["id"], filename="photo.png")
-    stranger, _account = register(api, "attachment_stranger")
+    assert api.get(item["url"]).status_code == 200
 
-    assert stranger.get(item["url"]).status_code == 404
-    assert (
-        stranger.post(
-            f"/api/cards/{card['id']}/attachments",
-            json={"url": "https://example.com/"},
-            headers=CSRF_HEADERS,
-        ).status_code
-        == 404
-    )
+    assert api.delete(f"/api/attachments/{item['id']}", headers=CSRF_HEADERS).status_code == 204
 
-    anonymous = TestClient(api.app)
-    assert anonymous.get(item["url"]).status_code == 401
+    refused = api.get(item["url"])
+    assert refused.status_code == 404
+    assert refused.json()["error"]["code"] == "not_found"
 
 
 # ------------------------------------------------------- the three cascades of Section 3.7
 
 
 def test_deleting_a_card_removes_its_attachment_directories(
-    logged_in: LoggedIn, card: dict[str, Any]
+    api: TestClient, card: dict[str, Any]
 ) -> None:
     """Section 3.7: a hard delete takes the files with it, after the transaction commits."""
-    api, _user = logged_in
     uploaded = upload_item(api, card["id"], filename="photo.png")
     link_item(api, card["id"], "https://example.com/")
     assert stored(uploaded["id"]).is_dir()
@@ -478,9 +436,8 @@ def test_deleting_a_card_removes_its_attachment_directories(
     assert not stored(uploaded["id"]).exists()
 
 
-def test_a_refused_delete_keeps_the_files(logged_in: LoggedIn, card: dict[str, Any]) -> None:
+def test_a_refused_delete_keeps_the_files(api: TestClient, card: dict[str, Any]) -> None:
     """The 409 of an unarchived card is not a delete, so nothing on disk may move."""
-    api, _user = logged_in
     uploaded = upload_item(api, card["id"], filename="photo.png")
 
     assert api.delete(f"/api/cards/{card['id']}", headers=CSRF_HEADERS).status_code == 409
@@ -489,10 +446,9 @@ def test_a_refused_delete_keeps_the_files(logged_in: LoggedIn, card: dict[str, A
 
 
 def test_deleting_an_archived_list_removes_the_files_of_its_cards(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
     """The list cascade reaches the attachments of every card it deletes (Section 3.7)."""
-    api, _user = logged_in
     list_id = list_ids(board["id"])[0]
     card_id = create_card(api, list_id, "Design home page")["item"]["id"]
     uploaded = upload_item(api, card_id, filename="photo.png")
@@ -504,10 +460,9 @@ def test_deleting_an_archived_list_removes_the_files_of_its_cards(
 
 
 def test_deleting_a_closed_board_removes_every_attachment_directory_below_it(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
     """The board cascade of Section 3.7, across two lists of the same board."""
-    api, _user = logged_in
     first, second = list_ids(board["id"])[:2]
     one = upload_item(api, create_card(api, first, "One")["item"]["id"], filename="one.png")
     two = upload_item(api, create_card(api, second, "Two")["item"]["id"], filename="two.png")
@@ -520,10 +475,9 @@ def test_deleting_a_closed_board_removes_every_attachment_directory_below_it(
 
 
 def test_deleting_a_copied_card_keeps_the_original_files(
-    logged_in: LoggedIn, card: dict[str, Any], board: dict[str, Any]
+    api: TestClient, card: dict[str, Any], board: dict[str, Any]
 ) -> None:
     """A deep copy owns its own directory (Section 3.11), so the cascade must not reach back."""
-    api, _user = logged_in
     source = upload_item(api, card["id"], filename="photo.png")
 
     response = api.post(

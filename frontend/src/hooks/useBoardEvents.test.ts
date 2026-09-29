@@ -6,8 +6,9 @@ import type { BoardEvent } from '@/api/types';
 import { normalizeBoard } from '@/lib/normalize';
 import { useUiStore } from '@/store/uiStore';
 import { boardPayloadFixture } from '@/test/handlers';
+import { activityKey } from './useBoardActivity';
 import { boardKey } from './useBoardData';
-import { cardKey, feedKey } from './useCard';
+import { cardKey } from './useCard';
 import { useBoardEvents } from './useBoardEvents';
 
 /** The stand-in of `api/events.test.ts`: jsdom has no `EventSource`. */
@@ -34,7 +35,6 @@ function event(overrides: Partial<BoardEvent> = {}): BoardEvent {
     entity: 'card',
     id: CARD_ID,
     card_id: CARD_ID,
-    actor_id: 2,
     at: '2026-09-25T09:00:00.000Z',
     ...overrides,
   };
@@ -87,12 +87,12 @@ describe('useBoardEvents', () => {
     unmount();
   });
 
-  it('invalidates the card and its feed at once, and the board after the debounce', () => {
+  it('invalidates the card and the feed at once, and the board after the debounce', () => {
     const { invalidate, unmount } = mount();
 
     emit(event({ version: 2 }));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: cardKey(CARD_ID) });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: feedKey(CARD_ID) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: activityKey(BOARD_ID) });
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: boardKey(BOARD_ID) });
 
     act(() => void vi.advanceTimersByTime(150));

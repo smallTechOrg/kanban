@@ -15,7 +15,6 @@ export interface CardModalMainProps {
   /** The checklists with "Hide checked items" on; the modal owns it (`ChecklistSection`). */
   hiddenChecklistIds: readonly number[];
   onToggleHideChecked: (checklistId: number) => void;
-  readOnly?: boolean;
 }
 
 /**
@@ -36,13 +35,12 @@ export function CardModalMain({
   card,
   hiddenChecklistIds,
   onToggleHideChecked,
-  readOnly = false,
 }: CardModalMainProps): ReactElement {
   return (
     <div className={styles.main}>
-      <QuickBadgesRow boardId={boardId} card={card} readOnly={readOnly} />
-      <DescriptionEditor boardId={boardId} card={card} readOnly={readOnly} />
-      <AttachmentsSection boardId={boardId} card={card} readOnly={readOnly} />
+      <QuickBadgesRow boardId={boardId} card={card} />
+      <DescriptionEditor boardId={boardId} card={card} />
+      <AttachmentsSection boardId={boardId} card={card} />
 
       <Droppable droppableId={checklistsDropId(card.id)} type={CHECKLIST_DRAG_TYPE}>
         {(provided) => (
@@ -56,7 +54,6 @@ export function CardModalMain({
                 index={index}
                 hideChecked={hiddenChecklistIds.includes(checklist.id)}
                 onToggleHideChecked={() => onToggleHideChecked(checklist.id)}
-                readOnly={readOnly}
               />
             ))}
             {provided.placeholder}

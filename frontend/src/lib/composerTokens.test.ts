@@ -5,7 +5,6 @@ import {
   pastedLines,
   type ComposerContext,
   type LabelCandidate,
-  type MemberCandidate,
 } from './composerTokens';
 
 const labels: LabelCandidate[] = [
@@ -14,12 +13,7 @@ const labels: LabelCandidate[] = [
   { id: 33, name: 'Design', color: 'purple' },
 ];
 
-const members: MemberCandidate[] = [
-  { id: 1, username: 'admin', full_name: 'Vivek Sharma' },
-  { id: 2, username: 'asha', full_name: 'Asha Rao' },
-];
-
-const context: ComposerContext = { labels, members, activeCount: 5 };
+const context: ComposerContext = { labels, activeCount: 5 };
 
 describe('position tokens', () => {
   it('turns Trello’s 1-based ^3 into the server’s index 2', () => {
@@ -55,43 +49,39 @@ describe('position tokens', () => {
   });
 });
 
-describe('label and member tokens', () => {
-  it('matches a colour key, a multi-word name and a username', () => {
-    const parsed = parseComposerTokens('Fix the header #green #Bug fix @admin', context);
+describe('label tokens', () => {
+  it('matches a colour key and a multi-word name, case-insensitively', () => {
+    const parsed = parseComposerTokens('Fix the header #green #bug FIX', context);
     expect(parsed.title).toBe('Fix the header');
     expect(parsed.label_ids).toEqual([31, 32]);
-    expect(parsed.member_ids).toEqual([1]);
     expect(parsed.tokens).toEqual([
       { kind: 'label', text: '#green', id: 31, name: '', color: 'green' },
-      { kind: 'label', text: '#Bug fix', id: 32, name: 'Bug fix', color: 'red' },
-      { kind: 'member', text: '@admin', id: 1, name: 'Vivek Sharma' },
+      { kind: 'label', text: '#bug FIX', id: 32, name: 'Bug fix', color: 'red' },
     ]);
   });
 
-  it('matches a member by full name, case-insensitively', () => {
-    const parsed = parseComposerTokens('Review @asha rao please', context);
-    expect(parsed.member_ids).toEqual([2]);
+  it('keeps the words that follow a matched name', () => {
+    const parsed = parseComposerTokens('Review #Design please', context);
+    expect(parsed.label_ids).toEqual([33]);
     expect(parsed.title).toBe('Review please');
   });
 
   it('leaves a token that names nothing on this board in the title', () => {
-    const parsed = parseComposerTokens('Ask #nobody @nobody # @ about it', context);
-    expect(parsed.title).toBe('Ask #nobody @nobody # @ about it');
+    const parsed = parseComposerTokens('Ask #nobody # about it', context);
+    expect(parsed.title).toBe('Ask #nobody # about it');
     expect(parsed.tokens).toEqual([]);
     expect(parsed.label_ids).toEqual([]);
-    expect(parsed.member_ids).toEqual([]);
   });
 
   it('resolves a repeated token once', () => {
-    const parsed = parseComposerTokens('#Design #design @asha @asha Polish', context);
+    const parsed = parseComposerTokens('#Design #design Polish', context);
     expect(parsed.label_ids).toEqual([33]);
-    expect(parsed.member_ids).toEqual([2]);
     expect(parsed.title).toBe('Polish');
   });
 
-  it('matches nothing when the board has no labels or members', () => {
-    const parsed = parseComposerTokens('Plain #green @admin');
-    expect(parsed.title).toBe('Plain #green @admin');
+  it('matches nothing when the board has no labels', () => {
+    const parsed = parseComposerTokens('Plain #green');
+    expect(parsed.title).toBe('Plain #green');
   });
 });
 
@@ -106,15 +96,13 @@ describe('the cleaned title', () => {
   });
 
   it('returns an empty title when the input is nothing but tokens', () => {
-    const parsed = parseComposerTokens('#green @admin ^2', context);
+    const parsed = parseComposerTokens('#green ^2', context);
     expect(parsed).toEqual({
       title: '',
       label_ids: [31],
-      member_ids: [1],
       index: 1,
       tokens: [
         { kind: 'label', text: '#green', id: 31, name: '', color: 'green' },
-        { kind: 'member', text: '@admin', id: 1, name: 'Vivek Sharma' },
         { kind: 'position', text: '^2', index: 1 },
       ],
     });

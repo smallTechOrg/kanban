@@ -3,7 +3,7 @@ import { Route, Routes } from 'react-router-dom';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { boardPayloadFixture, makeBoardSummary } from '@/test/handlers';
+import { makeBoardSummary } from '@/test/handlers';
 import { renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
 import { BoardMenuDrawer } from './BoardMenuDrawer';
@@ -36,18 +36,6 @@ function renderDrawer(): Handles {
   return handles;
 }
 
-/** Answers the board with a role other than the fixture's `admin`. */
-function serveRole(role: 'member' | 'observer'): void {
-  server.use(
-    http.get('/api/boards/:boardId', () =>
-      HttpResponse.json({
-        ...boardPayloadFixture,
-        board: makeBoardSummary({ id: BOARD_ID, my_role: role }),
-      }),
-    ),
-  );
-}
-
 describe('BoardMenuDrawer', () => {
   it('opens on the root menu with the rows of Section 2.3.4', async () => {
     renderDrawer();
@@ -71,8 +59,7 @@ describe('BoardMenuDrawer', () => {
     await user.click(await screen.findByRole('button', { name: 'About this board' }));
 
     expect(screen.getByRole('heading', { name: 'About this board' })).toBeInTheDocument();
-    expect(screen.getByText('Made by')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Vivek Sharma' })).toBeInTheDocument();
+    expect(screen.getByText('Description')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Archived items' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
@@ -98,15 +85,12 @@ describe('BoardMenuDrawer', () => {
     expect(screen.getByRole('button', { name: 'Create a new label' })).toBeInTheDocument();
   });
 
-  it('pushes the Settings panel with the visibility select and the covers toggle', async () => {
+  it('pushes the Settings panel with the covers toggle', async () => {
     const user = userEvent.setup();
     renderDrawer();
 
     await user.click(await screen.findByRole('button', { name: 'Settings' }));
 
-    expect(screen.getByLabelText('Visibility')).toHaveValue('private');
-    // Section 2.3.4: one fixed value, disabled in v1.
-    expect(screen.getByLabelText('Allow comments from')).toBeDisabled();
     expect(screen.getByLabelText('Card covers enabled')).toBeChecked();
 
     await user.click(screen.getByLabelText('Card covers enabled'));
@@ -119,10 +103,9 @@ describe('BoardMenuDrawer', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Activity' }));
 
-    // The actor's name is its own element inside the sentence, so the rows are read as text.
     const feed = await screen.findByRole('list');
-    expect(feed).toHaveTextContent('Vivek Sharma renamed this board (from Website)');
-    expect(feed).toHaveTextContent('added Write launch announcement to To Do');
+    expect(feed).toHaveTextContent('Renamed this board (from Website)');
+    expect(feed).toHaveTextContent('Added Write launch announcement to To Do');
   });
 
   it('pushes the archived items panel', async () => {
@@ -173,14 +156,6 @@ describe('BoardMenuDrawer', () => {
     });
     expect(await screen.findByText('Home page')).toBeInTheDocument();
     expect(handles.onClose).toHaveBeenCalled();
-  });
-
-  it('hides "Close board…" from a member, because the endpoint is admin only', async () => {
-    serveRole('member');
-    renderDrawer();
-
-    expect(await screen.findByRole('button', { name: 'About this board' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Close board…' })).not.toBeInTheDocument();
   });
 
   it('opens the filter on "Search cards" and closes from the X', async () => {

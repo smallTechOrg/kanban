@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /**
  * M4b end to end (Section 7.2's M4, board half): the filter and its URL mirror, a drag while the
@@ -7,16 +7,19 @@ import { expect, test, type BrowserContext, type Locator, type Page } from '@pla
  *
  * One serial journey on one board, because every step reads what the step before it left behind:
  * the filter that step 2 sets is what makes step 3's drop interesting, and the activity feed of
- * step 8 asserts the sentences for the actions steps 1-7 actually performed.
+ * step 7 asserts the sentences for the actions steps 1-6 actually performed.
  */
 
 /** The lists `POST /api/boards` creates for `default_lists: true` (Section 3.10). */
 const TODO = 'To Do';
 const DOING = 'Doing';
 
-const BOARD = 'M4b menu board';
+/** A fresh board name per run, so the spec also passes against a database that is not empty. */
+const suffix = `${Date.now()}`.slice(-9);
 
-/** Four cards in `To Do`: two carry the green label, one a due date and me as a member. */
+const BOARD = `M4b menu board ${suffix}`;
+
+/** Four cards in `To Do`: two carry the green label and one a due date. */
 const ALPHA = 'Filter alpha';
 const BETA = 'Filter beta';
 const GAMMA = 'Filter gamma';
@@ -24,22 +27,14 @@ const DELTA = 'Filter delta';
 
 const SCREENSHOT = 'docs/audit/screens/m4b-board.png';
 
-/** Section 7.2: the second window shows the first window's write within a second. */
+/** Section 7.2: the second tab shows the first tab's write within a second. */
 const WITHIN_A_SECOND = 1_500;
-
-const suffix = `${Date.now()}`.slice(-9);
-const user = {
-  fullName: 'Nadia Farouk',
-  email: `nadia_${suffix}@example.com`,
-  username: `nadia_${suffix}`,
-  password: 'correct-horse-battery',
-};
 
 function column(page: Page, name: string): Locator {
   return page.locator(`section[aria-label="${name}"]`);
 }
 
-/** The whole tile behind a card link: the chips, badges and avatars are the anchor's siblings. */
+/** The whole tile behind a card link: the chip row and the badges are the anchor's siblings. */
 function tile(page: Page, title: string): Locator {
   return page.getByRole('link', { name: title, exact: true }).locator('xpath=..');
 }
@@ -100,16 +95,6 @@ async function dragTileOnto(page: Page, source: Locator, target: Locator): Promi
   await expect(page.locator('[id^="rfd-announcement"]')).toContainText('You have dropped the item');
 }
 
-async function signIn(context: BrowserContext): Promise<Page> {
-  const page = await context.newPage();
-  await page.goto('/login');
-  await page.getByLabel('Email or username').fill(user.username);
-  await page.getByLabel('Password').fill(user.password);
-  await page.getByRole('button', { name: 'Log in' }).click();
-  await expect(page.getByRole('button', { name: 'Create new board' })).toBeVisible();
-  return page;
-}
-
 /** Tomorrow as the `type="date"` input spells it, so the due badge is "due soon" and not overdue. */
 function tomorrow(): string {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -118,17 +103,11 @@ function tomorrow(): string {
 
 test.describe.configure({ mode: 'serial' });
 
-test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ page, browser }) => {
+test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ page }) => {
   let boardPath = '';
 
-  await test.step('1. register, create a board with four cards, labels, a due date and me', async () => {
-    await page.goto('/register');
-    await page.getByLabel('Full name').fill(user.fullName);
-    await page.getByLabel('Email').fill(user.email);
-    await page.getByLabel('Username').fill(user.username);
-    await page.getByLabel('Password').fill(user.password);
-    await page.getByRole('button', { name: 'Sign up' }).click();
-
+  await test.step('1. create a board with four cards, labels and a due date', async () => {
+    await page.goto('/');
     await page.getByRole('button', { name: 'Create new board' }).click();
     const create = page.getByRole('dialog', { name: 'Create board' });
     await create.getByLabel('Board title').fill(BOARD);
@@ -146,7 +125,7 @@ test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ pag
       await expect(tile(page, title).getByTitle('green')).toBeVisible();
     }
 
-    // `D` opens the Dates popover on the hovered tile, `Space` assigns me to it.
+    // `D` opens the Dates popover on the hovered tile (Section 2.8).
     await hoverCard(page, DELTA);
     await page.keyboard.press('d');
     const dates = page.getByRole('dialog', { name: 'Dates' });
@@ -155,10 +134,6 @@ test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ pag
     await dates.getByRole('textbox', { name: 'Due date' }).fill(tomorrow());
     await dates.getByRole('button', { name: 'Save' }).click();
     await expect(dates).toHaveCount(0);
-
-    await hoverCard(page, DELTA);
-    await page.keyboard.press(' ');
-    await expect(tile(page, DELTA).locator(`[aria-label="${user.fullName}"]`)).toBeVisible();
 
     expect(await visibleTitles(page, TODO)).toEqual([ALPHA, BETA, GAMMA, DELTA]);
   });
@@ -239,16 +214,7 @@ test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ pag
     await expect(sheet).toHaveCount(0);
   });
 
-  await test.step('7. Space on a hovered tile assigns me to it', async () => {
-    const avatar = tile(page, BETA).locator(`[aria-label="${user.fullName}"]`);
-    await expect(avatar).toHaveCount(0);
-
-    await hoverCard(page, BETA);
-    await page.keyboard.press(' ');
-    await expect(avatar).toBeVisible();
-  });
-
-  await test.step('8. the board menu reads back what happened, and restores an archived card', async () => {
+  await test.step('7. the board menu reads back what happened, and restores an archived card', async () => {
     await hoverCard(page, DELTA);
     await page.keyboard.press('c');
     await expect(column(page, TODO).getByRole('link', { name: DELTA })).toHaveCount(0);
@@ -259,11 +225,12 @@ test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ pag
 
     await drawer.getByRole('button', { name: 'Activity' }).click();
     await expect(drawer.getByRole('heading', { name: 'Activity' })).toBeVisible();
-    await expect(drawer.getByText(`added ${ALPHA} to ${TODO}`)).toBeVisible();
-    await expect(drawer.getByText('added the green label to this card').first()).toBeVisible();
-    await expect(drawer.getByText('archived this card')).toBeVisible();
-    await expect(drawer.getByText('created this board')).toBeVisible();
-    await expect(drawer.getByText(user.fullName).first()).toBeVisible();
+    // One sentence per row, from `lib/activity.ts` (Section 3.8): the board feed names the card
+    // it happened to, and nothing names an actor.
+    await expect(drawer.getByText(`Added ${ALPHA} to ${TODO}`)).toBeVisible();
+    await expect(drawer.getByText('Added the green label to this card').first()).toBeVisible();
+    await expect(drawer.getByText('Archived this card')).toBeVisible();
+    await expect(drawer.getByText('Created this board')).toBeVisible();
 
     await drawer.getByRole('button', { name: 'Back' }).click();
     await drawer.getByRole('button', { name: 'Archived items' }).click();
@@ -277,9 +244,8 @@ test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ pag
     expect(await visibleTitles(page, TODO)).toEqual([GAMMA, ALPHA, BETA, DELTA]);
   });
 
-  await test.step('9. a second window on the same board follows a move within a second', async () => {
-    const second = await browser.newContext();
-    const watcher = await signIn(second);
+  await test.step('8. a second tab on the same board follows a move within a second', async () => {
+    const watcher = await page.context().newPage();
     await watcher.goto(boardPath);
     await expect(column(watcher, TODO).getByRole('link', { name: BETA })).toBeVisible();
 
@@ -293,13 +259,14 @@ test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ pag
     });
     await expect(column(watcher, TODO).getByRole('link', { name: BETA })).toHaveCount(0);
 
-    await second.close();
+    await watcher.close();
+    await page.bringToFront();
   });
-  await test.step('10. screenshot the board with the drawer open', async () => {
+
+  await test.step('9. screenshot the board with the drawer open', async () => {
     await page.getByRole('button', { name: 'Back' }).click();
     await expect(page.getByRole('heading', { name: 'Menu', exact: true })).toBeVisible();
     await page.screenshot({ path: SCREENSHOT, fullPage: false });
     await page.getByRole('button', { name: 'Close menu' }).click();
   });
-
 });

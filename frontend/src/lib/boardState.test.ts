@@ -10,7 +10,6 @@ import {
   applyListPatch,
   applyListPositions,
   applyListRow,
-  applyMemberRow,
   applyMove,
   applyPositions,
   applyRemoveCard,
@@ -33,7 +32,6 @@ import {
   selectList,
   selectListOrder,
   selectMatchedCardCount,
-  selectMembers,
   setBoardVersion,
   swapTempId,
   TEMP_ID_PREFIX,
@@ -43,7 +41,6 @@ import {
   type Id,
   type LabelRow,
   type ListRow,
-  type MemberRow,
 } from './boardState';
 
 const STEP = 65536;
@@ -53,14 +50,11 @@ const board: BoardMeta = {
   name: 'Website relaunch',
   description: '',
   version: 10,
-  owner_id: 1,
   background_type: 'color',
   background_value: 'var(--primary)',
   background_thumb_url: null,
-  visibility: 'private',
   is_closed: false,
   is_starred: false,
-  my_role: 'admin',
   created_at: '2026-09-01T09:12:00.000Z',
   updated_at: '2026-09-24T17:58:41.120Z',
 };
@@ -92,11 +86,8 @@ function makeCard(overrides: Partial<CardRow> & { id: Id }): CardRow {
     due_complete: false,
     cover: null,
     label_ids: [],
-    member_ids: [],
-    is_watching: false,
     badges: {
       description: false,
-      comments: 0,
       attachments: 0,
       checklist_done: 0,
       checklist_total: 0,
@@ -115,16 +106,6 @@ const label: LabelRow = {
   tone: 'normal',
   position: STEP,
 };
-const member: MemberRow = {
-  id: 1,
-  username: 'vivek',
-  full_name: 'Vivek Sharma',
-  initials: 'VS',
-  avatar_color: 'var(--logo)',
-  role: 'admin',
-  joined_at: '2026-09-01T09:12:00.000Z',
-};
-
 /** `[A, B, C]` in list 11 and `[X]` in list 12 — the board every reducer test starts from. */
 function makeState(): BoardState {
   const todo = makeList({ id: 11 });
@@ -140,7 +121,6 @@ function makeState(): BoardState {
     lists: { 11: todo, 12: doing },
     cards: Object.fromEntries(cards.map((card) => [card.id, card])),
     labels: { 31: label },
-    members: { 1: member },
     listOrder: [11, 12],
     cardOrder: { 11: [101, 102, 103], 12: [201] },
   };
@@ -195,7 +175,6 @@ describe('selectors', () => {
     expect(selectActiveCardCount(state, 11)).toBe(3);
     expect(selectActiveCardCount(state, 99)).toBe(0);
     expect(selectLabels(state)).toEqual([label]);
-    expect(selectMembers(state)).toEqual([member]);
   });
 
   it('counts the cards a filter leaves, and answers undefined while none is active', () => {
@@ -269,11 +248,9 @@ describe('create, swap and remove', () => {
       listId: 11,
       title: 'Draft',
       labelIds: [31],
-      memberIds: [1],
       now: '2026-09-26T10:00:00.000Z',
     });
     expect(tokenised.label_ids).toEqual([31]);
-    expect(tokenised.member_ids).toEqual([1]);
   });
 
   it('inserts at the top, the bottom, a slot and by default', () => {
@@ -348,15 +325,6 @@ describe('server merges', () => {
 
     const archived = applyListRow(renamed, makeList({ id: 12, is_archived: true }));
     expect(archived.listOrder).toEqual([11]);
-  });
-
-  it('writes a member row for both an added member and a changed role', () => {
-    const added = applyMemberRow(makeState(), { ...member, id: 2, full_name: 'Asha Patel' });
-    expect(selectMembers(added).map((row) => row.id)).toEqual([1, 2]);
-
-    const demoted = applyMemberRow(added, { ...member, id: 2, role: 'observer' });
-    expect(selectMembers(demoted).map((row) => row.role)).toEqual(['admin', 'observer']);
-    expect(selectMembers(makeState())).toEqual([member]);
   });
 
   it('writes a positions map and re-sorts the lists it touched', () => {

@@ -10,7 +10,7 @@ import {
   labelName,
   type LabelDraft,
 } from '@/components/card/labelDraft';
-import { useBoardMeta, useLabels } from '@/hooks/useBoardData';
+import { useLabels } from '@/hooks/useBoardData';
 import { useCreateLabel, useDeleteLabel, useUpdateLabel } from '@/hooks/useCardMutations';
 import { useMeta } from '@/hooks/useMeta';
 import type { LabelRow } from '@/lib/boardState';
@@ -40,13 +40,11 @@ export interface BoardLabelsPanelProps {
  *
  * Nothing here toggles a label — there is no card to toggle it on — so a row is the chip plus the
  * pencil that opens `LabelForm`, the very form the card modal pushes, and the create, rename,
- * recolour and delete writes are the same four hooks (CLAUDE.md section 3). Delete renders only
- * for an admin, because the endpoint is admin-only (Section 4.3).
+ * recolour and delete writes are the same four hooks (CLAUDE.md section 3).
  */
 export function BoardLabelsPanel({ boardId }: BoardLabelsPanelProps): ReactElement {
   const labels = useLabels(boardId).data ?? NO_LABELS;
   const palette: LabelPalette = useMeta().data?.label_colors ?? NO_PALETTE;
-  const isAdmin = useBoardMeta(boardId).data?.my_role === 'admin';
   const patterned = useUiStore((state) => state.colorBlindLabels);
   const [view, setView] = useState<View>({ kind: 'list' });
   const [confirmAnchor, setConfirmAnchor] = useState<HTMLElement | null>(null);
@@ -100,9 +98,7 @@ export function BoardLabelsPanel({ boardId }: BoardLabelsPanelProps): ReactEleme
             initial={view.kind === 'edit' ? draftOf(view.label) : NEW_LABEL}
             submitLabel={view.kind === 'edit' ? 'Save' : 'Create'}
             onSubmit={save}
-            onDelete={
-              view.kind === 'edit' && isAdmin ? () => setConfirmAnchor(rootRef.current) : undefined
-            }
+            onDelete={view.kind === 'edit' ? () => setConfirmAnchor(rootRef.current) : undefined}
           />
           <Button variant="link" fullWidth onClick={() => setView({ kind: 'list' })}>
             Cancel

@@ -1,9 +1,4 @@
 /* Section 2.6.4: the 32px sidebar row. Nothing here names a colour of its own. */
-.wrap {
-  display: block;
-  width: 100%;
-}
-
 .button {
   display: flex;
   gap: 8px;
@@ -24,18 +19,13 @@
   transition: background var(--t-hover);
 }
 
-.button:hover:not(:disabled) {
+.button:hover {
   background: var(--pressed);
 }
 
 .button:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-}
-
-.button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .icon {

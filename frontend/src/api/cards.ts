@@ -31,7 +31,6 @@ export interface CreateCardInput {
   index?: CardIndex;
   client_id?: string;
   label_ids?: number[];
-  member_ids?: number[];
   split_lines?: boolean;
 }
 
@@ -57,9 +56,8 @@ export interface UpdateCardInput {
 /**
  * The move body of Section 4.9 plus the destination list, and — only when the destination is
  * another board — that board's id (Section 4.5). `to_board_id` is what makes the server run one
- * `write_tx` across both boards: the card gets a new `short_id`, its labels are dropped and its
- * members and watchers are filtered to people who belong to the target board, so the response's
- * `board_version` is the **target** board's, not this one's.
+ * `write_tx` across both boards: the card gets a new `short_id` and its labels are dropped, so
+ * the response's `board_version` is the **target** board's, not this one's.
  */
 export interface MoveCardInput extends MoveInput {
   to_list_id: number;
@@ -68,15 +66,13 @@ export interface MoveCardInput extends MoveInput {
 
 /**
  * What a copy keeps (Section 4.5). Every flag defaults to `false` server-side, so
- * `CopyCardPopover` sends all five explicitly — its own default is checked (2.6.5) — and a
- * cross-board copy never keeps labels or members whatever it sends.
+ * `CopyCardPopover` sends all three explicitly — its own default is checked (2.6.5) — and a
+ * cross-board copy never keeps labels whatever it sends.
  */
 export interface CopyKeep {
   labels?: boolean;
-  members?: boolean;
   checklists?: boolean;
   attachments?: boolean;
-  comments?: boolean;
 }
 
 /**

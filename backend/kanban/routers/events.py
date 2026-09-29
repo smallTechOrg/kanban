@@ -1,7 +1,7 @@
 """Realtime: the SSE stream and its polling fallback (Sections 4.3 and 4.8).
 
-Thin by contract (Section 6.4): both handlers resolve `board_access` - membership, so a stranger
-gets 404 and board ids cannot be enumerated - then call `events.replay()` for what the caller
+Thin by contract (Section 6.4): both handlers resolve `board_access`, so a board that is not there
+answers 404 exactly as it does everywhere else, then call `events.replay()` for what the caller
 missed and wrap the result. The mapping from an `activities` row to an event payload is
 `kanban/events.py`'s alone, so the replay and the live stream can never disagree.
 
@@ -23,15 +23,15 @@ from sse_starlette.sse import EventSourceResponse
 from starlette.concurrency import run_in_threadpool
 
 from kanban import events
-from kanban.auth import BoardCtx, Role, board_access
+from kanban.access import BoardCtx, board_access
 from kanban.db import get_db
 from kanban.schemas.events import ChangesOut, EventOut
 
 router = APIRouter(tags=["events"])
 
 Db = Annotated[Session, Depends(get_db)]
-#: Realtime is a read: every member may watch a board, observers included, open or closed.
-ReadAccess = Annotated[BoardCtx, Depends(board_access(Role.observer))]
+#: Realtime is a read, so the stream is served for an open and a closed board alike.
+ReadAccess = Annotated[BoardCtx, Depends(board_access())]
 
 #: Seconds between the `: ping` comments that keep proxies from closing an idle stream (4.8).
 HEARTBEAT_SECONDS: Final[int] = 20

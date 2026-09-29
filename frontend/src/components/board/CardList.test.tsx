@@ -13,7 +13,6 @@ import {
   makeCardSummary,
   makeListOut,
   metaFixture,
-  userFixture,
 } from '@/test/handlers';
 import { BoardDndContext, ListsDroppable } from './BoardDndContext';
 import { ListColumn } from './ListColumn';
@@ -76,7 +75,6 @@ function seed(cards: CardSummary[]): QueryClient {
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
   client.setQueryData(['meta'], metaFixture);
-  client.setQueryData(['me'], userFixture);
   client.setQueryData(
     boardKey(BOARD_ID),
     normalizeBoard({

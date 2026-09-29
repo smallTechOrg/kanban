@@ -11,7 +11,7 @@
   border-radius: var(--card-radius);
 }
 
-/* The parsed #label / @member / ^position chips, only rendered when tokens are present. */
+/* The parsed #label / ^position chips, only rendered when tokens are present. */
 .tokens {
   display: flex;
   flex-wrap: wrap;

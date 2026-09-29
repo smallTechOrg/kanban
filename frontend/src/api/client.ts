@@ -1,12 +1,11 @@
 /**
  * The only place the browser talks to the server (CLAUDE.md section 3).
  *
- * Every request carries the session cookie (`credentials: 'include'`) and the
- * `X-Requested-With: fetch` CSRF header the backend demands on non-GET requests
- * (Section 4.1). Non-2xx responses become a typed `ApiError` built from the one
- * error envelope; 401 sends the user to /login with a `next` parameter. A 503 — the busy write
- * lock of Section 4.1 — is retried once after its `Retry-After` before it is raised, which is the
- * one retry Section 2.10 puts in front of an optimistic rollback.
+ * Every mutating request carries the `X-Requested-With: fetch` CSRF header the backend demands
+ * on every non-GET `/api` call (Section 4.1). Non-2xx responses become a typed `ApiError` built
+ * from the one error envelope. A 503 — the busy write lock of Section 4.1 — is retried once
+ * after its `Retry-After` before it is raised, which is the one retry Section 2.10 puts in front
+ * of an optimistic rollback.
  */
 import type { ErrorDetails, ErrorEnvelope } from './types';
 
@@ -17,8 +16,6 @@ const REQUEST_ID_HEADER = 'X-Request-Id';
 const RETRY_AFTER_HEADER = 'Retry-After';
 /** The busy write lock of Section 4.1, the one status the client retries (Section 2.10). */
 const LOCK_TIMEOUT_STATUS = 503;
-const LOGIN_PATH = '/login';
-const REGISTER_PATH = '/register';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -79,14 +76,6 @@ function toApiError(status: number, requestId: string | null, rawBody: string): 
   });
 }
 
-/** Sends the user to the login page, preserving where they were headed. */
-function redirectToLogin(): void {
-  const { pathname, search, hash } = window.location;
-  if (pathname === LOGIN_PATH || pathname === REGISTER_PATH) return;
-  const next = `${pathname}${search}${hash}`;
-  window.location.assign(`${LOGIN_PATH}?next=${encodeURIComponent(next)}`);
-}
-
 /** Section 2.10 "503 lock timeout": how long to wait when the server named no `Retry-After`. */
 const LOCK_RETRY_MS = 1000;
 
@@ -113,14 +102,12 @@ function attempt(method: HttpMethod, path: string, body?: unknown): Promise<Resp
 
   return fetch(`${API_BASE}${path}`, {
     method,
-    credentials: 'include',
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
 
 async function fail(response: Response): Promise<never> {
-  if (response.status === 401) redirectToLogin();
   throw toApiError(response.status, response.headers.get(REQUEST_ID_HEADER), await response.text());
 }
 
@@ -162,9 +149,9 @@ export interface UploadOptions {
 
 /**
  * The one multipart transport (Section 5.8). `fetch` cannot report upload progress, so an
- * upload goes out over `XMLHttpRequest` with the same `X-Requested-With` CSRF header, the same
- * session cookie and the same error envelope as every JSON call above — which is why it lives
- * here and not in `api/attachments.ts`: `toApiError` and the 401 redirect are one rule each.
+ * upload goes out over `XMLHttpRequest` with the same `X-Requested-With` CSRF header and the
+ * same error envelope as every JSON call above — which is why it lives here and not in
+ * `api/attachments.ts`: turning a failed response into an `ApiError` is one rule.
  *
  * `Content-Type` is deliberately not set: the browser has to add the multipart boundary.
  */
@@ -176,7 +163,6 @@ export function uploadFile<T>(path: string, file: File, options: UploadOptions =
     body.append(UPLOAD_FIELD, file, file.name);
 
     request.open('POST', `${API_BASE}${path}`);
-    request.withCredentials = true;
     request.setRequestHeader(CSRF_HEADER_NAME, CSRF_HEADER_VALUE);
     request.setRequestHeader('Accept', 'application/json');
 
@@ -199,7 +185,6 @@ export function uploadFile<T>(path: string, file: File, options: UploadOptions =
         }
         return;
       }
-      if (request.status === 401) redirectToLogin();
       reject(toApiError(request.status, requestId, request.responseText));
     });
     request.addEventListener('error', () => {
@@ -231,9 +216,9 @@ export const api = {
     await send('DELETE', path);
   },
   /**
-   * The few `DELETE` routes that answer 200 with a document instead of 204: the card label
-   * and member toggles return the card's whole id array (Section 4.5), so the caller needs
-   * the body. `del` stays the 204 form every other delete uses.
+   * The few `DELETE` routes that answer 200 with a document instead of 204: detaching a label
+   * returns the card's whole `label_ids` array and clearing a cover returns the card (Sections
+   * 4.5 and 4.6), so the caller needs the body. `del` stays the 204 form every other delete uses.
    */
   delJson: <T>(path: string): Promise<T> => send('DELETE', path).then((r) => readJson<T>(r)),
 };

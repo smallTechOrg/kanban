@@ -1,11 +1,10 @@
-"""`GET /api/boards/{board_id}`: the five-statement board document (Sections 4.10.1 and 6.7).
+"""`GET /api/boards/{board_id}`: the four-statement board document (Sections 4.10.1 and 6.7).
 
 The payload is always read through the API, as every test reads (CLAUDE.md section 6). Its
-*contents* cannot be set up that way: an archived list, an archived card, a 300-card board and
-every table a card's badges are counted from (`comments`, `attachments`, `checklists`, which are
-M3 and M4 features) have no M2 endpoint at all, so those rows are inserted directly here - the
-same exception `conftest.py` documents for the infrastructure tests - through the app's own lock
-discipline (`user_write`, so `BEGIN IMMEDIATE` and the PRAGMAs behave as in production).
+*contents* cannot always be set up that way: an archived list, an archived card and a 300-card
+board have no endpoint that produces them in one step, so those rows are inserted directly here -
+the same exception `conftest.py` documents for the infrastructure tests - through the app's own
+lock discipline (`unversioned_write`, so `BEGIN IMMEDIATE` and the PRAGMAs behave as in production).
 """
 
 import json
@@ -23,24 +22,19 @@ from kanban.models import (
     Attachment,
     Card,
     CardLabel,
-    CardMember,
-    CardWatcher,
     Checklist,
     ChecklistItem,
-    Comment,
     Label,
     List,
-    User,
 )
 from kanban.ordering import STEP
 from kanban.schemas.boards import BoardOut
-from tests.conftest import CSRF_HEADERS, register_payload
+from tests.conftest import CSRF_HEADERS
 
 BoardFactory = Callable[..., dict[str, Any]]
-LoggedIn = tuple[TestClient, User]
 
 #: `BoardPayload` (Section 4.10.1).
-PAYLOAD_KEYS = {"board", "members", "labels", "lists", "cards"}
+PAYLOAD_KEYS = {"board", "labels", "lists", "cards"}
 
 #: `ListOut` (Section 4.4).
 LIST_KEYS = {
@@ -69,15 +63,13 @@ CARD_KEYS = {
     "due_complete",
     "cover",
     "label_ids",
-    "member_ids",
-    "is_watching",
     "badges",
     "created_at",
     "updated_at",
 }
 
 #: `CardSummary.badges` (Section 4.5).
-BADGE_KEYS = {"description", "comments", "attachments", "checklist_done", "checklist_total"}
+BADGE_KEYS = {"description", "attachments", "checklist_done", "checklist_total"}
 
 #: The dominant colour Pillow stores for an image attachment (Section 2.5.1).
 DOMINANT_COLOR = "#3B6EA5"
@@ -88,7 +80,7 @@ def _writer() -> Iterator[Session]:
     """A Session that writes with the app's lock discipline, for rows no M2 route creates."""
     session = db_module.SessionLocal()
     try:
-        with db_module.user_write(session):
+        with db_module.unversioned_write(session):
             yield session
     finally:
         session.close()
@@ -129,16 +121,6 @@ def _titles(payload: dict[str, Any]) -> list[str]:
     return [card["title"] for card in payload["cards"]]
 
 
-def _register_second_user(api: TestClient, username: str) -> tuple[TestClient, dict[str, Any]]:
-    """A second account with a cookie jar of its own, for the member and 404 tests."""
-    other = TestClient(api.app)
-    response = other.post(
-        "/api/auth/register", json=register_payload(username), headers=CSRF_HEADERS
-    )
-    assert response.status_code == 201, response.text
-    return other, response.json()
-
-
 @contextmanager
 def _counted_statements() -> Iterator[list[str]]:
     """Every SQL statement the engine executes while the block runs, in order."""
@@ -156,25 +138,21 @@ def _counted_statements() -> Iterator[list[str]]:
         event.remove(db_module.engine, "before_cursor_execute", record)
 
 
-def test_payload_has_the_five_keys_of_section_4_10_1(
-    logged_in: LoggedIn, board: dict[str, Any]
+def test_payload_has_the_four_keys_of_section_4_10_1(
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
-
     payload = _read(api, board["id"])
 
     assert set(payload) == PAYLOAD_KEYS
     assert payload["board"] == board  # exactly the BoardSummary that created it (Section 4.3)
-    assert [member["id"] for member in payload["members"]] == [board["owner_id"]]
     assert len(payload["labels"]) == 6
     assert [row["name"] for row in payload["lists"]] == ["To Do", "Doing", "Done"]
     assert payload["cards"] == []
 
 
 def test_lists_carry_the_listout_shape_in_position_order(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
-    api, _user = logged_in
     created = board_factory("List shapes", default_lists=True)
 
     payload = _read(api, created["id"])
@@ -188,9 +166,8 @@ def test_lists_carry_the_listout_shape_in_position_order(
 
 
 def test_a_bare_card_carries_the_cardsummary_shape_with_empty_badges(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
-    api, _user = logged_in
     created = board_factory("Bare card", default_lists=False)
     with _writer() as session:
         list_id = _add_list(session, board_id=created["id"], name="To Do", position=STEP)
@@ -211,32 +188,19 @@ def test_a_bare_card_carries_the_cardsummary_shape_with_empty_badges(
     assert card["due_at"] is None
     assert card["cover"] is None
     assert card["label_ids"] == []
-    assert card["member_ids"] == []
-    assert card["is_watching"] is False
     assert card["badges"] == {
         "description": False,
-        "comments": 0,
         "attachments": 0,
         "checklist_done": 0,
         "checklist_total": 0,
     }
 
 
-def test_badges_labels_members_and_cover_come_from_the_real_tables(
-    logged_in: LoggedIn, board_factory: BoardFactory
+def test_badges_labels_and_cover_come_from_the_real_tables(
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
-    """Every aggregate of Section 4.10.1, counted from the tables M3 and M4 fill."""
-    api, owner = logged_in
+    """Every aggregate of Section 4.10.1, counted from the tables the one statement joins."""
     created = board_factory("Fully dressed", default_lists=False)
-    # "Abe" sorts before "Ada Lovelace" but was registered later, so `member_ids` can only come
-    # out in this order if it follows `members[]` rather than the user ids themselves.
-    _other, other_user = _register_second_user(api, "abe")
-    added = api.put(
-        f"/api/boards/{created['id']}/members/{other_user['id']}",
-        json={"role": "member"},
-        headers=CSRF_HEADERS,
-    )
-    assert added.status_code == 200, added.text
     labels = _read(api, created["id"])["labels"]
 
     with _writer() as session:
@@ -262,7 +226,6 @@ def test_badges_labels_members_and_cover_come_from_the_real_tables(
         checklist = Checklist(card_id=card.id, name="Steps", position=STEP)
         cover = Attachment(
             card_id=card.id,
-            user_id=owner.id,
             kind="upload",
             name="hero.jpg",
             url="/uploads/attachments/hero.jpg",
@@ -276,18 +239,11 @@ def test_badges_labels_members_and_cover_come_from_the_real_tables(
                 cover,
                 Attachment(
                     card_id=card.id,
-                    user_id=owner.id,
                     kind="link",
                     name="spec",
                     url="https://example.test/spec",
                 ),
-                Comment(card_id=card.id, user_id=owner.id, body="Ready for review"),
-                Comment(card_id=card.id, user_id=other_user["id"], body="Looks good"),
-                Comment(card_id=card.id, user_id=owner.id, body="Shipping today"),
                 CardLabel(card_id=card.id, label_id=labels[3]["id"]),
-                CardMember(card_id=card.id, user_id=owner.id),
-                CardMember(card_id=card.id, user_id=other_user["id"]),
-                CardWatcher(card_id=card.id, user_id=owner.id),
             ]
         )
         session.flush()
@@ -321,14 +277,11 @@ def test_badges_labels_members_and_cover_come_from_the_real_tables(
     assert summary["due_at"] == "2026-09-26T15:00:00.000Z"
     assert summary["badges"] == {
         "description": True,
-        "comments": 3,
         "attachments": 2,
         "checklist_done": 2,
         "checklist_total": 5,
     }
     assert summary["label_ids"] == [urgent_id, labels[3]["id"]]  # board label order
-    assert summary["member_ids"] == [other_user["id"], owner.id]  # `members[]` order
-    assert summary["is_watching"] is True
     assert summary["cover"] == {
         "kind": "attachment",
         "value": str(cover_id),
@@ -338,11 +291,10 @@ def test_badges_labels_members_and_cover_come_from_the_real_tables(
     }
 
 
-def test_a_card_with_one_label_and_one_member_returns_one_element_arrays(
-    logged_in: LoggedIn, board_factory: BoardFactory
+def test_a_card_with_one_label_returns_a_one_element_array(
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
-    """The single-id shape most cards have, which `_ordered_ids` answers without sorting."""
-    api, owner = logged_in
+    """`GROUP_CONCAT` of one id is that id, which the ordering step must not mangle."""
     created = board_factory("Single ids", default_lists=False)
     labels = _read(api, created["id"])["labels"]
     with _writer() as session:
@@ -350,21 +302,14 @@ def test_a_card_with_one_label_and_one_member_returns_one_element_arrays(
         card = _add_card(
             session, board_id=created["id"], list_id=list_id, short_id=1, title="One of each"
         )
-        session.add_all(
-            [
-                CardLabel(card_id=card.id, label_id=labels[2]["id"]),
-                CardMember(card_id=card.id, user_id=owner.id),
-            ]
-        )
+        session.add(CardLabel(card_id=card.id, label_id=labels[2]["id"]))
 
     (summary,) = _read(api, created["id"])["cards"]
 
     assert summary["label_ids"] == [labels[2]["id"]]
-    assert summary["member_ids"] == [owner.id]
 
 
-def test_a_colour_cover_carries_no_image(logged_in: LoggedIn, board_factory: BoardFactory) -> None:
-    api, _user = logged_in
+def test_a_colour_cover_carries_no_image(api: TestClient, board_factory: BoardFactory) -> None:
     created = board_factory("Colour cover", default_lists=False)
     with _writer() as session:
         list_id = _add_list(session, board_id=created["id"], name="To Do", position=STEP)
@@ -384,7 +329,7 @@ def test_a_colour_cover_carries_no_image(logged_in: LoggedIn, board_factory: Boa
 
 
 def test_the_rendered_body_is_exactly_what_boardout_would_have_serialised(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
     """The guard behind `read_board` returning a rendered `JSONResponse` (Section 5.11).
 
@@ -399,7 +344,6 @@ def test_the_rendered_body_is_exactly_what_boardout_would_have_serialised(
     was created optimistically and has a `client_id`, one wears a colour cover and so has
     neither image field, and one has no cover at all.
     """
-    api, _user = logged_in
     created = board_factory("Schema contract", default_lists=True)
     with _writer() as session:
         list_id = _add_list(session, board_id=created["id"], name="Backlog", position=4 * STEP)
@@ -441,9 +385,8 @@ def test_the_rendered_body_is_exactly_what_boardout_would_have_serialised(
 
 
 def test_badge_counts_and_id_arrays_are_typed_as_section_4_5_declares(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
-    api, _user = logged_in
     created = board_factory("Types", default_lists=False)
     with _writer() as session:
         list_id = _add_list(session, board_id=created["id"], name="To Do", position=STEP)
@@ -453,19 +396,16 @@ def test_badge_counts_and_id_arrays_are_typed_as_section_4_5_declares(
 
     assert set(card["badges"]) == BADGE_KEYS
     assert isinstance(card["badges"]["description"], bool)
-    for count in ("comments", "attachments", "checklist_done", "checklist_total"):
+    for count in ("attachments", "checklist_done", "checklist_total"):
         assert isinstance(card["badges"][count], int)
         assert not isinstance(card["badges"][count], bool)
     assert isinstance(card["label_ids"], list)
-    assert isinstance(card["member_ids"], list)
-    assert isinstance(card["is_watching"], bool)
     assert isinstance(card["position"], float)
 
 
 def test_cards_are_ordered_by_position_then_id(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
-    api, _user = logged_in
     created = board_factory("Ordering", default_lists=False)
     with _writer() as session:
         list_id = _add_list(session, board_id=created["id"], name="To Do", position=STEP)
@@ -485,10 +425,9 @@ def test_cards_are_ordered_by_position_then_id(
 
 
 def test_an_archived_list_and_its_cards_are_both_absent(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
     """Section 4.3: the cards statement joins `lists`, so a hidden list hides its cards."""
-    api, _user = logged_in
     created = board_factory("Archived list", default_lists=False)
     with _writer() as session:
         active = _add_list(session, board_id=created["id"], name="Active", position=STEP)
@@ -505,9 +444,8 @@ def test_an_archived_list_and_its_cards_are_both_absent(
 
 
 def test_an_archived_card_is_absent_while_its_list_stays(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
-    api, _user = logged_in
     created = board_factory("Archived card", default_lists=False)
     with _writer() as session:
         list_id = _add_list(session, board_id=created["id"], name="To Do", position=STEP)
@@ -528,21 +466,17 @@ def test_an_archived_card_is_absent_while_its_list_stays(
     assert _titles(payload) == ["visible"]
 
 
-def test_a_non_member_gets_404(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
-    other, _other_user = _register_second_user(api, "stranger")
-
-    response = other.get(f"/api/boards/{board['id']}")
+def test_a_board_that_does_not_exist_is_404(api: TestClient) -> None:
+    response = api.get("/api/boards/424242")
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "not_found"
 
 
 def test_a_closed_board_still_returns_its_payload(
-    logged_in: LoggedIn, board_factory: BoardFactory
+    api: TestClient, board_factory: BoardFactory
 ) -> None:
     """Section 2.3.5: `ClosedBoardPage` renders from the payload of a closed board."""
-    api, _user = logged_in
     created = board_factory("Closing down", default_lists=False)
     with _writer() as session:
         list_id = _add_list(session, board_id=created["id"], name="To Do", position=STEP)
@@ -556,9 +490,8 @@ def test_a_closed_board_still_returns_its_payload(
 
 
 @pytest.fixture
-def cards_boards(logged_in: LoggedIn, board_factory: BoardFactory) -> tuple[int, int]:
+def cards_boards(api: TestClient, board_factory: BoardFactory) -> tuple[int, int]:
     """Two boards of the same shape, one with 3 cards and one with 300, for the N+1 guard."""
-    _api, owner = logged_in
     boards: list[int] = []
     for name, card_count in (("Small board", 3), ("Big board", 300)):
         created = board_factory(name, default_lists=False)
@@ -573,7 +506,6 @@ def cards_boards(logged_in: LoggedIn, board_factory: BoardFactory) -> tuple[int,
                         "short_id": index,
                         "title": f"Card {index}",
                         "position": STEP * index,
-                        "created_by": owner.id,
                     }
                     for index in range(1, card_count + 1)
                 ],
@@ -583,13 +515,12 @@ def cards_boards(logged_in: LoggedIn, board_factory: BoardFactory) -> tuple[int,
 
 
 def test_the_statement_count_does_not_grow_with_the_number_of_cards(
-    logged_in: LoggedIn, cards_boards: tuple[int, int]
+    api: TestClient, cards_boards: tuple[int, int]
 ) -> None:
-    """Section 4.10.1: five statements, whatever the board holds - the N+1 regression guard."""
-    api, _user = logged_in
+    """Section 4.10.1: four statements, whatever the board holds - the N+1 regression guard."""
     counts: list[int] = []
     for board_id, expected in zip(cards_boards, (3, 300), strict=True):
-        _read(api, board_id)  # warm up: the session slide and the first view upsert happen once
+        _read(api, board_id)  # warm up: the first `board_views` insert happens only once
         with _counted_statements() as statements:
             payload = _read(api, board_id)
         assert len(payload["cards"]) == expected

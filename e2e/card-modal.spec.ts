@@ -11,7 +11,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 /** The lists `POST /api/boards` creates for `default_lists: true` (Section 3.10). */
 const FIRST_LIST = 'To Do';
 
-const BOARD = 'M3 checkpoint';
+/** A fresh board name per run, so the spec also passes against a database that is not empty. */
+const suffix = `${Date.now()}`.slice(-9);
+
+const BOARD = `M3 checkpoint ${suffix}`;
 const CARD = 'Design home page';
 
 /** The seeded labels are unnamed, so a chip is addressed by its colour key (Section 2.6.5). */
@@ -19,19 +22,9 @@ const LABEL = 'green';
 
 const DESCRIPTION = '## Plan\n\n- Pick the palette\n- Ship it';
 
-/** Section 2.6.3 renders comments as Markdown with `remark-gfm`, so a table must become a table. */
-const COMMENT = '| What | When |\n| --- | --- |\n| Launch | Friday |';
+const CHECKLIST = 'Launch tasks';
 
 const ITEMS = ['Wireframe', 'Palette', 'Review'] as const;
-
-/** A fresh account per run, so the spec also passes against a database that is not empty. */
-const suffix = `${Date.now()}`.slice(-9);
-const user = {
-  fullName: 'Nadia Frost',
-  email: `nadia_${suffix}@example.com`,
-  username: `nadia_${suffix}`,
-  password: 'correct-horse-battery',
-};
 
 /** One column, which `ListColumn` labels with the list's name. */
 function column(page: Page, name: string): Locator {
@@ -81,18 +74,11 @@ function toRgb(hex: string): string {
 
 test.describe.configure({ mode: 'serial' });
 
-test('M3: card modal route, labels, description, checklist, dates, comments', async ({ page }) => {
+test('M3: card modal route, labels, description, checklist, dates, activity', async ({ page }) => {
   let cardUrl = '';
 
-  await test.step('1. register, create a board and one card', async () => {
-    await page.goto('/register');
-    await page.getByLabel('Full name').fill(user.fullName);
-    await page.getByLabel('Email').fill(user.email);
-    await page.getByLabel('Username').fill(user.username);
-    await page.getByLabel('Password').fill(user.password);
-    await page.getByRole('button', { name: 'Sign up' }).click();
-    await expect(page).toHaveURL('http://127.0.0.1:8020/');
-
+  await test.step('1. create a board and one card', async () => {
+    await page.goto('/');
     await page.getByRole('button', { name: 'Create new board' }).click();
     const popover = page.getByRole('dialog', { name: 'Create board' });
     await popover.getByLabel('Board title *').fill(BOARD);
@@ -176,10 +162,10 @@ test('M3: card modal route, labels, description, checklist, dates, comments', as
     const popover = await openSidebar(page, 'Checklist', 'Add checklist');
     // Section 2.6.5: the title input arrives prefilled with "Checklist".
     await expect(popover.getByLabel('Title')).toHaveValue('Checklist');
-    await popover.getByLabel('Title').fill('Launch tasks');
+    await popover.getByLabel('Title').fill(CHECKLIST);
     await popover.getByRole('button', { name: 'Add', exact: true }).click();
 
-    const section = modal(page).getByRole('region', { name: 'Launch tasks' });
+    const section = modal(page).getByRole('region', { name: CHECKLIST });
     await expect(section).toBeVisible();
 
     await section.getByRole('button', { name: 'Add an item' }).click();
@@ -192,7 +178,7 @@ test('M3: card modal route, labels, description, checklist, dates, comments', as
     await composer.press('Escape');
 
     await section.getByRole('checkbox', { name: ITEMS[0] }).check();
-    const bar = section.getByRole('progressbar', { name: 'Launch tasks' });
+    const bar = section.getByRole('progressbar', { name: CHECKLIST });
     await expect(bar).toHaveAttribute('aria-valuenow', '1');
     await expect(section.getByText('33%')).toBeVisible();
 
@@ -230,24 +216,25 @@ test('M3: card modal route, labels, description, checklist, dates, comments', as
     );
   });
 
-  await test.step('8. comment with a Markdown table; the feed shows it', async () => {
+  await test.step('8. the activity feed reads back everything the steps above did', async () => {
     await page.goto(cardUrl);
-    await modal(page).getByRole('button', { name: 'Write a comment…' }).click();
-    const box = modal(page).getByRole('textbox', { name: 'Write a comment' });
-    await box.fill(COMMENT);
-    await box.press('ControlOrMeta+Enter');
-
     const activity = modal(page).getByRole('region', { name: 'Activity' });
-    const feed = activity.getByRole('table');
-    await expect(feed).toBeVisible();
-    await expect(feed.getByRole('cell', { name: 'Launch' })).toBeVisible();
-    // Own comments carry the two `link` actions of Section 2.6.3.
-    await expect(activity.getByRole('button', { name: 'Delete' })).toBeVisible();
 
-    // The comment is a row on the server, so it survives the round trip.
+    // Every row is one sentence from `lib/activity.ts`, and the card feed renders this card's
+    // own title as "this card" (Section 2.6.3).
+    await expect(activity.getByText(`Added this card to ${FIRST_LIST}`)).toBeVisible();
+    await expect(activity.getByText(`Added the ${LABEL} label to this card`)).toBeVisible();
+    await expect(activity.getByText('Updated the description of this card')).toBeVisible();
+    await expect(activity.getByText(`Added checklist ${CHECKLIST} to this card`)).toBeVisible();
+    // Step 7 ticked the tile's own due badge, so the feed carries that write too.
+    await expect(activity.getByText('Marked the due date complete')).toBeVisible();
+
+    // The feed is the server's, so the rows survive the round trip.
     await page.reload();
-    await expect(modal(page).getByRole('cell', { name: 'Friday' })).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(tileCard(page, CARD).getByText('1', { exact: true })).toBeVisible();
+    await expect(
+      modal(page)
+        .getByRole('region', { name: 'Activity' })
+        .getByText(`Added this card to ${FIRST_LIST}`),
+    ).toBeVisible();
   });
 });

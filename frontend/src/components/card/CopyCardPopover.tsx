@@ -7,25 +7,21 @@ import { useCopyCard, type CopyCardVariables } from '@/hooks/useCardMutations';
 import { DestinationSelects, type Destination } from './DestinationSelects';
 import styles from './CopyCardPopover.module.css';
 
-/** Section 2.6.5, on the two keeps the server drops whatever the client sends (Section 4.5). */
-const CROSS_BOARD_TOOLTIP = "Labels and members can't be copied to another board";
+/** Section 2.6.5, on the one keep the server drops whatever the client sends (Section 4.5). */
+const CROSS_BOARD_TOOLTIP = "Labels can't be copied to another board";
 
-/** The five "Keep…" flags, in the order Section 2.6.5 lists them. */
+/** The "Keep…" flags, in the order Section 2.6.5 lists them. */
 const KEEPS: readonly { key: keyof CopyKeep; label: string }[] = [
   { key: 'checklists', label: 'Checklists' },
   { key: 'labels', label: 'Labels' },
-  { key: 'members', label: 'Members' },
   { key: 'attachments', label: 'Attachments' },
-  { key: 'comments', label: 'Comments' },
 ];
 
 /** Every flag starts ticked: Trello's default, and the opposite of the API's (Section 4.5). */
 const ALL_KEPT: Required<CopyKeep> = {
   labels: true,
-  members: true,
   checklists: true,
   attachments: true,
-  comments: true,
 };
 
 /** What the card actually carries; a row with nothing to keep is not rendered at all. */
@@ -33,9 +29,7 @@ function keepCounts(card: CardDetail): Record<keyof CopyKeep, number> {
   return {
     checklists: card.checklists.length,
     labels: card.label_ids.length,
-    members: card.member_ids.length,
     attachments: card.attachments.length,
-    comments: card.badges.comments,
   };
 }
 
@@ -57,11 +51,10 @@ function CopyForm({ boardId, card, onCopy }: CopyFormProps): ReactElement {
   const [destination, setDestination] = useState<Destination | null>(null);
 
   const counts = keepCounts(card);
-  // The server never keeps labels or members across boards, so the popover says so rather than
-  // sending flags it would ignore (Section 4.5).
+  // The server never keeps labels across boards, so the popover says so rather than sending a
+  // flag it would ignore (Section 4.5).
   const crossBoard = destination !== null && destination.boardId !== boardId;
-  const isBlocked = (key: keyof CopyKeep): boolean =>
-    crossBoard && (key === 'labels' || key === 'members');
+  const isBlocked = (key: keyof CopyKeep): boolean => crossBoard && key === 'labels';
 
   function create(): void {
     const name = title.trim();

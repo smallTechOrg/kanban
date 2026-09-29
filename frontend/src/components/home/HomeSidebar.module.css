@@ -28,13 +28,8 @@
   cursor: pointer;
 }
 
-.row:hover:not(:disabled) {
+.row:hover {
   background: var(--hover);
-}
-
-.row:disabled {
-  color: var(--text-muted);
-  cursor: default;
 }
 
 .active {
@@ -46,34 +41,6 @@
   flex: 0 0 auto;
   width: var(--icon-size);
   height: var(--icon-size);
-}
-
-.heading {
-  padding: 8px;
-  font-size: var(--fs-meta);
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.badge {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  font-size: var(--fs-meta);
-  font-weight: 700;
-  color: var(--text-inverse);
-  background: var(--logo);
-  border-radius: var(--radius-sm);
-}
-
-.workspace {
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Section 2.9.4: below 1024px the sidebar becomes a strip above the main column. */
@@ -91,9 +58,5 @@
 
   .row {
     width: auto;
-  }
-
-  .heading {
-    display: none;
   }
 }

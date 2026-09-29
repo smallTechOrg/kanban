@@ -18,9 +18,6 @@ export interface ClosedBoardRowProps {
 /**
  * One row of `ClosedBoardsModal`. It is its own component because reopen and delete are
  * per-board mutations, and a hook cannot be called inside a loop.
- *
- * Both endpoints are admin-only (Section 4.3), so a member or observer sees why the buttons
- * are missing rather than a 403 toast after pressing one.
  */
 export function ClosedBoardRow({ board, gradients }: ClosedBoardRowProps): ReactElement {
   const reopen = useReopenBoard(board.id);
@@ -35,18 +32,14 @@ export function ClosedBoardRow({ board, gradients }: ClosedBoardRowProps): React
         aria-hidden="true"
       />
       <span className={styles.name}>{board.name}</span>
-      {board.my_role === 'admin' ? (
-        <span className={styles.actions}>
-          <Button variant="primary" loading={reopen.isPending} onClick={() => reopen.mutate()}>
-            Reopen
-          </Button>
-          <Button variant="danger" onClick={(event) => setConfirmAnchor(event.currentTarget)}>
-            Delete
-          </Button>
-        </span>
-      ) : (
-        <span className={styles.note}>Only a board admin can reopen or delete this board</span>
-      )}
+      <span className={styles.actions}>
+        <Button variant="primary" loading={reopen.isPending} onClick={() => reopen.mutate()}>
+          Reopen
+        </Button>
+        <Button variant="danger" onClick={(event) => setConfirmAnchor(event.currentTarget)}>
+          Delete
+        </Button>
+      </span>
       {confirmAnchor === null ? null : (
         <ConfirmPopover
           anchor={confirmAnchor}

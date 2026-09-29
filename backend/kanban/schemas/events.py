@@ -12,10 +12,8 @@ from pydantic import BaseModel
 
 from kanban.schemas.common import OptionalFieldsOmitted
 
-#: The nine entities an event can name (Section 4.8); `item` is a checklist item.
-EventEntity = Literal[
-    "board", "list", "card", "label", "member", "checklist", "item", "comment", "attachment"
-]
+#: The seven entities an event can name (Section 4.8); `item` is a checklist item.
+EventEntity = Literal["board", "list", "card", "label", "checklist", "item", "attachment"]
 
 
 class EventOut(OptionalFieldsOmitted):
@@ -26,9 +24,7 @@ class EventOut(OptionalFieldsOmitted):
     `card.deleted`, whose activity row carries no `card_id`, and which the client therefore treats
     as a board-level change. `card_id`, `list_id` and `position` are absent rather than `null`
     when the event has none: `position` is carried by the live `card.moved`, `card.reordered` and
-    `list.moved` events only, and never by a replayed one. `actor_id` is `null` for the synthetic
-    events and for a write whose author has since been deleted (`activities.user_id` is
-    `ON DELETE SET NULL`).
+    `list.moved` events only, and never by a replayed one.
     """
 
     optional_fields = ("card_id", "list_id", "position")
@@ -40,7 +36,6 @@ class EventOut(OptionalFieldsOmitted):
     card_id: int | None = None
     list_id: int | None = None
     position: float | None = None
-    actor_id: int | None
     at: str
 
 

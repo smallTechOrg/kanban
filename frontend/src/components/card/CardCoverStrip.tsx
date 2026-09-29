@@ -12,7 +12,6 @@ const NO_PALETTE: CoverPalette = {};
 export interface CardCoverStripProps {
   boardId: number;
   card: CardDetail;
-  readOnly?: boolean;
 }
 
 /**
@@ -26,11 +25,7 @@ export interface CardCoverStripProps {
  * `object-fit: contain` in the same box over the image's dominant colour, so the swap is
  * invisible; the tiles of Section 2.5.1 always use the thumbnail and never the original.
  */
-export function CardCoverStrip({
-  boardId,
-  card,
-  readOnly = false,
-}: CardCoverStripProps): ReactElement | null {
+export function CardCoverStrip({ boardId, card }: CardCoverStripProps): ReactElement | null {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [isOriginalLoaded, setIsOriginalLoaded] = useState(false);
   const palette: CoverPalette = useMeta().data?.cover_colors ?? NO_PALETTE;
@@ -67,15 +62,13 @@ export function CardCoverStrip({
         />
       )}
 
-      {readOnly ? null : (
-        <Button
-          className={styles.button}
-          icon={<ImageIcon aria-hidden="true" />}
-          onClick={(event) => setAnchor(event.currentTarget)}
-        >
-          Cover
-        </Button>
-      )}
+      <Button
+        className={styles.button}
+        icon={<ImageIcon aria-hidden="true" />}
+        onClick={(event) => setAnchor(event.currentTarget)}
+      >
+        Cover
+      </Button>
 
       {anchor === null ? null : (
         <CoverPopover

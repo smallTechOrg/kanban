@@ -55,13 +55,11 @@ describe('BoardPage', () => {
     expect(document.title).toBe('Website relaunch | Kan Ban');
   });
 
-  it('renders the board controls of Section 2.3.1, none of them a guard any more', async () => {
+  it('renders the board controls of Section 2.3.1', async () => {
     renderBoard();
 
     expect(await screen.findByRole('button', { name: 'Filter' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Show menu' })).toBeEnabled();
-    // M5 made Invite real: it opens `ShareBoardModal`, whose own test covers what it does.
-    expect(screen.getByRole('button', { name: 'Invite' })).toBeEnabled();
   });
 
   it('opens the list composer on a board with no lists', async () => {

@@ -27,8 +27,7 @@
   min-height: 32px;
 }
 
-/* The 32px grey "+" that opens the labels or members popover: a square for labels, a
-   circle for members (Section 2.6.3). */
+/* The 32px grey square "+" that opens the labels popover (Section 2.6.3). */
 .add {
   display: flex;
   align-items: center;
@@ -44,10 +43,6 @@
 
 .add:hover {
   background: var(--pressed);
-}
-
-.addRound {
-  border-radius: 50%;
 }
 
 .checkbox {
@@ -82,37 +77,4 @@
 .complete {
   color: var(--text-inverse);
   background: var(--success);
-}
-
-/* Section 2.6.3: while watching, a 24px `--primary` square with a white check sits flush at the
-   Watch button's right edge and the label stays "Watch", so the tile is a sibling of the button
-   rather than content inside it - a `<button>` names itself from everything it contains.
-   It follows the button in the flow rather than being painted over it: this button is only as
-   wide as its own label, so an overlay would cover the "Watch" the same line promises stays. */
-.watchRow {
-  display: flex;
-  align-items: center;
-}
-
-.watchCheck {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  color: var(--text-inverse);
-  background: var(--primary);
-  border-radius: var(--radius-sm);
-  pointer-events: none;
-}
-
-/* The watching state still has to reach a screen reader, which cannot see the check tile. */
-.state {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }

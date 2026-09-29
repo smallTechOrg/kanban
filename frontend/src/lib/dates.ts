@@ -35,7 +35,7 @@ export function formatDateTime(value: DateInput, now: Date = new Date()): string
   return `${formatDate(date, now)} at ${format(date, TIME)}`;
 }
 
-/** "just now", "4 minutes ago", "in 2 hours" — used by every activity and comment row. */
+/** "just now", "4 minutes ago", "in 2 hours" — the relative time every activity row shows. */
 export function relativeTime(value: DateInput, now: Date = new Date()): string {
   const date = toDate(value);
   if (date === null) return '';

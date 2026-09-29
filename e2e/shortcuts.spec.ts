@@ -12,22 +12,17 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 const FIRST_LIST = 'To Do';
 const SECOND_LIST = 'Doing';
 
-const BOARD = 'M4b shortcuts';
-const CARDS = ['Keyboard alpha', 'Keyboard beta'] as const;
-
+/** A fresh board name per run, so the spec also passes against a database that is not empty. */
 const suffix = `${Date.now()}`.slice(-9);
-const user = {
-  fullName: 'Ravi Mehta',
-  email: `ravi_${suffix}@example.com`,
-  username: `ravi_${suffix}`,
-  password: 'correct-horse-battery',
-};
+
+const BOARD = `M4b shortcuts ${suffix}`;
+const CARDS = ['Keyboard alpha', 'Keyboard beta'] as const;
 
 function column(page: Page, name: string): Locator {
   return page.locator(`section[aria-label="${name}"]`);
 }
 
-/** The whole tile behind a card link: the chips, badges and avatars are the anchor's siblings. */
+/** The whole tile behind a card link: the chip row and the badges are the anchor's siblings. */
 function tile(page: Page, title: string): Locator {
   return page.getByRole('link', { name: title, exact: true }).locator('xpath=..');
 }
@@ -58,14 +53,8 @@ test.describe.configure({ mode: 'serial' });
 test('M4b: every key of the Section 2.8 cheat sheet', async ({ page }) => {
   let boardPath = '';
 
-  await test.step('1. register, create a board and two cards', async () => {
-    await page.goto('/register');
-    await page.getByLabel('Full name').fill(user.fullName);
-    await page.getByLabel('Email').fill(user.email);
-    await page.getByLabel('Username').fill(user.username);
-    await page.getByLabel('Password').fill(user.password);
-    await page.getByRole('button', { name: 'Sign up' }).click();
-
+  await test.step('1. create a board and two cards', async () => {
+    await page.goto('/');
     await page.getByRole('button', { name: 'Create new board' }).click();
     const popover = page.getByRole('dialog', { name: 'Create board' });
     await popover.getByLabel('Board title').fill(BOARD);
@@ -87,25 +76,14 @@ test('M4b: every key of the Section 2.8 cheat sheet', async ({ page }) => {
     await expect(sheet).toHaveCount(0);
   });
 
-  await test.step('3. Space assigns me to the hovered card, S watches it', async () => {
-    await hoverCard(page, CARDS[0]);
-    await page.keyboard.press(' ');
-    await expect(tile(page, CARDS[0]).locator(`[aria-label="${user.fullName}"]`)).toBeVisible();
-
-    await page.keyboard.press('s');
-    await expect(
-      tile(page, CARDS[0]).locator('[aria-label="You are watching this card"]'),
-    ).toBeVisible();
-  });
-
-  await test.step('4. 1 toggles the first board label on the hovered card', async () => {
+  await test.step('3. 1 toggles the first board label on the hovered card', async () => {
     await hoverCard(page, CARDS[0]);
     await page.keyboard.press('1');
     // Chips are 16px bars whose accessible name is the colour key of an unnamed label (2.5.2).
     await expect(tile(page, CARDS[0]).getByTitle('green')).toBeVisible();
   });
 
-  await test.step('5. E opens the quick editor and Escape cancels it', async () => {
+  await test.step('4. E opens the quick editor and Escape cancels it', async () => {
     await hoverCard(page, CARDS[0]);
     await page.keyboard.press('e');
     const editor = page.getByLabel('Card title');
@@ -114,7 +92,7 @@ test('M4b: every key of the Section 2.8 cheat sheet', async ({ page }) => {
     await expect(editor).toHaveCount(0);
   });
 
-  await test.step('6. N opens a composer below the current card', async () => {
+  await test.step('5. N opens a composer below the current card', async () => {
     await hoverCard(page, CARDS[0]);
     await page.keyboard.press('n');
     const composer = column(page, FIRST_LIST).getByLabel('Card title');
@@ -128,7 +106,7 @@ test('M4b: every key of the Section 2.8 cheat sheet', async ({ page }) => {
     expect(titles).toEqual([CARDS[0], 'Keyboard gamma', CARDS[1]]);
   });
 
-  await test.step('7. J selects a card and Enter opens it', async () => {
+  await test.step('6. J selects a card and Enter opens it', async () => {
     await page.mouse.move(0, 0);
     await page.keyboard.press('j');
     await page.keyboard.press('Enter');
@@ -139,15 +117,17 @@ test('M4b: every key of the Section 2.8 cheat sheet', async ({ page }) => {
     await expect(page).toHaveURL(boardPath);
   });
 
-  await test.step('8. F, Q and X drive the filter; W the menu drawer', async () => {
+  await test.step('7. F opens the filter and X clears it; W the menu drawer', async () => {
     await page.keyboard.press('f');
-    await expect(page.getByRole('dialog', { name: 'Filter' })).toBeVisible();
+    const filter = page.getByRole('dialog', { name: 'Filter' });
+    await expect(filter).toBeVisible();
+    // Step 3 put the green label on the first card, so only that one survives the filter. The
+    // panel traps focus, so what it did to the canvas is read after Escape has closed it.
+    await filter.getByRole('checkbox', { name: 'green' }).check();
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('dialog', { name: 'Filter' })).toHaveCount(0);
+    await expect(filter).toHaveCount(0);
 
-    await page.keyboard.press('q');
     await expect(page.getByRole('button', { name: /1 filter/ })).toBeVisible();
-    // Only the card Space assigned me to survives "Cards assigned to me".
     await expect(column(page, FIRST_LIST).getByRole('link')).toHaveCount(1);
 
     await page.keyboard.press('x');
@@ -159,7 +139,7 @@ test('M4b: every key of the Section 2.8 cheat sheet', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Menu' })).toHaveCount(0);
   });
 
-  await test.step('9. "/" focuses the search and Enter opens the card it found', async () => {
+  await test.step('8. "/" focuses the search and Enter opens the card it found', async () => {
     await page.keyboard.press('/');
     await expect(page.getByRole('textbox', { name: 'Search' })).toBeFocused();
     await page.keyboard.type('Keyboard beta');
@@ -169,14 +149,14 @@ test('M4b: every key of the Section 2.8 cheat sheet', async ({ page }) => {
     await page.keyboard.press('Escape');
   });
 
-  await test.step('10. "." moves the current card to the top of the next list', async () => {
+  await test.step('9. "." moves the current card to the top of the next list', async () => {
     await hoverCard(page, CARDS[1]);
     await page.keyboard.press('.');
     await expect(column(page, SECOND_LIST).getByRole('link', { name: CARDS[1] })).toBeVisible();
     await expect(column(page, FIRST_LIST).getByRole('link', { name: CARDS[1] })).toHaveCount(0);
   });
 
-  await test.step('11. C archives the current card and the toast undoes it', async () => {
+  await test.step('10. C archives the current card and the toast undoes it', async () => {
     await hoverCard(page, CARDS[1]);
     await page.keyboard.press('c');
     await expect(column(page, SECOND_LIST).getByRole('link', { name: CARDS[1] })).toHaveCount(0);

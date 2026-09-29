@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react';
 import { DatesPopover } from '@/components/card/DatesPopover';
 import { LabelsPopover } from '@/components/card/LabelsPopover';
-import { MembersPopover } from '@/components/card/MembersPopover';
 import { useUiStore } from '@/store/uiStore';
 
 export interface CardShortcutPopoversProps {
@@ -9,7 +8,7 @@ export interface CardShortcutPopoversProps {
 }
 
 /**
- * The three panels the `L`, `M` and `D` keys open for a card *tile* (Sections 2.8 and 5.9).
+ * The two panels the `L` and `D` keys open for a card *tile* (Sections 2.8 and 5.9).
  *
  * Every other opener of these panels is a control that renders them itself and anchors them to
  * itself — the modal's sidebar, the quick editor's action stack, the quick-badges row — and the
@@ -33,8 +32,6 @@ export function CardShortcutPopovers({ boardId }: CardShortcutPopoversProps): Re
   switch (popover.kind) {
     case 'labels':
       return <LabelsPopover {...shared} />;
-    case 'members':
-      return <MembersPopover {...shared} />;
     case 'dates':
       return <DatesPopover {...shared} />;
     default:

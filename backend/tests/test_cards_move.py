@@ -19,7 +19,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from kanban import ratelimit
-from kanban.models import User
 from kanban.ordering import MIN_GAP, STEP
 from tests.conftest import CSRF_HEADERS
 from tests.test_cards import (
@@ -28,11 +27,9 @@ from tests.test_cards import (
     card_row,
     create_card,
     list_ids,
-    register,
 )
 
 BoardFactory = Callable[..., dict[str, Any]]
-LoggedIn = tuple[TestClient, User]
 
 #: `RateLimiter` allows 600 requests a minute per IP by design (Section 4.1); the property runs
 #: below send more than that, so they refill the bucket exactly as the conftest fixture does.
@@ -84,9 +81,8 @@ def seed_cards(api: TestClient, list_id: int, count: int) -> list[int]:
 
 
 def test_index_in_equals_index_out_over_200_random_same_list_moves(
-    logged_in: LoggedIn, lists: list[int]
+    api: TestClient, lists: list[int]
 ) -> None:
-    api, _user = logged_in
     todo = lists[0]
     cards = seed_cards(api, todo, 6)
     rng = random.Random(20260926)
@@ -104,10 +100,7 @@ def test_index_in_equals_index_out_over_200_random_same_list_moves(
         assert sorted(order) == sorted(cards)
 
 
-def test_an_index_past_the_end_is_clamped_to_an_append(
-    logged_in: LoggedIn, lists: list[int]
-) -> None:
-    api, _user = logged_in
+def test_an_index_past_the_end_is_clamped_to_an_append(api: TestClient, lists: list[int]) -> None:
     todo = lists[0]
     cards = seed_cards(api, todo, 3)
 
@@ -117,8 +110,7 @@ def test_an_index_past_the_end_is_clamped_to_an_append(
     assert result["item"]["position"] == 4 * STEP
 
 
-def test_a_negative_index_is_422(logged_in: LoggedIn, lists: list[int]) -> None:
-    api, _user = logged_in
+def test_a_negative_index_is_422(api: TestClient, lists: list[int]) -> None:
     card_id = seed_cards(api, lists[0], 1)[0]
 
     response = move(api, card_id, lists[0], -1)
@@ -127,8 +119,7 @@ def test_a_negative_index_is_422(logged_in: LoggedIn, lists: list[int]) -> None:
     assert response.json()["error"]["code"] == "validation_error"
 
 
-def test_a_body_without_an_index_is_422(logged_in: LoggedIn, lists: list[int]) -> None:
-    api, _user = logged_in
+def test_a_body_without_an_index_is_422(api: TestClient, lists: list[int]) -> None:
     card_id = seed_cards(api, lists[0], 1)[0]
 
     response = api.post(
@@ -138,8 +129,7 @@ def test_a_body_without_an_index_is_422(logged_in: LoggedIn, lists: list[int]) -
     assert response.status_code == 422
 
 
-def test_patch_is_an_alias_of_post(logged_in: LoggedIn, lists: list[int]) -> None:
-    api, _user = logged_in
+def test_patch_is_an_alias_of_post(api: TestClient, lists: list[int]) -> None:
     cards = seed_cards(api, lists[0], 2)
 
     response = api.patch(
@@ -156,9 +146,8 @@ def test_patch_is_an_alias_of_post(logged_in: LoggedIn, lists: list[int]) -> Non
 
 
 def test_a_cross_list_move_relocates_the_card_and_leaves_the_source_ordered(
-    logged_in: LoggedIn, board: dict[str, Any], lists: list[int]
+    api: TestClient, board: dict[str, Any], lists: list[int]
 ) -> None:
-    api, _user = logged_in
     todo, doing = lists[0], lists[1]
     a, b, c = seed_cards(api, todo, 3)
     x = seed_cards(api, doing, 1)[0]
@@ -175,9 +164,8 @@ def test_a_cross_list_move_relocates_the_card_and_leaves_the_source_ordered(
 
 
 def test_a_target_list_on_another_board_is_400(
-    logged_in: LoggedIn, board_factory: BoardFactory, lists: list[int]
+    api: TestClient, board_factory: BoardFactory, lists: list[int]
 ) -> None:
-    api, _user = logged_in
     card_id = seed_cards(api, lists[0], 1)[0]
     foreign_list = list_ids(board_factory("Another board")["id"])[0]
 
@@ -192,8 +180,7 @@ def test_a_target_list_on_another_board_is_400(
     assert stored.list_id == lists[0]
 
 
-def test_a_target_list_that_does_not_exist_is_400(logged_in: LoggedIn, lists: list[int]) -> None:
-    api, _user = logged_in
+def test_a_target_list_that_does_not_exist_is_400(api: TestClient, lists: list[int]) -> None:
     card_id = seed_cards(api, lists[0], 1)[0]
 
     response = move(api, card_id, 999999, 0)
@@ -201,8 +188,7 @@ def test_a_target_list_that_does_not_exist_is_400(logged_in: LoggedIn, lists: li
     assert response.status_code == 400
 
 
-def test_an_archived_target_list_is_400(logged_in: LoggedIn, lists: list[int]) -> None:
-    api, _user = logged_in
+def test_an_archived_target_list_is_400(api: TestClient, lists: list[int]) -> None:
     card_id = seed_cards(api, lists[0], 1)[0]
     archive_list(lists[1])
 
@@ -212,19 +198,15 @@ def test_an_archived_target_list_is_400(logged_in: LoggedIn, lists: list[int]) -
     assert response.json()["error"]["details"] == {"list_id": lists[1]}
 
 
-def test_moving_a_card_the_caller_cannot_see_is_404(logged_in: LoggedIn, lists: list[int]) -> None:
-    api, _user = logged_in
-    card_id = seed_cards(api, lists[0], 1)[0]
-    stranger, _account = register(api, "outsider_move")
-
-    assert move(stranger, card_id, lists[0], 0).status_code == 404
+def test_moving_a_card_that_does_not_exist_is_404(api: TestClient, lists: list[int]) -> None:
+    """`card_access` resolves the card's board first, so no id reaches `move_card` (Section 6.6)."""
+    assert move(api, 999999, lists[0], 0).status_code == 404
 
 
 # --------------------------------------------------------------------------- neighbours
 
 
-def test_neighbours_take_precedence_over_the_index(logged_in: LoggedIn, lists: list[int]) -> None:
-    api, _user = logged_in
+def test_neighbours_take_precedence_over_the_index(api: TestClient, lists: list[int]) -> None:
     todo = lists[0]
     a, b, c = seed_cards(api, todo, 3)
 
@@ -234,10 +216,7 @@ def test_neighbours_take_precedence_over_the_index(logged_in: LoggedIn, lists: l
     assert order_of(todo) == [a, c, b]
 
 
-def test_a_stale_neighbour_falls_back_to_the_other_side(
-    logged_in: LoggedIn, lists: list[int]
-) -> None:
-    api, _user = logged_in
+def test_a_stale_neighbour_falls_back_to_the_other_side(api: TestClient, lists: list[int]) -> None:
     todo = lists[0]
     a, b, c = seed_cards(api, todo, 3)
 
@@ -248,10 +227,7 @@ def test_a_stale_neighbour_falls_back_to_the_other_side(
     assert order_of(todo) == [b, a, c]
 
 
-def test_both_neighbours_stale_falls_back_to_an_append(
-    logged_in: LoggedIn, lists: list[int]
-) -> None:
-    api, _user = logged_in
+def test_both_neighbours_stale_falls_back_to_an_append(api: TestClient, lists: list[int]) -> None:
     todo = lists[0]
     a, b, c = seed_cards(api, todo, 3)
 
@@ -265,9 +241,8 @@ def test_both_neighbours_stale_falls_back_to_an_append(
 
 @pytest.mark.parametrize("side", ["prev_id", "next_id"])
 def test_the_moved_card_may_never_be_its_own_neighbour(
-    logged_in: LoggedIn, lists: list[int], side: str
+    api: TestClient, lists: list[int], side: str
 ) -> None:
-    api, _user = logged_in
     a, b = seed_cards(api, lists[0], 2)
 
     response = move(api, a, lists[0], 1, **{side: a})
@@ -279,8 +254,7 @@ def test_the_moved_card_may_never_be_its_own_neighbour(
     assert order_of(lists[0]) == [a, b]
 
 
-def test_a_neighbour_from_another_list_is_400(logged_in: LoggedIn, lists: list[int]) -> None:
-    api, _user = logged_in
+def test_a_neighbour_from_another_list_is_400(api: TestClient, lists: list[int]) -> None:
     todo, doing = lists[0], lists[1]
     a, b = seed_cards(api, todo, 2)
     elsewhere = seed_cards(api, doing, 1)[0]
@@ -296,9 +270,8 @@ def test_a_neighbour_from_another_list_is_400(logged_in: LoggedIn, lists: list[i
 
 
 def test_an_archived_card_keeps_its_slot_and_still_counts_as_a_neighbour(
-    logged_in: LoggedIn, lists: list[int]
+    api: TestClient, lists: list[int]
 ) -> None:
-    api, _user = logged_in
     todo = lists[0]
     a, b, c = seed_cards(api, todo, 3)
     archived = api.post(f"/api/cards/{b}/archive", headers=CSRF_HEADERS).json()["item"]
@@ -321,9 +294,8 @@ def test_an_archived_card_keeps_its_slot_and_still_counts_as_a_neighbour(
 
 
 def test_the_move_result_carries_the_authoritative_position_and_the_renumbered_map(
-    logged_in: LoggedIn, lists: list[int]
+    api: TestClient, lists: list[int]
 ) -> None:
-    api, _user = logged_in
     todo = lists[0]
     a, b, x = seed_cards(api, todo, 3)
 
@@ -348,10 +320,7 @@ def test_the_move_result_carries_the_authoritative_position_and_the_renumbered_m
     assert all(gap >= MIN_GAP for gap in gaps), gaps
 
 
-def test_an_ordinary_move_returns_an_empty_positions_map(
-    logged_in: LoggedIn, lists: list[int]
-) -> None:
-    api, _user = logged_in
+def test_an_ordinary_move_returns_an_empty_positions_map(api: TestClient, lists: list[int]) -> None:
     cards = seed_cards(api, lists[0], 2)
 
     assert moved(api, cards[0], lists[0], 1)["positions"] == {}
@@ -361,10 +330,9 @@ def test_an_ordinary_move_returns_an_empty_positions_map(
 
 
 def test_1000_mixed_operations_keep_every_list_strictly_ordered(
-    logged_in: LoggedIn, lists: list[int]
+    api: TestClient, lists: list[int]
 ) -> None:
     """Create / move / archive / unarchive at random: positions never collide or invert."""
-    api, _user = logged_in
     rng = random.Random(4242)
     cards: dict[int, int] = {}  # card id -> list id
     archived: set[int] = set()
@@ -411,19 +379,13 @@ def test_1000_mixed_operations_keep_every_list_strictly_ordered(
 
 
 def test_two_interleaved_movers_never_produce_a_duplicate_position(
-    logged_in: LoggedIn, board: dict[str, Any], lists: list[int]
+    api: TestClient, lists: list[int]
 ) -> None:
     """`BEGIN IMMEDIATE` serialises the two writers, so both get distinct midpoints (3.6)."""
-    api, _user = logged_in
     todo = lists[0]
     cards = seed_cards(api, todo, 6)
-    second, account = register(api, "second_mover")
-    invited = api.put(
-        f"/api/boards/{board['id']}/members/{account['id']}",
-        json={"role": "member"},
-        headers=CSRF_HEADERS,
-    )
-    assert invited.status_code == 200, invited.text
+    # Two browser tabs of the one install: a second client over the same app, not a second caller.
+    second = TestClient(api.app)
 
     def run(client: TestClient, seed: int) -> list[int]:
         rng = random.Random(seed)
@@ -443,10 +405,9 @@ def test_two_interleaved_movers_never_produce_a_duplicate_position(
 
 
 def test_one_card_may_not_be_both_neighbours_of_the_same_slot(
-    logged_in: LoggedIn, lists: list[int]
+    api: TestClient, lists: list[int]
 ) -> None:
     """`between(p, p)` is `p`: a duplicate position, and a zero gap renormalises forever."""
-    api, _user = logged_in
     a, b, c = seed_cards(api, lists[0], 3)
 
     response = move(api, a, lists[0], 1, prev_id=b, next_id=b)

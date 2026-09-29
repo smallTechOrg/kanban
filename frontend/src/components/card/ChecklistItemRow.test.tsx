@@ -8,7 +8,7 @@ import type { UpdateItemInput } from '@/api/checklists';
 import { useCardDetail } from '@/hooks/useCard';
 import { CHECKLIST_ITEM_DRAG_TYPE, checklistDropId } from '@/lib/cardDnd';
 import { formatDate } from '@/lib/dates';
-import { makeCardDetail, makeChecklistItem, memberFixture } from '@/test/handlers';
+import { makeCardDetail, makeChecklistItem } from '@/test/handlers';
 import { renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
 import { ChecklistItemRow } from './ChecklistItemRow';
@@ -45,7 +45,6 @@ function mount(item: ReturnType<typeof makeChecklistItem>): UpdateItemInput[] {
           ...patch,
           badges: {
             description: false,
-            comments: 0,
             attachments: 0,
             checklist_done: 0,
             checklist_total: 1,
@@ -112,27 +111,16 @@ describe('ChecklistItemRow', () => {
     await waitFor(() => expect(screen.queryByText(formatDate(DUE_AT))).not.toBeInTheDocument());
   });
 
-  it('assigns a board member and shows their avatar on the row', async () => {
+  it('renames the item from the inline editor', async () => {
     const user = userEvent.setup();
     const patches = mount(PLAIN);
 
-    await user.click(await screen.findByRole('button', { name: 'Assign Palette' }));
-    await user.click(await screen.findByRole('button', { name: memberFixture.full_name }));
+    await user.click(await screen.findByRole('button', { name: 'Palette' }));
+    const editor = screen.getByRole('textbox', { name: 'Item name' });
+    await user.clear(editor);
+    await user.type(editor, 'Colour palette{Enter}');
 
     await waitFor(() => expect(patches).toHaveLength(1));
-    expect(patches[0]).toEqual({ assignee_id: memberFixture.id });
-    expect(await screen.findByRole('img', { name: memberFixture.full_name })).toBeInTheDocument();
-  });
-
-  it('unassigns the member who is already on the item', async () => {
-    const user = userEvent.setup();
-    const patches = mount({ ...PLAIN, assignee_id: memberFixture.id });
-
-    await user.click(await screen.findByRole('button', { name: 'Assign Palette' }));
-    const row = await screen.findByRole('button', { name: memberFixture.full_name, pressed: true });
-    await user.click(row);
-
-    await waitFor(() => expect(patches).toHaveLength(1));
-    expect(patches[0]).toEqual({ assignee_id: null });
+    expect(patches[0]).toEqual({ name: 'Colour palette' });
   });
 });

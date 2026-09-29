@@ -26,14 +26,13 @@ function recordRenames(): UpdateListInput[] {
   return calls;
 }
 
-function renderHeader(canEdit = true): void {
+function renderHeader(): void {
   renderWithProviders(
     <ListHeader
       boardId={BOARD_ID}
       listId={LIST_ID}
       name="To Do"
       cardCount={2}
-      canEdit={canEdit}
       handleProps={null}
     />,
     `/b/${BOARD_ID}`,
@@ -107,12 +106,5 @@ describe('ListHeader', () => {
     expect(await screen.findByText('Archive this list')).toBeInTheDocument();
 
     window.removeEventListener('mousedown', sensor);
-  });
-
-  it('gives an observer neither the editor nor the menu', () => {
-    renderHeader(false);
-
-    expect(screen.getByRole('button', { name: 'Rename list To Do' })).toBeDisabled();
-    expect(screen.queryByRole('button', { name: 'List actions' })).not.toBeInTheDocument();
   });
 });

@@ -14,24 +14,24 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
  * One serial test: every step builds on what the step before it left on screen.
  */
 
-const BOARD = 'Keyboard only';
+/** A fresh board name per run, so the file also passes against a database that is not empty. */
+const suffix = `${Date.now()}`.slice(-9);
+
+const BOARD = `Keyboard only ${suffix}`;
 const LIST = 'Backlog';
 const CARD = 'Ship without a mouse';
 
 /** Board labels are seeded unnamed, so a chip is addressed by its colour key (Section 2.6.5). */
 const LABEL = 'green';
 
-/** Tab presses allowed before a control is declared unreachable — a board page has far fewer. */
-const MAX_TABS = 80;
-
-/** A fresh account per run, so the file also passes against a database that is not empty. */
-const suffix = `${Date.now()}`.slice(-9);
-const user = {
-  fullName: 'Piet Halloran',
-  email: `piet_${suffix}@example.com`,
-  username: `piet_${suffix}`,
-  password: 'correct-horse-battery',
-};
+/**
+ * Tab presses allowed before a control is declared unreachable.
+ *
+ * A board page needs a fraction of this. Home is the generous case: with no accounts every spec
+ * writes into the one dataset, so its grid — and with it the tab order in front of the create
+ * tile — grows by two stops for every board the suite has made.
+ */
+const MAX_TABS = 150;
 
 /** One column, which `ListColumn` labels with the list's name. */
 function column(page: Page, name: string): Locator {
@@ -71,28 +71,8 @@ async function tabAndPress(page: Page, target: Locator, key = 'Enter'): Promise<
 test.describe.configure({ mode: 'serial' });
 
 test('a11y: create board, list, card and label with the keyboard alone', async ({ page }) => {
-  await test.step('1. register by tabbing through the form', async () => {
-    await page.goto('/login');
-    await expect(page.getByRole('heading', { name: 'Log in to continue' })).toBeVisible();
-
-    await tabAndPress(page, page.getByRole('link', { name: 'Create an account' }));
-    await expect(page.getByRole('heading', { name: 'Sign up to continue' })).toBeVisible();
-
-    await tabTo(page, page.getByLabel('Full name'));
-    await page.keyboard.type(user.fullName);
-    await tabTo(page, page.getByLabel('Email'));
-    await page.keyboard.type(user.email);
-    await tabTo(page, page.getByLabel('Username'));
-    await page.keyboard.type(user.username);
-    await tabTo(page, page.getByLabel('Password'));
-    await page.keyboard.type(user.password);
-
-    // Enter in a text field submits the form natively; the button never needs the focus.
-    await page.keyboard.press('Enter');
-    await expect(page).toHaveURL('http://127.0.0.1:8020/');
-  });
-
-  await test.step('2. create a board from the Home create tile', async () => {
+  await test.step('1. create a board from the Home create tile', async () => {
+    await page.goto('/');
     await tabAndPress(page, page.getByRole('button', { name: 'Create new board' }));
 
     const popover = page.getByRole('dialog', { name: 'Create board' });
@@ -108,7 +88,7 @@ test('a11y: create board, list, card and label with the keyboard alone', async (
     await expect(page.getByRole('heading', { name: BOARD })).toBeVisible();
   });
 
-  await test.step('3. add a list with the canvas composer', async () => {
+  await test.step('2. add a list with the canvas composer', async () => {
     const trigger = page.getByRole('button', { name: /^Add (a|another) list$/ });
     if (await trigger.isVisible()) await tabAndPress(page, trigger);
 
@@ -123,7 +103,7 @@ test('a11y: create board, list, card and label with the keyboard alone', async (
     await expect(field).toHaveCount(0);
   });
 
-  await test.step('4. add a card to that list', async () => {
+  await test.step('3. add a card to that list', async () => {
     const list = column(page, LIST);
     await tabAndPress(page, list.getByRole('button', { name: 'Add a card' }));
 
@@ -137,13 +117,13 @@ test('a11y: create board, list, card and label with the keyboard alone', async (
     await expect(field).toHaveCount(0);
   });
 
-  await test.step('5. open the card: one tab stop, and Enter follows the link', async () => {
+  await test.step('4. open the card: one tab stop, and Enter follows the link', async () => {
     await tabAndPress(page, column(page, LIST).getByRole('link', { name: CARD }));
     await expect(page).toHaveURL(/\/c\/\d+$/);
     await expect(page.getByRole('dialog', { name: CARD })).toBeVisible();
   });
 
-  await test.step('6. attach a label from the sidebar', async () => {
+  await test.step('5. attach a label from the sidebar', async () => {
     const modal = page.getByRole('dialog', { name: CARD });
     const sidebarRow = modal.getByRole('button', { name: 'Labels', exact: true });
     await tabAndPress(page, sidebarRow);
@@ -163,7 +143,7 @@ test('a11y: create board, list, card and label with the keyboard alone', async (
     await expect(sidebarRow).toBeFocused();
   });
 
-  await test.step('7. Escape unwinds to the board and the tile carries the chip', async () => {
+  await test.step('6. Escape unwinds to the board and the tile carries the chip', async () => {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog', { name: CARD })).toHaveCount(0);
     await expect(page).toHaveURL(/\/b\/\d+$/);

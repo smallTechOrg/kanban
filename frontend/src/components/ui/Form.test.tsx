@@ -61,11 +61,11 @@ describe('Form', () => {
     const user = userEvent.setup();
     render(
       <>
-        <Field label="Visibility">
+        <Field label="List">
           {(control) => (
-            <Select {...control} defaultValue="private">
-              <option value="private">Private</option>
-              <option value="workspace">Workspace</option>
+            <Select {...control} defaultValue="todo">
+              <option value="todo">To Do</option>
+              <option value="doing">Doing</option>
             </Select>
           )}
         </Field>
@@ -73,8 +73,8 @@ describe('Form', () => {
       </>,
     );
 
-    await user.selectOptions(screen.getByLabelText('Visibility'), 'workspace');
-    expect(screen.getByLabelText('Visibility')).toHaveValue('workspace');
+    await user.selectOptions(screen.getByLabelText('List'), 'doing');
+    expect(screen.getByLabelText('List')).toHaveValue('doing');
 
     const checkbox = screen.getByRole('checkbox', { name: 'Start with default lists' });
     expect(checkbox).toBeChecked();

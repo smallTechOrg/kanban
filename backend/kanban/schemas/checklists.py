@@ -54,7 +54,6 @@ class ChecklistItemOut(BaseModel):
     is_checked: bool
     checked_at: str | None
     due_at: str | None
-    assignee_id: int | None
 
 
 class ChecklistItemPatchedOut(ChecklistItemOut):
@@ -160,10 +159,9 @@ class ItemCreateIn(BaseModel):
 class ItemUpdateIn(BaseModel):
     """`PATCH /api/checklist-items/{item_id}` (Section 4.6).
 
-    An absent field is untouched (`exclude_unset`); `due_at: null` removes the due date and
-    `assignee_id: null` unassigns, which is what the Remove button of `ItemDuePopover` and a
-    second click on the assigned row of `ItemAssignPopover` send. `name` and `is_checked` are
-    the two fields `null` is never valid for.
+    An absent field is untouched (`exclude_unset`); `due_at: null` removes the due date, which
+    is what the Remove button of `ItemDuePopover` sends. `name` and `is_checked` are the two
+    fields `null` is never valid for.
     """
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -171,7 +169,6 @@ class ItemUpdateIn(BaseModel):
     name: ItemName | None = None
     is_checked: bool | None = None
     due_at: IsoTimestamp | None = None
-    assignee_id: RowId | None = None
 
     @model_validator(mode="after")
     def _check_body(self) -> "ItemUpdateIn":

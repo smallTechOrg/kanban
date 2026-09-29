@@ -31,27 +31,22 @@ export function isId(value: number): boolean {
   return Number.isInteger(value) && value >= 1;
 }
 
-export type Role = 'admin' | 'member' | 'observer';
 export type BackgroundKind = 'color' | 'gradient' | 'image';
-export type BoardVisibility = 'private' | 'workspace' | 'public';
 export type CoverKind = 'color' | 'attachment';
 export type CoverSize = 'normal' | 'full';
 export type LabelTone = 'subtle' | 'normal' | 'bold';
 
-/** The board row of the payload. `members[owner_id]` supplies the About panel's avatar. */
+/** The board row of the payload, as `BoardHeader` and the About panel read it. */
 export interface BoardMeta {
   id: Id;
   name: string;
   description: string;
   version: number;
-  owner_id: Id;
   background_type: BackgroundKind;
   background_value: string;
   background_thumb_url: string | null;
-  visibility: BoardVisibility;
   is_closed: boolean;
   is_starred: boolean;
-  my_role: Role;
   created_at: string;
   updated_at: string;
 }
@@ -78,7 +73,6 @@ export interface CoverRow {
 
 export interface BadgeCounts {
   description: boolean;
-  comments: number;
   attachments: number;
   checklist_done: number;
   checklist_total: number;
@@ -104,8 +98,6 @@ export interface CardRow {
   due_complete: boolean;
   cover: CoverRow | null;
   label_ids: Id[];
-  member_ids: Id[];
-  is_watching: boolean;
   badges: BadgeCounts;
   created_at: string;
   /** Drives the Filter popover's Activity section (Section 2.3.3). */
@@ -122,20 +114,9 @@ export interface LabelRow {
   position: number;
 }
 
-export interface MemberRow {
-  id: Id;
-  username: string;
-  full_name: string;
-  initials: string;
-  avatar_color: string;
-  role: Role;
-  joined_at: string;
-}
-
 /** The board document as `GET /api/boards/{board_id}` returns it (Section 4.10.1). */
 export interface BoardDocument {
   board: BoardMeta;
-  members: MemberRow[];
   labels: LabelRow[];
   lists: ListRow[];
   cards: CardRow[];
@@ -146,7 +127,6 @@ export interface BoardState {
   lists: Record<Id, ListRow>;
   cards: Record<Id, CardRow>;
   labels: Record<Id, LabelRow>;
-  members: Record<Id, MemberRow>;
   /** Active lists sorted by `(position, id)`. */
   listOrder: Id[];
   /** `listId -> active card ids sorted by (position, id)`. */
@@ -168,9 +148,9 @@ export function isTempId(id: Id): boolean {
 
 /**
  * The next optimistic id: ids count down, so two rows minted in the same millisecond cannot
- * collide. One counter serves every id space — cards, lists, labels, checklists, items and
- * comments — because `isTempId` above recognises all of them by the same sign, and two counters
- * (one per mutation hook) were the same rule written twice (CLAUDE.md section 3).
+ * collide. One counter serves every id space — cards, lists, labels, checklists and items —
+ * because `isTempId` above recognises all of them by the same sign, and two counters (one per
+ * mutation hook) were the same rule written twice (CLAUDE.md section 3).
  */
 export function nextTempId(): Id {
   lastTempId = Math.min(-Date.now(), lastTempId - 1);
@@ -285,14 +265,6 @@ export function selectLabels(state: BoardState): LabelRow[] {
   return sortRows(Object.values(state.labels));
 }
 
-/**
- * Board members ordered by id: a `Record<number, T>` iterates its integer keys ascending, and
- * the header's avatar row has no other order to honour (the owner is `board.owner_id`).
- */
-export function selectMembers(state: BoardState): MemberRow[] {
-  return Object.values(state.members);
-}
-
 /** Finds the row the server echoed a `client_id` for, which is how a temp id is resolved. */
 export function findCardByClientId(state: BoardState, clientId: string): CardRow | undefined {
   return Object.values(state.cards).find((card) => card.client_id === clientId);
@@ -327,16 +299,6 @@ export function applyListRow(state: BoardState, list: ListRow): BoardState {
     listOrder,
     cardOrder: { ...state.cardOrder, [list.id]: [...cardIds(state, list.id)] },
   };
-}
-
-/**
- * Writes an authoritative member row (`PUT /api/boards/{board_id}/members/{user_id}`, Section
- * 4.3), which is both "somebody was added" and "somebody's role changed": the map is keyed by
- * the user id, so one write covers each. There is no order to keep — `selectMembers` reads the
- * map's own ascending id order.
- */
-export function applyMemberRow(state: BoardState, member: MemberRow): BoardState {
-  return { ...state, members: { ...state.members, [member.id]: member } };
 }
 
 /**
@@ -426,7 +388,6 @@ export interface DraftCardInput {
   listId: Id;
   title: string;
   labelIds?: readonly Id[];
-  memberIds?: readonly Id[];
   now: string;
 }
 
@@ -451,11 +412,8 @@ export function draftCard(input: DraftCardInput): CardRow {
     due_complete: false,
     cover: null,
     label_ids: [...(input.labelIds ?? [])],
-    member_ids: [...(input.memberIds ?? [])],
-    is_watching: false,
     badges: {
       description: false,
-      comments: 0,
       attachments: 0,
       checklist_done: 0,
       checklist_total: 0,

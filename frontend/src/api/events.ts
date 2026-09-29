@@ -56,13 +56,9 @@ const EVENT_TYPES: readonly string[] = [
   'board.created',
   'board.renamed',
   'board.description_changed',
-  'board.visibility_changed',
   'board.background_changed',
   'board.closed',
   'board.reopened',
-  'member.added',
-  'member.removed',
-  'member.role_changed',
   'list.created',
   'list.renamed',
   'list.moved',
@@ -93,10 +89,6 @@ const EVENT_TYPES: readonly string[] = [
   'card.template_unset',
   'card.label_added',
   'card.label_removed',
-  'card.member_added',
-  'card.member_removed',
-  'card.watched',
-  'card.unwatched',
   'label.created',
   'label.updated',
   'label.deleted',
@@ -111,16 +103,11 @@ const EVENT_TYPES: readonly string[] = [
   'checklist.item_unchecked',
   'checklist.item_due_set',
   'checklist.item_due_removed',
-  'checklist.item_assigned',
-  'checklist.item_unassigned',
   'checklist.item_moved',
   'checklist.item_converted',
   'attachment.added',
   'attachment.renamed',
   'attachment.deleted',
-  'comment.added',
-  'comment.edited',
-  'comment.deleted',
 ];
 
 export interface BoardEventsHandlers {
@@ -163,7 +150,6 @@ function resyncEvent(boardId: number, version: number): BoardEvent {
     type: RESYNC,
     entity: 'board',
     id: boardId,
-    actor_id: null,
     at: new Date().toISOString(),
   };
 }
@@ -275,9 +261,7 @@ export function connectBoardEvents(
     const Source = globalThis.EventSource;
     if (Source === undefined) return;
     closeStream();
-    const stream = new Source(`${API_BASE}/boards/${boardId}/events?since=${since()}`, {
-      withCredentials: true,
-    });
+    const stream = new Source(`${API_BASE}/boards/${boardId}/events?since=${since()}`);
     for (const type of EVENT_TYPES) stream.addEventListener(type, onFrame);
     stream.addEventListener('error', onError);
     source = stream;

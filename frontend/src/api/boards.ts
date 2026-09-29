@@ -1,6 +1,6 @@
 /**
  * The boards endpoints of Section 4.3: the home page's three groups, boards CRUD, the
- * close/reopen/delete state machine, per-user stars and board membership.
+ * close/reopen/delete state machine and stars.
  */
 import { api } from './client';
 import type {
@@ -14,7 +14,6 @@ import type {
   ClosedBoards,
   Mutated,
   StarState,
-  Visibility,
 } from './types';
 
 export interface CreateBoardInput {
@@ -22,13 +21,12 @@ export interface CreateBoardInput {
   background_type?: BackgroundType;
   /** A `^#[0-9A-Fa-f]{6}$` hex for `color`, a `/api/meta` gradient key for `gradient`. */
   background_value?: string;
-  visibility?: Visibility;
   /** Seeds the lists "To Do", "Doing", "Done" (default true). */
   default_lists?: boolean;
 }
 
 /**
- * `background_image_id` re-selects an image from the caller's library and cannot be combined
+ * `background_image_id` re-selects an uploaded image and cannot be combined
  * with `background_type` / `background_value` in one body (422, Section 4.3).
  */
 export interface UpdateBoardInput {
@@ -37,7 +35,6 @@ export interface UpdateBoardInput {
   background_type?: BackgroundType;
   background_value?: string;
   background_image_id?: number;
-  visibility?: Visibility;
 }
 
 /** `GET /api/boards` — `{starred, recent, all}` for the home page. */
@@ -51,9 +48,9 @@ export function listClosedBoards(): Promise<ClosedBoards> {
 }
 
 /**
- * `GET /api/boards/{board_id}` — the board document, returned for every member including
- * when the board is closed (the client then renders `ClosedBoardPage`). Also refreshes the
- * caller's `board_views` row, which is why it is never called speculatively.
+ * `GET /api/boards/{board_id}` — the board document, served for a closed board too (the
+ * client then renders `ClosedBoardPage`). Also refreshes the board's `board_views` row, which
+ * is why it is never called speculatively.
  */
 export function getBoard(boardId: number): Promise<Board> {
   return api.get<Board>(`/boards/${boardId}`);
@@ -64,7 +61,7 @@ export function createBoard(input: CreateBoardInput): Promise<BoardSummary> {
   return api.post<BoardSummary>('/boards', input);
 }
 
-/** `PATCH /api/boards/{board_id}` — one activity per changed field. 403 for observers. */
+/** `PATCH /api/boards/{board_id}` — one activity row per changed field (Section 4.3). */
 export function updateBoard(
   boardId: number,
   input: UpdateBoardInput,

@@ -1,20 +1,13 @@
-import { useEffect, useState, type MouseEvent, type ReactElement } from 'react';
+import { useEffect, type MouseEvent, type ReactElement } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, LayoutGrid, Plus } from 'lucide-react';
-import type { User } from '@/api/types';
-import { Avatar, Button, IconButton, MenuRow, Popover, cx } from '@/components/ui';
+import { ChevronDown, LayoutGrid, Plus } from 'lucide-react';
+import { Button, IconButton, MenuRow, Popover, cx } from '@/components/ui';
 import { SHORTCUT_ANCHOR_ATTR } from '@/hooks/useKeyboardShortcuts';
 import { useUiStore, type PopoverKind } from '@/store/uiStore';
 import { BoardsPopover, type BoardsGroup } from './BoardsPopover';
 import { CreateMenuPopover } from './CreateMenuPopover';
-import { ProfileModal } from './ProfileModal';
 import { SearchPopover } from './SearchPopover';
-import { UserMenuPopover } from './UserMenuPopover';
 import styles from './TopNav.module.css';
-
-export interface TopNavProps {
-  user: User;
-}
 
 /**
  * Recent, Starred and the `B` shortcut share one popover; `openPopover.props` says which list to
@@ -29,17 +22,16 @@ function boardsGroupOf(props: Record<string, unknown> | undefined): BoardsGroup 
 
 /**
  * The 44px bar of Section 2.1.1: grid button, wordmark, Boards, Recent and Starred, the
- * Create menu, the search shell, the notifications placeholder and the user menu.
+ * Create menu and the search shell.
  *
  * Which popover is open lives in `uiStore.openPopover`, the single field that keeps exactly
  * one popover open across the whole app (Section 2.1.2).
  */
-export function TopNav({ user }: TopNavProps): ReactElement {
+export function TopNav(): ReactElement {
   const location = useLocation();
   const navigate = useNavigate();
   const popover = useUiStore((state) => state.openPopover);
   const setOpenPopover = useUiStore((state) => state.setOpenPopover);
-  const [profileOpen, setProfileOpen] = useState(false);
 
   // Section 2.1.2: a popover closes on a route change.
   useEffect(() => {
@@ -114,24 +106,6 @@ export function TopNav({ user }: TopNavProps): ReactElement {
 
       <div className={styles.group}>
         <SearchPopover />
-
-        <IconButton
-          label="Notifications"
-          tone="white"
-          tooltip="Notifications are not available yet"
-          disabled
-        >
-          <Bell aria-hidden="true" />
-        </IconButton>
-
-        <button
-          type="button"
-          className={styles.avatarButton}
-          aria-label="Account menu"
-          onClick={openFrom('userMenu')}
-        >
-          <Avatar name={user.full_name} color={user.avatar_color} size={28} />
-        </button>
       </div>
 
       {popover?.kind === 'switchTo' ? (
@@ -159,20 +133,6 @@ export function TopNav({ user }: TopNavProps): ReactElement {
       {popover?.kind === 'createMenu' ? (
         <CreateMenuPopover anchor={popover.anchor} onClose={close} />
       ) : null}
-
-      {popover?.kind === 'userMenu' ? (
-        <UserMenuPopover
-          anchor={popover.anchor}
-          user={user}
-          onClose={close}
-          onOpenProfile={() => {
-            close();
-            setProfileOpen(true);
-          }}
-        />
-      ) : null}
-
-      {profileOpen ? <ProfileModal user={user} onClose={() => setProfileOpen(false)} /> : null}
     </header>
   );
 }

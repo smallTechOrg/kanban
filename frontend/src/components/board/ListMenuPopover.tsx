@@ -349,9 +349,6 @@ export function ListMenuPopover({
           </MenuRow>
           <MenuRow onClick={() => nav.push(copyView)}>Copy list…</MenuRow>
           <MenuRow onClick={() => nav.push(moveView)}>Move list…</MenuRow>
-          <MenuRow disabled tooltip="List watching is not available yet" onClick={nav.close}>
-            Watch
-          </MenuRow>
 
           <hr className={styles.divider} />
           <MenuRow onClick={() => nav.push(sortView)}>Sort by…</MenuRow>

@@ -1,13 +1,12 @@
 /**
- * The board filter as the board page uses it: the predicate bound to this board's labels,
- * members and signed-in user, and the mirror between `uiStore.filter` and the URL query
- * (Sections 2.3.3 and 5.13).
+ * The board filter as the board page uses it: the predicate bound to this board's labels, and
+ * the mirror between `uiStore.filter` and the URL query (Sections 2.3.3 and 5.13).
  *
  * Not one filter rule is written here. `lib/filter.ts` owns `matchesFilter`, the active count and
  * the URL schema; this module only supplies the context that a pure function cannot reach — the
- * board's `labelsById` / `membersById` maps, `['me']` and the clock — so that `CardList` (which
- * hides a tile) and `ListColumn` (which counts the survivors for the list header) evaluate the
- * same rule from the same place.
+ * board's `labelsById` map and the clock — so that `CardList` (which hides a tile) and
+ * `ListColumn` (which counts the survivors for the list header) evaluate the same rule from the
+ * same place.
  */
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -19,11 +18,9 @@ import {
   matchesFilter,
   type FilterCard,
   type FilterLabel,
-  type FilterMember,
 } from '@/lib/filter';
 import { useUiStore } from '@/store/uiStore';
-import { useMe } from './useAuth';
-import { useLabels, useMembers } from './useBoardData';
+import { useLabels } from './useBoardData';
 
 /** What a caller needs to hide a tile and to count the ones that stay. */
 export interface BoardFilterState {
@@ -50,22 +47,15 @@ function byId<T extends { id: Id }, R>(
 export function useBoardFilter(boardId: number): BoardFilterState {
   const filter = useUiStore((state) => state.filter);
   const labels = useLabels(boardId).data;
-  const members = useMembers(boardId).data;
-  const meId = useMe().data?.id ?? null;
 
   const labelsById = useMemo<Record<Id, FilterLabel>>(
     () => byId(labels, (label) => ({ name: label.name })),
     [labels],
   );
-  const membersById = useMemo<Record<Id, FilterMember>>(
-    () => byId(members, (member) => ({ full_name: member.full_name, username: member.username })),
-    [members],
-  );
 
   const matches = useCallback(
-    (card: FilterCard) =>
-      matchesFilter(card, filter, { now: new Date(), labelsById, membersById, meId }),
-    [filter, labelsById, membersById, meId],
+    (card: FilterCard) => matchesFilter(card, filter, { now: new Date(), labelsById }),
+    [filter, labelsById],
   );
 
   return { active: isFilterActive(filter), matches };

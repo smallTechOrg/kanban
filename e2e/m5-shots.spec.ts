@@ -2,31 +2,21 @@ import { expect, test } from '@playwright/test';
 
 /** Release screenshots for the M5 work: the board menu drawer and the background picker. */
 
+/** A fresh board name per run, so the spec also passes against a database that is not empty. */
 const suffix = `${Date.now()}`.slice(-9);
-const user = {
-  fullName: 'Priya Raman',
-  email: `priya_${suffix}@example.com`,
-  username: `priya_${suffix}`,
-  password: 'correct horse battery',
-};
+const BOARD = `Release audit ${suffix}`;
 
 test('M5: release screenshots of the board menu and the background picker', async ({ page }) => {
   test.setTimeout(120_000);
 
-  // Register through the form, exactly as a new person would.
-  await page.goto('/register');
-  await page.getByLabel('Full name').fill(user.fullName);
-  await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Username').fill(user.username);
-  await page.getByLabel('Password').fill(user.password);
-  await page.getByRole('button', { name: 'Sign up' }).click();
+  await page.goto('/');
 
   // A board with the default lists, plus a couple of cards so the canvas is not bare.
   await page.getByRole('button', { name: 'Create new board' }).click();
   const popover = page.getByRole('dialog', { name: 'Create board' });
-  await popover.getByLabel('Board title').fill('Release audit');
+  await popover.getByLabel('Board title').fill(BOARD);
   await popover.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(page.getByRole('heading', { name: /Release audit/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: BOARD })).toBeVisible();
 
   const todo = page.getByRole('region', { name: /To Do/ });
   await todo.getByRole('button', { name: /Add a card/ }).click();

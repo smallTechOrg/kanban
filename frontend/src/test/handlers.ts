@@ -1,6 +1,5 @@
 import { http, HttpResponse } from 'msw';
 import type { CoverInput, LinkAttachmentInput } from '@/api/attachments';
-import type { ProfileInput } from '@/api/auth';
 import type { CreateBoardInput, UpdateBoardInput } from '@/api/boards';
 import type { CopyCardInput, CreateCardInput, MoveCardInput, UpdateCardInput } from '@/api/cards';
 import type {
@@ -23,37 +22,29 @@ import type {
   BoardSummary,
   CardCover,
   CardDetail,
-  CardFeed,
   CardLabels,
-  CardMembers,
   CardSummary,
   CardsCreated,
   Changes,
   Checklist,
   ChecklistItem,
   ChecklistItemPatched,
-  Comment,
-  FeedItem,
   ItemsCreated,
   Label,
   ListOut,
   ListWithCount,
-  Member,
   Meta,
   MoveAllCardsResult,
   MoveResult,
   Mutated,
   PositionsResult,
-  PublicUser,
   SearchCard,
   SearchResults,
   UnarchiveCardsResult,
-  User,
-  WatchState,
 } from '@/api/types';
 
 /**
- * The default happy path for every endpoint M1 calls. Tests that need a failure or a
+ * The default happy path for every endpoint the client calls. Tests that need a failure or a
  * different shape override one handler with `server.use(...)`.
  *
  * Colours are written as design tokens rather than hexes: the fixtures flow straight into
@@ -78,76 +69,21 @@ export const metaFixture: Meta = {
   },
   cover_colors: {},
   board_colors: { blue: 'var(--primary)' },
-  avatar_colors: [
-    'var(--logo)',
-    'var(--success)',
-    'var(--danger)',
-    'var(--warning)',
-    'var(--primary)',
-    'var(--progress)',
-    'var(--star)',
-    'var(--text-muted)',
-  ],
   board_gradients: { 'gradient-ocean': 'linear-gradient(135deg, var(--primary), var(--logo))' },
   list_colors: {},
   max_upload_mb: 25,
-  signup_enabled: true,
-  single_user: false,
-  admin_username: 'admin',
 };
-
-/** The signed-in user. `/api/auth/*` is the only place `email` comes back (Section 4.2). */
-export const userFixture: User = {
-  id: 1,
-  email: 'vivek@example.com',
-  username: 'vivek',
-  full_name: 'Vivek Sharma',
-  initials: 'VS',
-  avatar_color: 'var(--logo)',
-  created_at: '2026-09-01T09:12:00.000Z',
-};
-
-export const memberFixture: Member = {
-  id: 1,
-  username: 'vivek',
-  full_name: 'Vivek Sharma',
-  initials: 'VS',
-  avatar_color: 'var(--logo)',
-  role: 'admin',
-  joined_at: '2026-09-01T09:12:00.000Z',
-};
-
-/** `GET /api/users` rows, alphabetical by `full_name` like the server (Section 4.2). */
-export const publicUsersFixture: PublicUser[] = [
-  {
-    id: 2,
-    username: 'asha',
-    full_name: 'Asha Patel',
-    initials: 'AP',
-    avatar_color: 'var(--success)',
-  },
-  {
-    id: 1,
-    username: 'vivek',
-    full_name: 'Vivek Sharma',
-    initials: 'VS',
-    avatar_color: 'var(--logo)',
-  },
-];
 
 const BOARD_TEMPLATE: BoardSummary = {
   id: 7,
   name: 'Website relaunch',
   description: '',
-  owner_id: 1,
   background_type: 'color',
   background_value: 'var(--primary)',
   background_thumb_url: null,
-  visibility: 'private',
   is_closed: false,
   version: 1,
   is_starred: false,
-  my_role: 'admin',
   created_at: '2026-09-01T09:12:00.000Z',
   updated_at: '2026-09-24T17:58:41.120Z',
 };
@@ -213,11 +149,8 @@ const CARD_TEMPLATE: CardSummary = {
   due_complete: false,
   cover: null,
   label_ids: [],
-  member_ids: [],
-  is_watching: false,
   badges: {
     description: false,
-    comments: 0,
     attachments: 0,
     checklist_done: 0,
     checklist_total: 0,
@@ -233,7 +166,7 @@ export function makeCardSummary(overrides: Partial<CardSummary> = {}): CardSumma
 
 /** Three cards: two in "To Do" and one in "Doing", each in `position` order. */
 export const cardFixtures: CardSummary[] = [
-  makeCardSummary({ label_ids: [31, 32], member_ids: [1] }),
+  makeCardSummary({ label_ids: [31, 32] }),
   makeCardSummary({ id: 102, short_id: 13, title: 'Draft the brief', position: 2 * STEP }),
   makeCardSummary({ id: 103, short_id: 14, title: 'Migrate DNS', list_id: 12 }),
 ];
@@ -246,7 +179,6 @@ const ITEM_TEMPLATE: ChecklistItem = {
   is_checked: true,
   checked_at: '2026-09-24T12:00:00.000Z',
   due_at: null,
-  assignee_id: null,
 };
 
 /** Builds a `ChecklistItem` for a fixture or a handler's answer (Section 4.6). */
@@ -286,7 +218,6 @@ export const boardChecklistsFixture: BoardChecklist[] = checklistFixtures.map((c
 const ATTACHMENT_TEMPLATE: Attachment = {
   id: 401,
   card_id: 101,
-  user_id: userFixture.id,
   name: 'mock-up.png',
   kind: 'upload',
   url: '/uploads/attachments/401/mock-up.png',
@@ -324,46 +255,22 @@ export const attachmentFixtures: Attachment[] = [
   }),
 ];
 
-/** The comment author, as everyone but `/api/auth/*` sees them (Section 4.2). */
-export const publicUserFixture: PublicUser = {
-  id: userFixture.id,
-  username: userFixture.username,
-  full_name: userFixture.full_name,
-  initials: userFixture.initials,
-  avatar_color: userFixture.avatar_color,
-};
-
-export const commentFixture: Comment = {
-  id: 801,
-  card_id: 101,
-  user: publicUserFixture,
-  body: 'Looks good, shipping it.',
-  created_at: '2026-09-24T17:00:00.000Z',
-  edited_at: null,
-};
-
 export const activityFixture: Activity = {
   id: 9001,
   board_id: 7,
   card_id: 101,
   list_id: 11,
-  user: publicUserFixture,
   type: 'card.created',
   data: { card_title: cardFixtures[0]?.title ?? '', list_name: 'To Do' },
   board_version: 1,
   created_at: '2026-09-03T11:00:00.000Z',
 };
 
-/** `GET /api/cards/101/feed` — newest first: one comment row and one activity row (Section 4.5). */
-export const feedFixture: FeedItem[] = [
-  { kind: 'comment', comment: commentFixture },
-  { kind: 'activity', activity: activityFixture },
-];
-
 /**
- * `GET /api/boards/7/activity` — the drawer's feed (Section 4.3): the same rows as the card feed's
- * activity half plus one board-level row, newest first. One short page, so `next_before` is null
- * and the infinite scroll stops after it.
+ * `GET /api/boards/7/activity` — the one feed both readers page (Sections 4.3 and 4.5): one
+ * board-level row and one card row, newest first. The card modal reads the same endpoint with
+ * `card_id=101`, which the handler narrows to the rows carrying it. One short page, so
+ * `next_before` is null and the infinite scroll stops after it.
  */
 export const boardActivityFixture: Activity[] = [
   {
@@ -415,7 +322,6 @@ export function makeCardDetail(overrides: Partial<CardDetail> = {}): CardDetail 
 /** `GET /api/boards/7` — the single round-trip board document (Section 4.10.1). */
 export const boardPayloadFixture: Board = {
   board: boardFixture,
-  members: [memberFixture],
   labels: labelFixtures,
   lists: listFixtures,
   cards: cardFixtures,
@@ -444,7 +350,6 @@ export const changesFixture: Changes = {
       id: 101,
       card_id: 101,
       list_id: 11,
-      actor_id: userFixture.id,
       at: '2026-09-25T09:00:00.000Z',
     },
   ],
@@ -553,24 +458,6 @@ async function uploadedFile(request: Request): Promise<File | null> {
 export const handlers = [
   http.get('/api/meta', () => HttpResponse.json(metaFixture)),
 
-  http.post('/api/auth/register', () => HttpResponse.json(userFixture, { status: 201 })),
-  http.post('/api/auth/login', () =>
-    HttpResponse.json({ user: userFixture, token: 'kb_test_raw_token' }),
-  ),
-  http.post('/api/auth/logout', () => new HttpResponse(null, NO_CONTENT)),
-  http.get('/api/auth/me', () => HttpResponse.json(userFixture)),
-  http.patch('/api/auth/me', async ({ request }) => {
-    const patch = (await request.json()) as ProfileInput;
-    return HttpResponse.json({
-      ...userFixture,
-      full_name: patch.full_name ?? userFixture.full_name,
-      avatar_color: patch.avatar_color ?? userFixture.avatar_color,
-    });
-  }),
-  http.post('/api/auth/dev-login', () => HttpResponse.json(userFixture)),
-
-  http.get('/api/users', () => HttpResponse.json({ items: publicUsersFixture })),
-
   http.get('/api/boards', ({ request }) => {
     const closed = new URL(request.url).searchParams.get('closed');
     return closed === '1'
@@ -585,7 +472,6 @@ export const handlers = [
         name: input.name,
         background_type: input.background_type ?? 'color',
         background_value: input.background_value ?? 'var(--primary)',
-        visibility: input.visibility ?? 'private',
       }),
       { status: 201 },
     );
@@ -613,15 +499,6 @@ export const handlers = [
 
   http.put('/api/boards/:boardId/star', () => HttpResponse.json({ is_starred: true })),
   http.delete('/api/boards/:boardId/star', () => HttpResponse.json({ is_starred: false })),
-
-  http.get('/api/boards/:boardId/members', () => HttpResponse.json({ items: [memberFixture] })),
-  http.put('/api/boards/:boardId/members/:userId', async ({ params, request }) => {
-    const { role } = (await request.json()) as { role?: Member['role'] };
-    return HttpResponse.json(
-      mutated({ ...memberFixture, id: Number(params['userId']), role: role ?? 'member' }, 2),
-    );
-  }),
-  http.delete('/api/boards/:boardId/members/:userId', () => new HttpResponse(null, NO_CONTENT)),
 
   http.get('/api/boards/:boardId/backgrounds', () => HttpResponse.json(backgroundsFixture)),
 
@@ -745,7 +622,6 @@ export const handlers = [
       title: input.title,
       position: 3 * STEP,
       label_ids: input.label_ids ?? [],
-      member_ids: input.member_ids ?? [],
     });
     return HttpResponse.json(mutated(item, NEXT_VERSION), { status: 201 });
   }),
@@ -798,7 +674,6 @@ export const handlers = [
       position: (input.index + 1) * STEP,
       is_template: input.is_template ?? false,
       label_ids: input.keep.labels === true ? card.label_ids : [],
-      member_ids: input.keep.members === true ? card.member_ids : [],
     });
     return HttpResponse.json(mutated(item, NEXT_VERSION), { status: 201 });
   }),
@@ -853,35 +728,8 @@ export const handlers = [
     return HttpResponse.json(result);
   }),
 
-  // ------------------------------ card members, watching and covers (Section 4.5)
+  // --------------------------------------------------------- card covers (Section 4.5)
 
-  http.put('/api/cards/:cardId/members/:userId', ({ params }) => {
-    const card = cardById(Number(params['cardId']));
-    const userId = Number(params['userId']);
-    const result: CardMembers = {
-      member_ids: card.member_ids.includes(userId) ? card.member_ids : [...card.member_ids, userId],
-      board_version: NEXT_VERSION,
-    };
-    return HttpResponse.json(result);
-  }),
-  http.delete('/api/cards/:cardId/members/:userId', ({ params }) => {
-    const card = cardById(Number(params['cardId']));
-    const userId = Number(params['userId']);
-    const result: CardMembers = {
-      member_ids: card.member_ids.filter((id) => id !== userId),
-      board_version: NEXT_VERSION,
-    };
-    return HttpResponse.json(result);
-  }),
-  // Watching is per-user state: the answer carries no `board_version` at all (Section 4.5).
-  http.put('/api/cards/:cardId/watch', () => {
-    const state: WatchState = { is_watching: true };
-    return HttpResponse.json(state);
-  }),
-  http.delete('/api/cards/:cardId/watch', () => {
-    const state: WatchState = { is_watching: false };
-    return HttpResponse.json(state);
-  }),
   http.put('/api/cards/:cardId/cover', async ({ params, request }) => {
     const input = (await request.json()) as CoverInput;
     const attachment = attachmentFixtures.find((row) => String(row.id) === input.value);
@@ -987,7 +835,6 @@ export const handlers = [
       name: patch.name ?? current.name,
       is_checked: patch.is_checked ?? current.is_checked,
       due_at: patch.due_at === undefined ? current.due_at : patch.due_at,
-      assignee_id: patch.assignee_id === undefined ? current.assignee_id : patch.assignee_id,
     });
     const item: ChecklistItemPatched = { ...row, badges: badgesAfter(row) };
     return HttpResponse.json(mutated(item, NEXT_VERSION));
@@ -1009,38 +856,6 @@ export const handlers = [
     return HttpResponse.json(mutated(card, NEXT_VERSION), { status: 201 });
   }),
 
-  // ------------------------------------- comments and the card feed (Sections 4.5, 4.6)
-
-  http.post('/api/cards/:cardId/comments', async ({ params, request }) => {
-    const { body } = (await request.json()) as { body: string };
-    const item: Comment = {
-      ...commentFixture,
-      id: 802,
-      card_id: Number(params['cardId']),
-      body,
-    };
-    return HttpResponse.json(mutated(item, NEXT_VERSION), { status: 201 });
-  }),
-  http.patch('/api/comments/:commentId', async ({ params, request }) => {
-    const { body } = (await request.json()) as { body: string };
-    const item: Comment = {
-      ...commentFixture,
-      id: Number(params['commentId']),
-      body,
-      edited_at: '2026-09-25T09:05:00.000Z',
-    };
-    return HttpResponse.json(mutated(item, NEXT_VERSION));
-  }),
-  http.delete('/api/comments/:commentId', () => new HttpResponse(null, NO_CONTENT)),
-  http.get('/api/cards/:cardId/feed', ({ request }) => {
-    const details = new URL(request.url).searchParams.get('details');
-    // `details=0` is "Hide details": comments only (Section 4.5).
-    const items =
-      details === '0' ? feedFixture.filter((row) => row.kind === 'comment') : feedFixture;
-    // One short page, so `next_before` is null and "Load more" knows to stop.
-    const page: CardFeed = { items, next_before: null };
-    return HttpResponse.json(page);
-  }),
   // ----------------------------------------------------------- attachments (Section 4.6)
 
   http.post('/api/cards/:cardId/attachments', async ({ params, request }) => {
@@ -1104,10 +919,16 @@ export const handlers = [
     return HttpResponse.json(results);
   }),
 
-  // One short page: `next_before` is null, so "Load more" stops after it.
+  // One short page: `next_before` is null, so "Load more" stops after it. `card_id` narrows the
+  // feed to one card's rows, which is what the card modal's feed is (Sections 4.3 and 4.5).
   http.get('/api/boards/:boardId/activity', ({ request }) => {
-    const before = new URL(request.url).searchParams.get('before');
-    const items = before === null ? boardActivityFixture : [];
+    const params = new URL(request.url).searchParams;
+    const cardId = params.get('card_id');
+    const page =
+      cardId === null
+        ? boardActivityFixture
+        : boardActivityFixture.filter((row) => row.card_id === Number(cardId));
+    const items = params.get('before') === null ? page : [];
     return HttpResponse.json({ items, next_before: null });
   }),
 

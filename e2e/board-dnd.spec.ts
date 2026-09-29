@@ -23,16 +23,10 @@ const TODO_LIST = 'To Do';
 const DOING = 'Doing';
 const DONE = 'Done';
 
-const BOARD = 'DnD checkpoint';
-
-/** A fresh account per run, so the spec also passes against a database that is not empty. */
+/** A fresh board name per run, so the spec also passes against a database that is not empty. */
 const suffix = `${Date.now()}`.slice(-9);
-const user = {
-  fullName: 'Dana Ortiz',
-  email: `dana_${suffix}@example.com`,
-  username: `dana_${suffix}`,
-  password: 'correct-horse-battery',
-};
+
+const BOARD = `DnD checkpoint ${suffix}`;
 
 /** One column, which `ListColumn` labels with the list's name. */
 function column(page: Page, name: string): Locator {
@@ -121,14 +115,9 @@ async function keyboardDrag(
 test.describe.configure({ mode: 'serial' });
 
 test('M2: add cards, drag a card across lists, reorder a list, reload', async ({ page }) => {
-  await test.step('1. register and land on Home', async () => {
-    await page.goto('/register');
-    await page.getByLabel('Full name').fill(user.fullName);
-    await page.getByLabel('Email').fill(user.email);
-    await page.getByLabel('Username').fill(user.username);
-    await page.getByLabel('Password').fill(user.password);
-    await page.getByRole('button', { name: 'Sign up' }).click();
-    await expect(page).toHaveURL('http://127.0.0.1:8020/');
+  await test.step('1. open Home', async () => {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Create new board' })).toBeVisible();
   });
 
   await test.step('2. create a board with the three default lists', async () => {

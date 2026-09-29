@@ -3,7 +3,6 @@ import { Route, Routes } from 'react-router-dom';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import type { BoardRole } from '@/api/types';
 import { makeBoardSummary } from '@/test/handlers';
 import { renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
@@ -26,8 +25,8 @@ function recordCalls(): string[] {
   return calls;
 }
 
-function renderClosedBoard(role: BoardRole): void {
-  const board = makeBoardSummary({ id: 9, name: 'Trip 2027', is_closed: true, my_role: role });
+function renderClosedBoard(): void {
+  const board = makeBoardSummary({ id: 9, name: 'Trip 2027', is_closed: true });
   renderWithProviders(
     <Routes>
       <Route path="/b/:boardId" element={<ClosedBoardPage board={board} />} />
@@ -38,36 +37,18 @@ function renderClosedBoard(role: BoardRole): void {
 }
 
 describe('ClosedBoardPage', () => {
-  it('names the closed board and offers both admin actions', () => {
-    renderClosedBoard('admin');
+  it('names the closed board and offers both actions', () => {
+    renderClosedBoard();
 
     expect(screen.getByRole('heading', { name: 'Trip 2027 is closed' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reopen board' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete board' })).toBeInTheDocument();
   });
 
-  it('hides Reopen and Delete for a member and explains why', () => {
-    renderClosedBoard('member');
-
-    expect(screen.queryByRole('button', { name: 'Reopen board' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete board' })).not.toBeInTheDocument();
-    expect(
-      screen.getByText('Only a board admin can reopen or delete this board.'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Back to boards' })).toBeInTheDocument();
-  });
-
-  it('hides Reopen and Delete for an observer', () => {
-    renderClosedBoard('observer');
-
-    expect(screen.queryByRole('button', { name: 'Reopen board' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete board' })).not.toBeInTheDocument();
-  });
-
   it('reopens the board in place, without leaving the page', async () => {
     const user = userEvent.setup();
     const calls = recordCalls();
-    renderClosedBoard('admin');
+    renderClosedBoard();
 
     await user.click(screen.getByRole('button', { name: 'Reopen board' }));
 
@@ -78,7 +59,7 @@ describe('ClosedBoardPage', () => {
   it('deletes only after the confirmation, then goes back to the boards', async () => {
     const user = userEvent.setup();
     const calls = recordCalls();
-    renderClosedBoard('admin');
+    renderClosedBoard();
 
     await user.click(screen.getByRole('button', { name: 'Delete board' }));
     expect(await screen.findByText('Delete board?')).toBeInTheDocument();
@@ -92,7 +73,7 @@ describe('ClosedBoardPage', () => {
 
   it('goes back to the boards from the link', async () => {
     const user = userEvent.setup();
-    renderClosedBoard('member');
+    renderClosedBoard();
 
     await user.click(screen.getByRole('button', { name: 'Back to boards' }));
 

@@ -6,7 +6,7 @@ Everything is driven through the public API (CLAUDE.md section 6) with one excep
 `type` and its denormalised `data` part of this slice's contract.
 
 The application is the real one: `main.create_app()` includes `routers/labels.py`, so this module
-rides the `client` fixture of `conftest.py` like every other API test.
+rides the `api` fixture of `conftest.py` like every other API test.
 """
 
 import json
@@ -17,33 +17,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from kanban import db as db_module
-from kanban.models import User
 from kanban.ordering import STEP
 from kanban.seed import DEFAULT_LABEL_COLORS
 from tests.conftest import CSRF_HEADERS
 
 BoardFactory = Callable[..., dict[str, Any]]
-LoggedIn = tuple[TestClient, User]
 
 
 # --------------------------------------------------------------------------- helpers
-
-
-def _register(api: TestClient, username: str) -> tuple[TestClient, dict[str, Any]]:
-    """A second user with a session of their own; `TestClient` keeps its own cookie jar."""
-    other = TestClient(api.app)
-    response = other.post(
-        "/api/auth/register",
-        json={
-            "email": f"{username}@example.com",
-            "username": username,
-            "full_name": f"{username.title()} Tester",
-            "password": "correct-horse-battery",
-        },
-        headers=CSRF_HEADERS,
-    )
-    assert response.status_code == 201, response.text
-    return other, response.json()
 
 
 def _labels(api: TestClient, board_id: int) -> list[dict[str, Any]]:
@@ -109,11 +90,8 @@ def _types(board_id: int) -> list[str]:
 # --------------------------------------------------------------------------- the palette
 
 
-def test_a_new_board_carries_the_six_default_labels(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
+def test_a_new_board_carries_the_six_default_labels(api: TestClient, board: dict[str, Any]) -> None:
     """Section 3.10: six unnamed `normal` labels at 65536 ... 393216, in palette order."""
-    api, _user = logged_in
 
     items = _labels(api, board["id"])
 
@@ -125,10 +103,8 @@ def test_a_new_board_carries_the_six_default_labels(
 
 
 def test_create_appends_a_label_with_its_name_colour_and_tone(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
-
     created = _create_label(api, board["id"], name="Urgent", color="red", tone="bold")
     item = created["item"]
 
@@ -148,10 +124,9 @@ def test_create_appends_a_label_with_its_name_colour_and_tone(
 
 
 def test_create_defaults_the_name_to_empty_and_the_tone_to_normal(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
     """Section 4.3: `color` is the only required field of the body."""
-    api, _user = logged_in
 
     item = _create_label(api, board["id"], color="sky")["item"]
 
@@ -159,9 +134,8 @@ def test_create_defaults_the_name_to_empty_and_the_tone_to_normal(
 
 
 def test_rename_keeps_the_position_and_records_the_previous_values(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     created = _create_label(api, board["id"], name="Hot", color="orange")
     label = created["item"]
 
@@ -188,9 +162,8 @@ def test_rename_keeps_the_position_and_records_the_previous_values(
 
 
 def test_a_patch_that_changes_nothing_records_nothing(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     label = _create_label(api, board["id"], name="Ops", color="lime")["item"]
 
     response = api.patch(
@@ -203,40 +176,20 @@ def test_a_patch_that_changes_nothing_records_nothing(
     assert "label.updated" not in _types(board["id"])
 
 
-def test_delete_is_admin_only_while_a_member_may_still_rename(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
-    """Section 4.3 / Appendix B: the admin-only delete is the deviation from Trello."""
-    api, _user = logged_in
-    other, other_user = _register(api, "labelmember")
-    assert (
-        api.put(
-            f"/api/boards/{board['id']}/members/{other_user['id']}",
-            json={"role": "member"},
-            headers=CSRF_HEADERS,
-        ).status_code
-        == 200
-    )
+def test_a_label_can_be_renamed_and_then_deleted(api: TestClient, board: dict[str, Any]) -> None:
+    """Both routes hang off `label_access()`, which holds no rule of its own (CLAUDE.md 8)."""
     label = _create_label(api, board["id"], name="Ops", color="lime")["item"]
 
-    renamed = other.patch(
-        f"/api/labels/{label['id']}", json={"name": "Ops v2"}, headers=CSRF_HEADERS
-    )
-    refused = other.delete(f"/api/labels/{label['id']}", headers=CSRF_HEADERS)
+    renamed = api.patch(f"/api/labels/{label['id']}", json={"name": "Ops v2"}, headers=CSRF_HEADERS)
     deleted = api.delete(f"/api/labels/{label['id']}", headers=CSRF_HEADERS)
 
     assert renamed.status_code == 200, renamed.text
     assert renamed.json()["item"]["name"] == "Ops v2"
-    assert refused.status_code == 403
-    assert refused.json()["error"]["code"] == "forbidden"
     assert deleted.status_code == 204
     assert label["id"] not in [row["id"] for row in _labels(api, board["id"])]
 
 
-def test_delete_removes_the_label_from_every_card(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
-    api, _user = logged_in
+def test_delete_removes_the_label_from_every_card(api: TestClient, board: dict[str, Any]) -> None:
     label = _create_label(api, board["id"], name="Blocked", color="black")["item"]
     card = _create_card(api, board["id"], "Write the plan")
     assert _attach(api, card["id"], label["id"]).json()["label_ids"] == [label["id"]]
@@ -251,9 +204,8 @@ def test_delete_removes_the_label_from_every_card(
 
 
 def test_a_colour_or_tone_outside_the_palette_is_422(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     label = _labels(api, board["id"])[0]
 
     created = api.post(
@@ -276,9 +228,8 @@ def test_a_colour_or_tone_outside_the_palette_is_422(
     assert "label.created" not in _types(board["id"])
 
 
-def test_an_unknown_label_id_is_404(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    """The `/api/labels/{label_id}` dependency answers like `auth.list_access` (Section 4.1)."""
-    api, _user = logged_in
+def test_an_unknown_label_id_is_404(api: TestClient, board: dict[str, Any]) -> None:
+    """The `/api/labels/{label_id}` dependency answers like `access.list_access` (Section 4.1)."""
 
     patched = api.patch("/api/labels/424242", json={"name": "Ghost"}, headers=CSRF_HEADERS)
     deleted = api.delete("/api/labels/424242", headers=CSRF_HEADERS)
@@ -288,24 +239,11 @@ def test_an_unknown_label_id_is_404(logged_in: LoggedIn, board: dict[str, Any]) 
     assert deleted.status_code == 404
 
 
-def test_a_non_member_never_learns_the_labels_exist(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
-    api, _user = logged_in
-    other, _other_user = _register(api, "labeloutsider")
-    label = _labels(api, board["id"])[0]
-    card = _create_card(api, board["id"], "Private work")
+def test_a_board_that_does_not_exist_answers_404_for_the_label_routes(api: TestClient) -> None:
+    read = api.get("/api/boards/424242/labels")
+    created = api.post("/api/boards/424242/labels", json={"color": "red"}, headers=CSRF_HEADERS)
 
-    read = other.get(f"/api/boards/{board['id']}/labels")
-    created = other.post(
-        f"/api/boards/{board['id']}/labels", json={"color": "red"}, headers=CSRF_HEADERS
-    )
-    patched = other.patch(f"/api/labels/{label['id']}", json={"name": "Nope"}, headers=CSRF_HEADERS)
-    deleted = other.delete(f"/api/labels/{label['id']}", headers=CSRF_HEADERS)
-    attached = _attach(other, card["id"], label["id"])
-
-    answers = (read, created, patched, deleted, attached)
-    assert {response.status_code for response in answers} == {404}
+    assert {read.status_code, created.status_code} == {404}
     assert read.json()["error"]["code"] == "not_found"
 
 
@@ -313,9 +251,8 @@ def test_a_non_member_never_learns_the_labels_exist(
 
 
 def test_attaching_twice_is_idempotent_and_writes_one_activity_row(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     label = _labels(api, board["id"])[0]
     card = _create_card(api, board["id"], "Ship it")
 
@@ -339,9 +276,8 @@ def test_attaching_twice_is_idempotent_and_writes_one_activity_row(
 
 
 def test_detaching_a_label_that_is_not_attached_is_a_no_op(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     green, yellow = _labels(api, board["id"])[:2]
     card = _create_card(api, board["id"], "Draft the spec")
     assert _attach(api, card["id"], green["id"]).status_code == 200
@@ -359,9 +295,8 @@ def test_detaching_a_label_that_is_not_attached_is_a_no_op(
 
 
 def test_the_board_payload_card_carries_its_label_ids_in_position_order(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     items = _labels(api, board["id"])
     green, purple = items[0], items[4]
     card = _create_card(api, board["id"], "Badge me")
@@ -377,9 +312,8 @@ def test_the_board_payload_card_carries_its_label_ids_in_position_order(
 
 
 def test_a_label_of_another_board_cannot_be_attached(
-    logged_in: LoggedIn, board: dict[str, Any], board_factory: BoardFactory
+    api: TestClient, board: dict[str, Any], board_factory: BoardFactory
 ) -> None:
-    api, _user = logged_in
     foreign = _labels(api, board_factory("Other board")["id"])[0]
     card = _create_card(api, board["id"], "Cross board")
 

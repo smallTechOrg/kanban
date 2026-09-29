@@ -2,7 +2,7 @@ import { useState, type ReactElement } from 'react';
 import { Check, Pencil } from 'lucide-react';
 import { Button, Checkbox, IconButton, Popover, TextInput, type PopoverNav } from '@/components/ui';
 import { LabelChip } from '@/components/ui/LabelChip';
-import { useBoardMeta, useCard, useLabels } from '@/hooks/useBoardData';
+import { useCard, useLabels } from '@/hooks/useBoardData';
 import {
   useCreateLabel,
   useDeleteLabel,
@@ -90,9 +90,6 @@ export interface LabelsPopoverProps {
  * own whether it was opened from the modal or from a tile; both toggle endpoints answer with the
  * card's whole `label_ids` array, which `useToggleCardLabel` writes into the board payload and
  * the card detail at once (Section 4.5).
- *
- * "Delete" renders only for an admin: the endpoint is admin-only (Section 4.3), so showing the
- * button to a member would promise a 403. Renaming and recolouring stay open to members.
  */
 export function LabelsPopover({
   boardId,
@@ -104,7 +101,6 @@ export function LabelsPopover({
   const labels = useLabels(boardId).data ?? NO_LABELS;
   const card = useCard(boardId, cardId).data;
   const palette: LabelPalette = useMeta().data?.label_colors ?? NO_PALETTE;
-  const isAdmin = useBoardMeta(boardId).data?.my_role === 'admin';
   const patterned = useUiStore((state) => state.colorBlindLabels);
   const setColorBlindLabels = useUiStore((state) => state.setColorBlindLabels);
 
@@ -159,7 +155,7 @@ export function LabelsPopover({
                         initial: draftOf(label),
                         submitLabel: 'Save',
                         onSubmit: (draft) => updateLabel.mutate({ labelId: label.id, ...draft }),
-                        onDelete: isAdmin ? () => deleteLabel.mutate(label.id) : undefined,
+                        onDelete: () => deleteLabel.mutate(label.id),
                       })
                     }
                   >

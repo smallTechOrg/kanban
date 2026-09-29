@@ -4,10 +4,10 @@ Thin by contract (Section 6.4): a handler resolves its access dependency, calls 
 `services.checklists` and wraps the result as `Mutated` or `MoveResult`.
 
 `/api/checklists/{checklist_id}` and `/api/checklist-items/{item_id}` carry no `board_id` in the
-path, so like the list and card routes they depend on one of the child factories of `auth.py`
-(`auth.checklist_access` / `auth.item_access`), which resolve the row's board and hand it to
-`auth.board_access`; the member, role and closed-board rules stay in `auth.py` alone (CLAUDE.md
-section 3), and a missing checklist or item answers 404 `not_found` exactly as a missing board.
+path, so like the list and card routes they depend on one of the child factories of `access.py`
+(`access.checklist_access` / `access.item_access`), which resolve the row's board and hand it to
+`access.board_access`; the board lookup and the closed-board rule stay in `access.py` alone
+(CLAUDE.md section 3), and a missing checklist or item answers 404 exactly as a missing board.
 """
 
 from typing import Annotated
@@ -15,17 +15,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.orm import Session
 
-from kanban.auth import (
+from kanban.access import (
     BoardCtx,
-    Role,
     board_access,
     card_access,
     checklist_access,
-    current_user,
     item_access,
 )
 from kanban.db import get_db
-from kanban.models import User
 from kanban.schemas.cards import CardSummary
 from kanban.schemas.checklists import (
     BoardChecklistsOut,
@@ -50,21 +47,20 @@ from kanban.services import checklists as service
 
 router = APIRouter(tags=["checklists"])
 
-CurrentUser = Annotated[User, Depends(current_user)]
 Db = Annotated[Session, Depends(get_db)]
 CardId = Annotated[int, Path(ge=1)]
 ChecklistId = Annotated[int, Path(ge=1)]
 ItemId = Annotated[int, Path(ge=1)]
 
 
-#: The "Copy items from…" select is a read, so `observer` suffices (Section 4.6).
-BoardReadAccess = Annotated[BoardCtx, Depends(board_access(Role.observer))]
+#: The "Copy items from…" select is a read, so the closed-board guard does not apply (4.6).
+BoardReadAccess = Annotated[BoardCtx, Depends(board_access())]
 #: Adding a checklist writes into a card, so it resolves the card rather than a checklist.
-CardWriteAccess = Annotated[BoardCtx, Depends(card_access(Role.member))]
+CardWriteAccess = Annotated[BoardCtx, Depends(card_access())]
 #: Every mutation addressed by checklist id.
-ChecklistWriteAccess = Annotated[BoardCtx, Depends(checklist_access(Role.member))]
+ChecklistWriteAccess = Annotated[BoardCtx, Depends(checklist_access())]
 #: Every mutation addressed by checklist item id.
-ItemWriteAccess = Annotated[BoardCtx, Depends(item_access(Role.member))]
+ItemWriteAccess = Annotated[BoardCtx, Depends(item_access())]
 
 
 @router.get("/boards/{board_id}/checklists", response_model=BoardChecklistsOut)
@@ -79,12 +75,11 @@ def read_board_checklists(access: BoardReadAccess, db: Db) -> BoardChecklistsOut
     status_code=status.HTTP_201_CREATED,
 )
 def create_checklist(
-    card_id: CardId, body: ChecklistCreateIn, access: CardWriteAccess, user: CurrentUser, db: Db
+    card_id: CardId, body: ChecklistCreateIn, access: CardWriteAccess, db: Db
 ) -> ChecklistMutated:
     """Add a checklist, copying another one's items when the popover selected a source (4.6)."""
     result = service.create_checklist(
         db,
-        user,
         board_id=access.board_id,
         card_id=card_id,
         name=body.name,
@@ -100,13 +95,11 @@ def update_checklist(
     checklist_id: ChecklistId,
     body: ChecklistUpdateIn,
     access: ChecklistWriteAccess,
-    user: CurrentUser,
     db: Db,
 ) -> ChecklistMutated:
     """Rename a checklist from the inline editor on its section header (Section 4.6)."""
     result = service.rename_checklist(
         db,
-        user,
         board_id=access.board_id,
         checklist_id=checklist_id,
         changes=body.model_dump(exclude_unset=True),
@@ -117,11 +110,9 @@ def update_checklist(
 
 
 @router.delete("/checklists/{checklist_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_checklist(
-    checklist_id: ChecklistId, access: ChecklistWriteAccess, user: CurrentUser, db: Db
-) -> None:
+def delete_checklist(checklist_id: ChecklistId, access: ChecklistWriteAccess, db: Db) -> None:
     """Delete a checklist and its items; checklists have no archive state (Section 4.6)."""
-    service.delete_checklist(db, user, board_id=access.board_id, checklist_id=checklist_id)
+    service.delete_checklist(db, board_id=access.board_id, checklist_id=checklist_id)
 
 
 @router.post("/checklists/{checklist_id}/move", response_model=ChecklistMoveResult)
@@ -129,13 +120,11 @@ def move_checklist(
     checklist_id: ChecklistId,
     body: MoveIn,
     access: ChecklistWriteAccess,
-    user: CurrentUser,
     db: Db,
 ) -> ChecklistMoveResult:
     """Reorder a checklist within its card: the `CHECKLIST` drag of Sections 4.6 and 2.6.3."""
     result = service.move_checklist(
         db,
-        user,
         board_id=access.board_id,
         checklist_id=checklist_id,
         index=body.index,
@@ -158,13 +147,11 @@ def create_items(
     checklist_id: ChecklistId,
     body: ItemCreateIn,
     access: ChecklistWriteAccess,
-    user: CurrentUser,
     db: Db,
 ) -> ItemMutated | ItemsCreated:
     """Add an item, or one per pasted line when the composer answered "Add N items" (4.6)."""
     result = service.create_items(
         db,
-        user,
         board_id=access.board_id,
         checklist_id=checklist_id,
         name=body.name,
@@ -179,12 +166,11 @@ def create_items(
 
 @router.patch("/checklist-items/{item_id}", response_model=ItemPatched)
 def update_item(
-    item_id: ItemId, body: ItemUpdateIn, access: ItemWriteAccess, user: CurrentUser, db: Db
+    item_id: ItemId, body: ItemUpdateIn, access: ItemWriteAccess, db: Db
 ) -> ItemPatched:
     """Tick, rename, date or assign one item; the response carries the card's badges (4.6)."""
     result = service.update_item(
         db,
-        user,
         board_id=access.board_id,
         item_id=item_id,
         changes=body.model_dump(exclude_unset=True),
@@ -196,19 +182,16 @@ def update_item(
 
 
 @router.delete("/checklist-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_item(item_id: ItemId, access: ItemWriteAccess, user: CurrentUser, db: Db) -> None:
+def delete_item(item_id: ItemId, access: ItemWriteAccess, db: Db) -> None:
     """Delete one checklist item (Section 4.6)."""
-    service.delete_item(db, user, board_id=access.board_id, item_id=item_id)
+    service.delete_item(db, board_id=access.board_id, item_id=item_id)
 
 
 @router.post("/checklist-items/{item_id}/move", response_model=ItemMoveResult)
-def move_item(
-    item_id: ItemId, body: ItemMoveIn, access: ItemWriteAccess, user: CurrentUser, db: Db
-) -> ItemMoveResult:
+def move_item(item_id: ItemId, body: ItemMoveIn, access: ItemWriteAccess, db: Db) -> ItemMoveResult:
     """Drag an item within or across the checklists of its card (Sections 4.6 and 4.9)."""
     result = service.move_item(
         db,
-        user,
         board_id=access.board_id,
         item_id=item_id,
         to_checklist_id=body.to_checklist_id,
@@ -231,7 +214,6 @@ def move_item(
 def convert_item(
     item_id: ItemId,
     access: ItemWriteAccess,
-    user: CurrentUser,
     db: Db,
     body: ItemConvertIn | None = None,
 ) -> Mutated[CardSummary]:
@@ -241,7 +223,6 @@ def convert_item(
     """
     result = service.convert_item_to_card(
         db,
-        user,
         board_id=access.board_id,
         item_id=item_id,
         index=None if body is None else body.index,

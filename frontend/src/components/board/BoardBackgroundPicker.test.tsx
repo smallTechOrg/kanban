@@ -37,7 +37,7 @@ function surface(): HTMLElement {
   return element;
 }
 
-/** Answers the board with a background, or a role, other than the fixture's. */
+/** Answers the board with a background other than the fixture's. */
 function serveBoard(overrides: Parameters<typeof makeBoardSummary>[0]): void {
   server.use(
     http.get('/api/boards/:boardId', () =>
@@ -194,12 +194,5 @@ describe('BoardBackgroundPicker', () => {
     expect(uploads).toBe(1);
     // The response is authoritative, so the library it joined is refetched, not guessed at.
     expect(await screen.findByRole('button', { name: 'Custom background 1' })).toBeInTheDocument();
-  });
-
-  it('is inert for an observer, who cannot write to the board', async () => {
-    serveBoard({ my_role: 'observer' });
-    renderPicker();
-
-    expect(await screen.findByRole('button', { name: 'Blue background' })).toBeDisabled();
   });
 });

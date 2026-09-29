@@ -46,11 +46,9 @@ describe('CardBadges', () => {
     render(
       <CardBadges
         card={row({
-          is_watching: true,
           due_at: NEXT_WEEK,
           badges: {
             description: true,
-            comments: 2,
             attachments: 0,
             checklist_done: 1,
             checklist_total: 3,
@@ -60,10 +58,8 @@ describe('CardBadges', () => {
       />,
     );
 
-    expect(screen.getByLabelText('You are watching this card')).toBeInTheDocument();
     expect(screen.getByTitle('Due date')).toHaveTextContent('Oct 1');
     expect(screen.getByLabelText('This card has a description.')).toBeInTheDocument();
-    expect(screen.getByTitle('Comments')).toHaveTextContent('2');
     expect(screen.getByTitle('Checklist items')).toHaveTextContent('1/3');
     // A zero count is an absent badge, not a "0" (Section 2.5.3).
     expect(screen.queryByTitle('Attachments')).not.toBeInTheDocument();
@@ -79,7 +75,6 @@ describe('CardBadges', () => {
   it('turns the checklist badge green once every item is checked', () => {
     const complete = {
       description: false,
-      comments: 0,
       attachments: 0,
       checklist_done: 3,
       checklist_total: 3,

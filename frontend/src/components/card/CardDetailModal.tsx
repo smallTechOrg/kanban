@@ -3,7 +3,7 @@ import { DragDropContext, type DropResult } from '@hello-pangea/dnd';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { IconButton, Modal } from '@/components/ui';
-import { useBoardMeta, useCard } from '@/hooks/useBoardData';
+import { useCard } from '@/hooks/useBoardData';
 import { useCardDetail } from '@/hooks/useCard';
 import { useMoveChecklist, useMoveChecklistItem } from '@/hooks/useCardMutations';
 import { NotFoundPage } from '@/pages/NotFoundPage';
@@ -66,7 +66,6 @@ export function CardDetailModal(): ReactElement | null {
 
   const { data: card, isPending, isError } = useCardDetail(cardId);
   const cachedRow = useCard(boardId, cardId).data;
-  const readOnly = useBoardMeta(boardId).data?.my_role === 'observer';
 
   const setOpenCardId = useUiStore((state) => state.setOpenCardId);
   const setDragging = useUiStore((state) => state.setDragging);
@@ -161,17 +160,13 @@ export function CardDetailModal(): ReactElement | null {
 
       {card?.is_archived === true ? <ArchivedBanner /> : null}
 
-      {card === undefined ? null : (
-        <CardCoverStrip boardId={boardId} card={card} readOnly={readOnly} />
-      )}
+      {card === undefined ? null : <CardCoverStrip boardId={boardId} card={card} />}
 
       <CardModalHeader
         boardId={boardId}
         cardId={cardId}
         title={title}
         listName={card?.list_name ?? ''}
-        isWatching={card?.is_watching ?? false}
-        readOnly={readOnly}
       />
 
       <div className={styles.columns}>
@@ -189,7 +184,6 @@ export function CardDetailModal(): ReactElement | null {
                 card={card}
                 hiddenChecklistIds={hiddenChecklistIds}
                 onToggleHideChecked={toggleHideChecked}
-                readOnly={readOnly}
               />
             </DragDropContext>
             <CardModalSidebar card={card} />

@@ -21,19 +21,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from kanban import events
-from kanban.models import User
 from kanban.routers import events as events_router
 from tests.conftest import CSRF_HEADERS
-from tests.test_cards import create_card, list_ids, register
-
-LoggedIn = tuple[TestClient, User]
+from tests.test_cards import create_card, list_ids
 
 #: Every key an `EventOut` may carry (Section 4.8). An event names ids and a version and nothing
 #: else: the test below asserts no title, name or body ever leaks into a payload.
-EVENT_KEYS = {"version", "type", "entity", "id", "card_id", "list_id", "position", "actor_id", "at"}
-
-
-# --------------------------------------------------------------------------- fixtures
+EVENT_KEYS = {"version", "type", "entity", "id", "card_id", "list_id", "position", "at"}
 
 
 # --------------------------------------------------------------------------- helpers
@@ -114,15 +108,10 @@ async def open_stream(
 ) -> AsyncIterator[SseStream]:
     """Open `path` as a server would and disconnect on the way out (see the module docstring).
 
-    The caller's session cookie is replayed as a header, so the stream is authenticated exactly as
-    a browser's `EventSource` is, and the ASGI `receive` channel answers `http.disconnect` once the
-    block ends - which is what `EventSourceResponse` waits for to stop streaming.
+    The ASGI `receive` channel answers `http.disconnect` once the block ends, which is what
+    `EventSourceResponse` waits for to stop streaming.
     """
-    headers = {
-        "host": "testserver",
-        "cookie": f"kb_session={api.cookies['kb_session']}",
-        **(extra_headers or {}),
-    }
+    headers = {"host": "testserver", **(extra_headers or {})}
     scope = {
         "type": "http",
         "asgi": {"version": "3.0", "spec_version": "2.3"},
@@ -188,9 +177,8 @@ def quick_heartbeat(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 def test_changes_returns_exactly_the_events_after_since(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     renamed_at = rename(api, board["id"], "Sprint 43")
     create_list(api, board["id"], "Backlog")
 
@@ -206,10 +194,7 @@ def test_changes_returns_exactly_the_events_after_since(
     assert changes(api, board["id"], tail["version"])["events"] == []
 
 
-def test_changes_reports_the_current_board_version(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
-    api, _user = logged_in
+def test_changes_reports_the_current_board_version(api: TestClient, board: dict[str, Any]) -> None:
     renamed_at = rename(api, board["id"], "Sprint 44")
 
     page = changes(api, board["id"], 0)
@@ -219,16 +204,13 @@ def test_changes_reports_the_current_board_version(
     assert all(event["version"] <= renamed_at for event in page["events"])
 
 
-def test_changes_needs_a_cursor(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
-
+def test_changes_needs_a_cursor(api: TestClient, board: dict[str, Any]) -> None:
     assert api.get(f"/api/boards/{board['id']}/changes").status_code == 422
 
 
 def test_every_entity_and_id_comes_from_its_own_source(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, user = logged_in
     since = board["version"]
     new_list = create_list(api, board["id"], "Backlog")
     card = create_card(api, new_list["id"], "Ship the realtime slice")["item"]
@@ -243,8 +225,10 @@ def test_every_entity_and_id_comes_from_its_own_source(
     item = api.post(
         f"/api/checklists/{checklist['id']}/items", json={"name": "Draft"}, headers=CSRF_HEADERS
     ).json()["item"]
-    comment = api.post(
-        f"/api/cards/{card['id']}/comments", json={"body": "Looks good"}, headers=CSRF_HEADERS
+    attachment = api.post(
+        f"/api/cards/{card['id']}/attachments",
+        json={"url": "https://example.com/spec"},
+        headers=CSRF_HEADERS,
     ).json()["item"]
 
     by_type = {event["type"]: event for event in changes(api, board["id"], since)["events"]}
@@ -271,16 +255,14 @@ def test_every_entity_and_id_comes_from_its_own_source(
         item["id"],
     )
     assert by_type["checklist.item_added"]["card_id"] == card["id"]
-    assert (by_type["comment.added"]["entity"], by_type["comment.added"]["id"]) == (
-        "comment",
-        comment["id"],
+    assert (by_type["attachment.added"]["entity"], by_type["attachment.added"]["id"]) == (
+        "attachment",
+        attachment["id"],
     )
-    assert all(event["actor_id"] == user.id for event in by_type.values())
     assert all(set(event) <= EVENT_KEYS for event in by_type.values())
 
 
-def test_a_board_event_names_the_board(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_a_board_event_names_the_board(api: TestClient, board: dict[str, Any]) -> None:
     rename(api, board["id"], "Sprint 45")
 
     renamed = changes(api, board["id"], 0)["events"][-1]
@@ -291,8 +273,7 @@ def test_a_board_event_names_the_board(logged_in: LoggedIn, board: dict[str, Any
     assert set(renamed) == EVENT_KEYS - {"card_id", "list_id", "position"}
 
 
-def test_a_deleted_card_has_no_id(logged_in: LoggedIn, board: dict[str, Any]) -> None:
-    api, _user = logged_in
+def test_a_deleted_card_has_no_id(api: TestClient, board: dict[str, Any]) -> None:
     since = board["version"]
     card = create_card(api, list_ids(board["id"])[0], "Throwaway")["item"]
     api.post(f"/api/cards/{card['id']}/archive", headers=CSRF_HEADERS)
@@ -310,9 +291,8 @@ def test_a_deleted_card_has_no_id(logged_in: LoggedIn, board: dict[str, Any]) ->
 
 
 def test_more_than_the_cap_asks_for_a_resync(
-    logged_in: LoggedIn, board: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    api: TestClient, board: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    api, _user = logged_in
     since = board["version"]
     rename(api, board["id"], "Sprint 46")
     latest = rename(api, board["id"], "Sprint 47")
@@ -325,23 +305,18 @@ def test_more_than_the_cap_asks_for_a_resync(
     assert page["version"] == latest
 
 
-def test_a_stranger_cannot_watch_or_poll_the_board(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
-    api, _user = logged_in
-    other, _account = register(api, "mallory_events")
-
-    assert other.get(f"/api/boards/{board['id']}/changes", params={"since": 0}).status_code == 404
-    assert other.get(f"/api/boards/{board['id']}/events").status_code == 404
+def test_neither_transport_serves_a_board_that_does_not_exist(api: TestClient) -> None:
+    """Both routes hang off `board_access()`, which answers 404 before either starts (6.6)."""
+    assert api.get("/api/boards/424242/changes", params={"since": 0}).status_code == 404
+    assert api.get("/api/boards/424242/events").status_code == 404
 
 
 # --------------------------------------------------------------------------- the live publish
 
 
 def test_a_mutation_publishes_one_event_carrying_the_new_version(
-    logged_in: LoggedIn, board: dict[str, Any], published: list[tuple[int, events.Event]]
+    api: TestClient, board: dict[str, Any], published: list[tuple[int, events.Event]]
 ) -> None:
-    api, user = logged_in
     version = rename(api, board["id"], "Sprint 48")
 
     assert len(published) == 1
@@ -349,14 +324,12 @@ def test_a_mutation_publishes_one_event_carrying_the_new_version(
     assert board_id == board["id"]
     assert event["version"] == version
     assert (event["type"], event["entity"], event["id"]) == ("board.renamed", "board", board["id"])
-    assert event["actor_id"] == user.id
     assert set(event) == EVENT_KEYS
 
 
 def test_a_live_move_carries_the_new_position(
-    logged_in: LoggedIn, board: dict[str, Any], published: list[tuple[int, events.Event]]
+    api: TestClient, board: dict[str, Any], published: list[tuple[int, events.Event]]
 ) -> None:
-    api, _user = logged_in
     todo, doing = list_ids(board["id"])[:2]
     card = create_card(api, todo, "Move me")["item"]
     published.clear()
@@ -376,9 +349,8 @@ def test_a_live_move_carries_the_new_position(
 
 
 def test_a_rolled_back_mutation_publishes_nothing(
-    logged_in: LoggedIn, board: dict[str, Any], published: list[tuple[int, events.Event]]
+    api: TestClient, board: dict[str, Any], published: list[tuple[int, events.Event]]
 ) -> None:
-    api, _user = logged_in
     card = create_card(api, list_ids(board["id"])[0], "Still on the board")["item"]
     published.clear()
 
@@ -391,9 +363,8 @@ def test_a_rolled_back_mutation_publishes_nothing(
 
 
 def test_the_stream_says_hello_replays_and_then_streams_live(
-    logged_in: LoggedIn, board: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    api: TestClient, board: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    api, _user = logged_in
     renamed_at = rename(api, board["id"], "Sprint 49")
 
     async def scenario() -> None:
@@ -426,9 +397,8 @@ def test_the_stream_says_hello_replays_and_then_streams_live(
 
 
 def test_the_stream_reads_its_cursor_from_last_event_id(
-    logged_in: LoggedIn, board: dict[str, Any]
+    api: TestClient, board: dict[str, Any]
 ) -> None:
-    api, _user = logged_in
     renamed_at = rename(api, board["id"], "Sprint 51")
     path = f"/api/boards/{board['id']}/events"
 
@@ -448,9 +418,8 @@ def test_the_stream_reads_its_cursor_from_last_event_id(
 
 
 def test_the_stream_asks_for_a_resync_beyond_the_cap(
-    logged_in: LoggedIn, board: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    api: TestClient, board: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    api, _user = logged_in
     since = board["version"]
     rename(api, board["id"], "Sprint 52")
     latest = rename(api, board["id"], "Sprint 53")
@@ -470,10 +439,8 @@ def test_the_stream_asks_for_a_resync_beyond_the_cap(
 
 
 def test_the_heartbeat_is_a_comment_not_an_event(
-    logged_in: LoggedIn, board: dict[str, Any], quick_heartbeat: None
+    api: TestClient, board: dict[str, Any], quick_heartbeat: None
 ) -> None:
-    api, _user = logged_in
-
     async def scenario() -> None:
         async with open_stream(
             api, f"/api/boards/{board['id']}/events", f"since={board['version']}"
@@ -485,10 +452,7 @@ def test_the_heartbeat_is_a_comment_not_an_event(
     asyncio.run(scenario())
 
 
-def test_the_stream_and_the_polling_fallback_agree(
-    logged_in: LoggedIn, board: dict[str, Any]
-) -> None:
-    api, _user = logged_in
+def test_the_stream_and_the_polling_fallback_agree(api: TestClient, board: dict[str, Any]) -> None:
     since = board["version"]
     create_list(api, board["id"], "Backlog")
     rename(api, board["id"], "Sprint 54")

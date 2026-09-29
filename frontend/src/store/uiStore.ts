@@ -1,7 +1,7 @@
 /**
  * UI-only state (Section 5.13). Never server data — that lives in the react-query cache.
  *
- * Seven fields survive a reload. zustand's `persist` middleware is deliberately NOT used:
+ * Six fields survive a reload. zustand's `persist` middleware is deliberately NOT used:
  * it writes one JSON blob under a single name, and the plan pins one localStorage key per
  * field so `main.tsx` can read `kb_theme` before first paint and `lib/colors.ts` can read
  * `kb_labelPalette` without loading the store.
@@ -37,16 +37,12 @@ export type PopoverKind =
   | 'dates'
   | 'emoji'
   | 'filter'
-  | 'itemAssign'
   | 'itemDue'
   | 'labels'
   | 'listMenu'
-  | 'members'
   | 'moveCard'
   | 'search'
-  | 'share'
-  | 'switchTo'
-  | 'userMenu';
+  | 'switchTo';
 
 export interface OpenPopover {
   kind: PopoverKind;
@@ -83,7 +79,6 @@ export interface UiState {
   labelPalette: LabelPaletteName;
   cardCoversEnabled: boolean;
   collapsedListIds: number[];
-  activityDetails: boolean;
   isDragging: boolean;
   queuedEvents: BoardEvent[];
   pendingByClientId: Record<string, Array<() => void>>;
@@ -107,7 +102,6 @@ export interface UiActions {
   setLabelPalette: (palette: LabelPaletteName) => void;
   setCardCoversEnabled: (enabled: boolean) => void;
   toggleListCollapsed: (listId: number) => void;
-  setActivityDetails: (enabled: boolean) => void;
   setDragging: (dragging: boolean) => void;
   queueEvent: (event: BoardEvent) => void;
   takeQueuedEvents: () => BoardEvent[];
@@ -122,8 +116,7 @@ type PersistedField =
   | 'colorBlindLabels'
   | 'labelPalette'
   | 'cardCoversEnabled'
-  | 'collapsedListIds'
-  | 'activityDetails';
+  | 'collapsedListIds';
 
 export const PERSISTED: Record<PersistedField, string> = {
   labelTextMode: 'kb_labelText',
@@ -132,7 +125,6 @@ export const PERSISTED: Record<PersistedField, string> = {
   labelPalette: 'kb_labelPalette',
   cardCoversEnabled: 'kb_cardCovers',
   collapsedListIds: 'kb_collapsedLists',
-  activityDetails: 'kb_activityDetails',
 };
 
 const THEMES: readonly string[] = ['light', 'dark', 'classic'];
@@ -203,7 +195,6 @@ export const useUiStore = create<UiState & UiActions>()((set, get) => ({
   ),
   cardCoversEnabled: readKey(PERSISTED.cardCoversEnabled, true, isBoolean),
   collapsedListIds: readKey<number[]>(PERSISTED.collapsedListIds, [], isNumberArray),
-  activityDetails: readKey(PERSISTED.activityDetails, false, isBoolean),
   isDragging: false,
   queuedEvents: [],
   pendingByClientId: {},
@@ -250,11 +241,6 @@ export const useUiStore = create<UiState & UiActions>()((set, get) => ({
     set({ collapsedListIds });
     writeKey(PERSISTED.collapsedListIds, collapsedListIds);
   },
-  setActivityDetails: (activityDetails) => {
-    set({ activityDetails });
-    writeKey(PERSISTED.activityDetails, activityDetails);
-  },
-
   setDragging: (isDragging) => set({ isDragging }),
   queueEvent: (event) => set((state) => ({ queuedEvents: [...state.queuedEvents, event] })),
   takeQueuedEvents: () => {

@@ -28,11 +28,8 @@ function makeCard(overrides: Partial<CardRow> & { id?: Id } = {}): CardRow {
     due_complete: false,
     cover: null,
     label_ids: [],
-    member_ids: [],
-    is_watching: false,
     badges: {
       description: false,
-      comments: 0,
       attachments: 0,
       checklist_done: 0,
       checklist_total: 0,
@@ -83,11 +80,9 @@ describe('cardBadges', () => {
   it('renders the badges of Section 2.5.3 in order', () => {
     const badges = cardBadges(
       makeCard({
-        is_watching: true,
         due_at: iso(new Date(2026, 8, 26, 15, 0)),
         badges: {
           description: true,
-          comments: 3,
           attachments: 1,
           checklist_done: 2,
           checklist_total: 5,
@@ -96,10 +91,8 @@ describe('cardBadges', () => {
       NOW,
     );
     expect(badges).toEqual([
-      { kind: 'watch' },
       { kind: 'due', text: 'Sep 26', state: 'none' },
       { kind: 'description' },
-      { kind: 'comments', text: '3' },
       { kind: 'attachments', text: '1' },
       { kind: 'checklist', text: '2/5', complete: false },
     ]);
@@ -126,7 +119,6 @@ describe('cardBadges', () => {
       makeCard({
         badges: {
           description: false,
-          comments: 0,
           attachments: 0,
           checklist_done: 4,
           checklist_total: 4,

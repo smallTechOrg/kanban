@@ -36,7 +36,6 @@ class AttachmentOut(BaseModel):
 
     id: int
     card_id: int
-    user_id: int | None
     name: str
     kind: Literal["upload", "link"]
     url: str

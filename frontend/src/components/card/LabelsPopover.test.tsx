@@ -5,7 +5,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import type { LabelColor, Meta } from '@/api/types';
-import type { Role } from '@/lib/boardState';
 import { boardKey } from '@/hooks/useBoardData';
 import { normalizeBoard } from '@/lib/normalize';
 import {
@@ -62,8 +61,8 @@ function recordWrites(): string[] {
   return calls;
 }
 
-/** The board cache as `BoardPage` leaves it: the palette, the card and my role on the board. */
-function seed(role: Role): QueryClient {
+/** The board cache as `BoardPage` leaves it: the palette, the labels and the card. */
+function seed(): QueryClient {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
@@ -72,7 +71,7 @@ function seed(role: Role): QueryClient {
     boardKey(BOARD_ID),
     normalizeBoard({
       ...boardPayloadFixture,
-      board: makeBoardSummary({ id: BOARD_ID, my_role: role }),
+      board: makeBoardSummary({ id: BOARD_ID }),
       labels: labelFixtures,
       cards: [makeCardSummary({ id: CARD_ID, label_ids: [GREEN] })],
     }),
@@ -100,9 +99,9 @@ function Host(): ReactElement {
   );
 }
 
-function open(role: Role = 'admin'): void {
+function open(): void {
   render(
-    <QueryClientProvider client={seed(role)}>
+    <QueryClientProvider client={seed()}>
       <Host />
     </QueryClientProvider>,
   );
@@ -147,10 +146,10 @@ describe('LabelsPopover', () => {
     expect(screen.queryByRole('button', { name: 'Label green' })).not.toBeInTheDocument();
   });
 
-  it('offers Delete on the edit view to an admin and deletes through the confirm', async () => {
+  it('offers Delete on the edit view and deletes through the confirm', async () => {
     const user = userEvent.setup();
     const calls = recordWrites();
-    open('admin');
+    open();
 
     await user.click(await screen.findByRole('button', { name: 'Edit label Bug fix' }));
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
@@ -160,17 +159,6 @@ describe('LabelsPopover', () => {
 
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(calls).toEqual([`DELETE ${String(BUG_FIX)}`]));
-  });
-
-  it('hides Delete from a member, who may still rename and recolour', async () => {
-    const user = userEvent.setup();
-    open('member');
-
-    await user.click(await screen.findByRole('button', { name: 'Edit label Bug fix' }));
-
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Remove color' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
   });
 
   it('writes the name, colour and tone the create view picked', async () => {

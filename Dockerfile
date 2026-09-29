@@ -23,6 +23,10 @@ RUN cd frontend && npm run build          # -> /build/frontend/dist
 FROM python:3.12-slim AS runtime
 
 # PYTHONUNBUFFERED keeps log lines in order when Docker captures stdout.
+#
+# KANBAN_HOST is 0.0.0.0 because a loopback bind inside the container would not reach the
+# published port. The app has no authentication of its own, so whoever can reach the published
+# port has the boards: publish it only on a host and network you trust, or behind a reverse proxy.
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \

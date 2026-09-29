@@ -1,14 +1,21 @@
 # Kan Ban
 
-A self-hosted, Trello-inspired kanban board you run yourself. One Python process serves the JSON API under
-`/api` and the compiled React single-page app; SQLite is the only datastore; Node is the build and dev
-toolchain and never runs in production.
+A self-hosted, Trello-inspired kanban board for one person. There is no account to create and no sign-in
+step: start it and the boards are there. One Python process serves the JSON API under `/api` and the
+compiled React single-page app; SQLite is the only datastore; Node is the build and dev toolchain and
+never runs in production.
 
 > Trello is a trademark of Atlassian. This project is not affiliated with, endorsed by, or sponsored by
 > Atlassian. Trello is referenced here only as a UX reference point for the interface this app imitates.
 
 - Specification and single source of truth: [docs/PLANNING.md](docs/PLANNING.md)
 - Engineering rules every change must follow: [CLAUDE.md](CLAUDE.md)
+
+> **There is no authentication.** Kan Ban has no accounts, no passwords and no login page, so anything
+> that can reach the port can read and change every board. It binds `127.0.0.1` by default and is meant
+> to stay that way, or to sit on a network you trust. If you need it reachable from elsewhere, put a
+> reverse proxy in front of it that does the authenticating (and covers `/uploads` and the event stream
+> too, not just `/api`). See [Exposing it beyond your own machine](#exposing-it-beyond-your-own-machine).
 
 ---
 
@@ -68,8 +75,8 @@ npm run dev:api      # uvicorn kanban.main:app --app-dir backend --reload --port
 npm run dev:web      # vite dev server on :5173
 ```
 
-Set `KANBAN_ENV=dev` in `.env` for local work: it enables CORS for `:5173`, skips the `frontend/dist` check
-and mounts the dev-login route.
+Set `KANBAN_ENV=dev` in `.env` for local work: it enables CORS for `:5173` and skips the `frontend/dist`
+check.
 
 Before calling anything done:
 
@@ -92,12 +99,31 @@ npm run build        # vite build -> frontend/dist
 npm start            # one Python process serves /api, /uploads and the SPA on :8000
 ```
 
-At startup the server creates `data/` and `data/uploads/`, applies Alembic migrations, prunes expired
-sessions and verifies that `frontend/dist/index.html` exists (it exits with code 2 and a clear message
-otherwise, unless `KANBAN_ENV=dev`). `GET /api/health` is the reverse-proxy health check.
+At startup the server creates `data/` and `data/uploads/`, applies Alembic migrations and verifies that
+`frontend/dist/index.html` exists (it exits with code 2 and a clear message otherwise, unless
+`KANBAN_ENV=dev`). `GET /api/health` is the reverse-proxy health check.
 
-Set `KANBAN_HOST=0.0.0.0` to expose the server beyond loopback - do that only behind a reverse proxy, and
-change `KANBAN_ADMIN_PASSWORD` first if `KANBAN_SINGLE_USER=1`.
+### Exposing it beyond your own machine
+
+`KANBAN_HOST` is `127.0.0.1` because nothing in the app authenticates a request: there is no account,
+no password and no session, so the socket it listens on is the entire access control. On your own
+machine that is exactly right - the boards open instantly and nothing asks you who you are.
+
+Before setting `KANBAN_HOST=0.0.0.0`, decide what is in front of it:
+
+- **A LAN you trust** (a home server, one household): acceptable, and the usual reason to change it.
+  Every device that can route to the machine can edit every board, including anything on the guest
+  Wi-Fi, so bind it to the interface you mean rather than all of them where you can.
+- **Anything reachable from the internet**: put a reverse proxy in front that requires a credential
+  (HTTP basic auth, an identity-aware proxy, a VPN or a tunnel) and forward only to the loopback port.
+  The proxy must cover `/uploads` and `GET /api/boards/{id}/events` as well as `/api`, or attachments
+  and the live event stream stay open.
+- Under Docker, `ports:` is that boundary: `'127.0.0.1:8000:8000'` keeps the container on loopback
+  while `'8000:8000'` publishes it to the whole network.
+
+The `X-Requested-With: fetch` header the app requires on every write is not a substitute for any of
+this. It stops a web page you happen to visit from quietly posting to your local server; it does not
+stop a person who can open the app themselves.
 
 ---
 
@@ -111,8 +137,9 @@ docker compose up --build
 The image is built in two stages: `node:20-slim` compiles the interface, then `python:3.12-slim` runs it.
 No Node process exists in the final image. The service listens on port 8000 and keeps the database,
 uploads and backups in `./data` on the host, so the container itself stays disposable. Inside the
-container `KANBAN_HOST` is `0.0.0.0`, because a loopback bind would not reach the published port; on the
-host the default stays loopback-only.
+container `KANBAN_HOST` is `0.0.0.0`, because a loopback bind would not reach the published port; the
+`ports:` line in `docker-compose.yml` is therefore the only access control, so publish it as
+`'127.0.0.1:8000:8000'` unless the whole network is trusted.
 
 To build and run without Compose:
 
@@ -189,18 +216,11 @@ override any of them; relative paths resolve against the repo root, never the cw
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `KANBAN_ENV` | `prod` | `dev` enables CORS for :5173, skips the dist-exists check, mounts `/api/auth/dev-login` and defaults the log level to `debug` |
-| `KANBAN_HOST` | `127.0.0.1` | Bind address for uvicorn. Loopback by default because `KANBAN_SINGLE_USER=1` creates `admin` with a known default password; set `0.0.0.0` on a home server or VPS behind a reverse proxy |
+| `KANBAN_ENV` | `prod` | `dev` enables CORS for :5173, skips the dist-exists check and defaults the log level to `debug` |
+| `KANBAN_HOST` | `127.0.0.1` | Bind address for uvicorn. Loopback by default because nothing authenticates a request; see [Exposing it beyond your own machine](#exposing-it-beyond-your-own-machine) before changing it |
 | `KANBAN_PORT` | `8000` | Bind port |
 | `KANBAN_DATA_DIR` | `./data` | Root for the database, uploads and backups (relative paths resolve against the repo root, never the cwd) |
 | `KANBAN_DB_PATH` | `${KANBAN_DATA_DIR}/kanban.db` | SQLite file path |
-| `KANBAN_SECRET` | auto-generated into `${KANBAN_DATA_DIR}/.secret` on first run | Key for itsdangerous session-cookie signing; changing it logs everyone out. An empty string counts as unset |
-| `KANBAN_HTTPS` | `0` | `1` sets the `Secure` flag on `kb_session` (use behind TLS) |
-| `KANBAN_SESSION_DAYS` | `30` | Sliding session TTL |
-| `KANBAN_SINGLE_USER` | `0` | `1` creates user `admin` (email `admin@localhost`) on first start and prefills the login form |
-| `KANBAN_ADMIN_PASSWORD` | `admin` | Password for the bootstrapped `admin` user (only read when `KANBAN_SINGLE_USER=1`) |
-| `KANBAN_ALLOW_SIGNUP` | `1` | `0` returns 403 from `POST /api/auth/register` once at least one user exists |
-| `KANBAN_LOGIN_RATE_LIMIT` | `10/300` | Attempts per seconds per IP on `POST /api/auth/login` and `/register` (in-memory token bucket) |
 | `KANBAN_MAX_UPLOAD_MB` | `25` | Attachment upload size cap (413 above it); board background images are capped at 10 MB |
 | `KANBAN_FRONTEND_DIST` | `./frontend/dist` | Where the built SPA lives (relative to the repo root); lets a packaged install point elsewhere |
 | `KANBAN_LOG_LEVEL` | `info` | uvicorn/app log level |

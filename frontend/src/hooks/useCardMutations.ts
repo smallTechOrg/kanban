@@ -1,21 +1,21 @@
 /**
- * Every write the card detail modal makes: labels, members and watching, checklists, checklist
- * items, comments, attachments and covers, the card's own scalar fields, and the move, copy,
- * archive, restore and delete of Sections 2.6.4 and 4.5. All of them optimistic bar one — a file
- * upload has no row until its bytes have arrived, so `useUploadAttachments` renders a pending row
- * with the real progress fraction instead (Sections 5.8 and 6.9) — and all of them through one
- * recipe, the same one
+ * Every write the card detail modal makes: labels, checklists, checklist items, attachments and
+ * covers, the card's own scalar fields, and the move, copy, archive, restore and delete of
+ * Sections 2.6.4 and 4.5. All of them optimistic bar one — a file upload has no row until its
+ * bytes have arrived, so `useUploadAttachments` renders a pending row with the real progress
+ * fraction instead (Sections 5.8 and 6.9) — and all of them through one recipe, the same one
  * `hooks/useBoardMutations.ts` uses for the board (Section 5.4.3) with one addition that
  * Section 5.4.3 states outright — "Card-modal mutations write to both `['card', id]` and the
  * matching `CardRow` in `['board', boardId]` so tile badges update instantly":
  *
- * - `onMutate` cancels the in-flight card, board and feed queries, snapshots all three and
- *   splices the change into each of them with a pure reducer.
- * - `onError` puts every snapshot back and shows a red toast.
+ * - `onMutate` cancels the in-flight card and board queries, snapshots both and splices the
+ *   change into each of them with a pure reducer.
+ * - `onError` puts both snapshots back and shows a red toast.
  * - `onSuccess` writes the authoritative row, the `positions` map and the `board_version` the
  *   server returned.
- * - `onSettled` refetches the feed (every write here records an activity, and the response
- *   carries no feed rows) and, for the 204 deletes that carry no `board_version`, the board.
+ * - `onSettled` refetches the activity feed (every write here records a row the feed shows, and
+ *   no response carries feed entries) and, for the 204 deletes that carry no `board_version`,
+ *   the board.
  *
  * The client never computes a `position`: a reducer only reorders rows, the move endpoints are
  * sent the `index` the drop produced, and the authoritative positions arrive with the response.
@@ -30,7 +30,6 @@ import {
   useMutation,
   useQueryClient,
   type QueryClient,
-  type QueryKey,
   type UseMutationResult,
 } from '@tanstack/react-query';
 import {
@@ -67,7 +66,6 @@ import {
   type CreateChecklistInput,
   type UpdateItemInput,
 } from '@/api/checklists';
-import { createComment, deleteComment, updateComment } from '@/api/comments';
 import {
   attachLabel,
   createLabel,
@@ -77,24 +75,19 @@ import {
   type CreateLabelInput,
   type UpdateLabelInput,
 } from '@/api/labels';
-import { assignMember, unassignMember, unwatchCard, watchCard } from '@/api/members';
 import type {
   Attachment,
   CardCover,
   CardDetail,
   CardLabels,
-  CardMembers,
   CardSummary,
   Checklist,
   ChecklistItem,
   ChecklistItemPatched,
-  Comment,
   ItemsCreated,
   Label,
   MoveResult,
   Mutated,
-  PublicUser,
-  WatchState,
 } from '@/api/types';
 import { checklistCounts } from '@/lib/badges';
 import {
@@ -118,9 +111,9 @@ import {
 } from '@/lib/boardState';
 import { crossBoardTarget } from '@/lib/moveTargets';
 import { invalidateArchived } from './useArchived';
-import { useMe } from './useAuth';
+import { activityKey } from './useBoardActivity';
 import { boardKey, invalidateBoard, mergeCardRow } from './useBoardData';
-import { boardChecklistsKey, cardKey, feedKey, type FeedPages } from './useCard';
+import { boardChecklistsKey, cardKey } from './useCard';
 import { useMeta } from './useMeta';
 import { errorMessage } from './mutationErrors';
 import { useToast } from './useToast';
@@ -378,14 +371,6 @@ function draftCover(detail: CardDetail, input: CoverInput): CardCover {
   };
 }
 
-// ------------------------------------------------------------------------- id-array reducers
-
-/** Adds or removes one id, which is all a member toggle changes until the array comes back. */
-function toggleId(ids: readonly Id[], id: Id, present: boolean): Id[] {
-  if (!present) return ids.filter((candidate) => candidate !== id);
-  return ids.includes(id) ? [...ids] : [...ids, id];
-}
-
 // ------------------------------------------------------------------ board cache reducers
 
 /** The badge patch that lights a tile up without refetching the board (Section 5.4.3). */
@@ -429,50 +414,11 @@ function toggleLabelIds(
   });
 }
 
-// ------------------------------------------------------------------------ feed reducers
-
-/** The optimistic comment the `CommentBox` shows at the top of the newest page (2.6.3). */
-function prependComment(pages: FeedPages, comment: Comment): FeedPages {
-  const [newest, ...older] = pages.pages;
-  if (newest === undefined) return pages;
-  return {
-    ...pages,
-    pages: [{ ...newest, items: [{ kind: 'comment', comment }, ...newest.items] }, ...older],
-  };
-}
-
-function patchFeedComment(pages: FeedPages, commentId: Id, patch: Partial<Comment>): FeedPages {
-  return {
-    ...pages,
-    pages: pages.pages.map((page) => ({
-      ...page,
-      items: page.items.map((item) =>
-        item.kind === 'comment' && item.comment.id === commentId
-          ? { ...item, comment: { ...item.comment, ...patch, id: item.comment.id } }
-          : item,
-      ),
-    })),
-  };
-}
-
-function dropFeedComment(pages: FeedPages, commentId: Id): FeedPages {
-  return {
-    ...pages,
-    pages: pages.pages.map((page) => ({
-      ...page,
-      items: page.items.filter(
-        (item) => !(item.kind === 'comment' && item.comment.id === commentId),
-      ),
-    })),
-  };
-}
-
 // --------------------------------------------------------------------------- the recipe
 
 interface CardSnapshot {
   detail: CardDetail | undefined;
   board: BoardState | undefined;
-  feeds: [QueryKey, FeedPages | undefined][];
 }
 
 interface CardMutationConfig<TData, TVariables> {
@@ -483,8 +429,6 @@ interface CardMutationConfig<TData, TVariables> {
   detail?: (detail: CardDetail, variables: TVariables, board: BoardState | undefined) => CardDetail;
   /** The optimistic change to `['board', boardId]`; it sees the already-patched detail. */
   board?: (state: BoardState, variables: TVariables, detail: CardDetail | undefined) => BoardState;
-  /** The optimistic change to every `['feed', cardId, details]` page set in the cache. */
-  feed?: (pages: FeedPages, variables: TVariables) => FeedPages;
   mergeDetail?: (detail: CardDetail, data: TData, variables: TVariables) => CardDetail;
   mergeBoard?: (
     state: BoardState,
@@ -494,8 +438,6 @@ interface CardMutationConfig<TData, TVariables> {
   ) => BoardState;
   /** A 204 answer carries no `board_version`, so the board refetches once it settles. */
   invalidateBoard?: boolean;
-  /** False for the palette writes, whose activity row belongs to the board, not to this card. */
-  touchesFeed?: boolean;
   /** True when the "Copy items from…" rows of `['checklists', boardId]` changed (Section 4.6). */
   touchesBoardChecklists?: boolean;
   /** True when the row crossed the archive line, so `['archived', boardId]` is stale. */
@@ -518,7 +460,9 @@ function useCardMutation<TData, TVariables>(
   const { show } = useToast();
   const detailKey = cardKey(cardId);
   const stateKey = boardKey(boardId);
-  const feedFilter = { queryKey: feedKey(cardId) };
+  // The board's own key, which is the prefix of every card feed's, so one invalidation reaches
+  // the drawer's feed and the open card's alike (`hooks/useBoardActivity.ts`).
+  const activityFilter = { queryKey: activityKey(boardId) };
 
   return useMutation<TData, Error, TVariables, CardSnapshot>({
     mutationFn: config.mutationFn,
@@ -526,12 +470,10 @@ function useCardMutation<TData, TVariables>(
       await Promise.all([
         queryClient.cancelQueries({ queryKey: detailKey }),
         queryClient.cancelQueries({ queryKey: stateKey }),
-        queryClient.cancelQueries(feedFilter),
       ]);
       const snapshot: CardSnapshot = {
         detail: queryClient.getQueryData<CardDetail>(detailKey),
         board: queryClient.getQueryData<BoardState>(stateKey),
-        feeds: queryClient.getQueriesData<FeedPages>(feedFilter),
       };
 
       let detail = snapshot.detail;
@@ -545,19 +487,12 @@ function useCardMutation<TData, TVariables>(
           config.board(snapshot.board, variables, detail),
         );
       }
-      const feed = config.feed;
-      if (feed !== undefined) {
-        queryClient.setQueriesData<FeedPages>(feedFilter, (pages) =>
-          pages === undefined ? pages : feed(pages, variables),
-        );
-      }
       return snapshot;
     },
     onError: (error, _variables, snapshot) => {
       if (snapshot !== undefined) {
         if (snapshot.detail !== undefined) queryClient.setQueryData(detailKey, snapshot.detail);
         if (snapshot.board !== undefined) queryClient.setQueryData(stateKey, snapshot.board);
-        for (const [key, pages] of snapshot.feeds) queryClient.setQueryData(key, pages);
       }
       show(errorMessage(error, config.message), 'error');
     },
@@ -579,7 +514,7 @@ function useCardMutation<TData, TVariables>(
     onSettled: () => {
       // Every write here records an activity row and no response carries feed entries, so the
       // feed is the one cache that is always refetched rather than patched (Section 5.4.3).
-      if (config.touchesFeed !== false) void queryClient.invalidateQueries(feedFilter);
+      void queryClient.invalidateQueries(activityFilter);
       if (config.invalidateBoard === true) invalidateBoard(queryClient, boardId);
       if (config.touchesBoardChecklists === true) {
         void queryClient.invalidateQueries({ queryKey: boardChecklistsKey(boardId) });
@@ -684,7 +619,6 @@ export function useCreateLabel(
         .reduce((next, label) => dropLabel(next, label.id), state);
       return setBoardVersion(putLabel(withoutDrafts, item), board_version);
     },
-    touchesFeed: false,
   });
 }
 
@@ -706,14 +640,13 @@ export function useUpdateLabel(
     },
     mergeBoard: (state, { item, board_version }) =>
       setBoardVersion(putLabel(state, item), board_version),
-    touchesFeed: false,
   });
 }
 
 /**
- * `DELETE /api/labels/{label_id}` — admin only, and it cascades `card_labels`, so the chip
- * leaves every tile of the board as well as this card. 204 carries no version, so the board is
- * refetched once it settles.
+ * `DELETE /api/labels/{label_id}` — it cascades `card_labels`, so the chip leaves every tile of
+ * the board as well as this card. 204 carries no version, so the board is refetched once it
+ * settles.
  */
 export function useDeleteLabel(
   boardId: number,
@@ -728,7 +661,6 @@ export function useDeleteLabel(
     }),
     board: (state, labelId) => dropLabel(state, labelId),
     invalidateBoard: true,
-    touchesFeed: false,
   });
 }
 
@@ -859,7 +791,6 @@ export function useCreateChecklistItem(
           is_checked: false,
           checked_at: null,
           due_at: null,
-          assignee_id: null,
         },
         index,
       ),
@@ -902,9 +833,9 @@ export interface UpdateItemVariables extends UpdateItemInput {
 }
 
 /**
- * `PATCH /api/checklist-items/{item_id}` — the checkbox, the inline rename, `ItemDuePopover` and
- * `ItemAssignPopover`. The response carries the card's recomputed `badges`, so the tile's
- * `done/total` comes from the server rather than from a second count (Section 4.6).
+ * `PATCH /api/checklist-items/{item_id}` — the checkbox, the inline rename and `ItemDuePopover`.
+ * The response carries the card's recomputed `badges`, so the tile's `done/total` comes from the
+ * server rather than from a second count (Section 4.6).
  */
 export function useUpdateChecklistItem(
   boardId: number,
@@ -925,7 +856,6 @@ export function useUpdateChecklistItem(
         is_checked: item.is_checked,
         checked_at: item.checked_at,
         due_at: item.due_at,
-        assignee_id: item.assignee_id,
       }),
     mergeBoard: (state, { item, board_version }) =>
       setBoardVersion(patchCardBadges(state, cardId, item.badges), board_version),
@@ -998,99 +928,6 @@ export function useConvertChecklistItem(
   });
 }
 
-// ------------------------------------------------------------------------------ comments
-
-export interface CreateCommentVariables {
-  body: string;
-}
-
-/**
- * `POST /api/cards/{card_id}/comments` — the `CommentBox`. The row appears at the top of the
- * newest feed page with a temporary id (`isTempId`, so the component hides Edit and Delete until
- * it resolves) and the tile's comment count goes up at once.
- */
-export function useCreateComment(
-  boardId: number,
-  cardId: number,
-): UseMutationResult<Mutated<Comment>, Error, CreateCommentVariables, CardSnapshot> {
-  const me = useMe().data;
-  return useCardMutation(boardId, cardId, {
-    mutationFn: ({ body }: CreateCommentVariables) => createComment(cardId, body),
-    message: "Couldn't post the comment. Try again.",
-    feed: (pages, { body }) => {
-      if (me === undefined) return pages;
-      const author: PublicUser = {
-        id: me.id,
-        username: me.username,
-        full_name: me.full_name,
-        initials: me.initials,
-        avatar_color: me.avatar_color,
-      };
-      return prependComment(pages, {
-        id: nextTempId(),
-        card_id: cardId,
-        user: author,
-        body,
-        created_at: new Date().toISOString(),
-        edited_at: null,
-      });
-    },
-    detail: (detail) => ({
-      ...detail,
-      badges: { ...detail.badges, comments: detail.badges.comments + 1 },
-    }),
-    board: (state) => {
-      const card = selectCard(state, cardId);
-      return card === undefined
-        ? state
-        : patchCardBadges(state, cardId, { comments: card.badges.comments + 1 });
-    },
-    mergeBoard: (state, { board_version }) => setBoardVersion(state, board_version),
-  });
-}
-
-export interface UpdateCommentVariables {
-  commentId: Id;
-  body: string;
-}
-
-/** `PATCH /api/comments/{comment_id}` — the author's own edit; the feed adds "(edited)". */
-export function useUpdateComment(
-  boardId: number,
-  cardId: number,
-): UseMutationResult<Mutated<Comment>, Error, UpdateCommentVariables, CardSnapshot> {
-  return useCardMutation(boardId, cardId, {
-    mutationFn: ({ commentId, body }: UpdateCommentVariables) => updateComment(commentId, body),
-    message: "Couldn't save the comment. Try again.",
-    feed: (pages, { commentId, body }) =>
-      patchFeedComment(pages, commentId, { body, edited_at: new Date().toISOString() }),
-    mergeBoard: (state, { board_version }) => setBoardVersion(state, board_version),
-  });
-}
-
-/** `DELETE /api/comments/{comment_id}` — 204; the author, or any board admin (Section 4.6). */
-export function useDeleteComment(
-  boardId: number,
-  cardId: number,
-): UseMutationResult<void, Error, Id, CardSnapshot> {
-  return useCardMutation(boardId, cardId, {
-    mutationFn: (commentId: Id) => deleteComment(commentId),
-    message: "Couldn't delete the comment. Try again.",
-    feed: (pages, commentId) => dropFeedComment(pages, commentId),
-    detail: (detail) => ({
-      ...detail,
-      badges: { ...detail.badges, comments: Math.max(0, detail.badges.comments - 1) },
-    }),
-    board: (state) => {
-      const card = selectCard(state, cardId);
-      return card === undefined
-        ? state
-        : patchCardBadges(state, cardId, { comments: Math.max(0, card.badges.comments - 1) });
-    },
-    invalidateBoard: true,
-  });
-}
-
 // -------------------------------------------------------------------------- card fields
 
 export type UpdateCardFieldsVariables = UpdateCardInput;
@@ -1140,74 +977,6 @@ export function useUpdateCardFields(
   });
 }
 
-// ------------------------------------------------------------------- members and watching
-
-export interface ToggleMemberVariables {
-  userId: Id;
-  /** Whether the card should carry the member afterwards; the popover sends the new state. */
-  assigned: boolean;
-}
-
-/**
- * `PUT` / `DELETE /api/cards/{card_id}/members/{user_id}` — `MembersPopover`'s rows, the
- * sidebar's "Join" and the `Space` shortcut. Like the label toggle both verbs answer with the
- * card's whole `member_ids` array, which is written into the detail and into the tile's row, so
- * the avatars move on the first frame and the authoritative order arrives with the response
- * (Section 4.5).
- */
-export function useToggleCardMember(
-  boardId: number,
-  cardId: number,
-): UseMutationResult<CardMembers, Error, ToggleMemberVariables, CardSnapshot> {
-  return useCardMutation(boardId, cardId, {
-    mutationFn: ({ userId, assigned }: ToggleMemberVariables) =>
-      assigned ? assignMember(cardId, userId) : unassignMember(cardId, userId),
-    message: "Couldn't update the members. Try again.",
-    detail: (detail, { userId, assigned }) => ({
-      ...detail,
-      member_ids: toggleId(detail.member_ids, userId, assigned),
-    }),
-    board: (state, { userId, assigned }) => {
-      const card = selectCard(state, cardId);
-      return card === undefined
-        ? state
-        : applyCardPatch(state, cardId, {
-            member_ids: toggleId(card.member_ids, userId, assigned),
-          });
-    },
-    mergeDetail: (detail, data) => ({ ...detail, member_ids: data.member_ids }),
-    mergeBoard: (state, data) =>
-      setBoardVersion(
-        applyCardPatch(state, cardId, { member_ids: data.member_ids }),
-        data.board_version,
-      ),
-  });
-}
-
-/**
- * `PUT` / `DELETE /api/cards/{card_id}/watch` — the two "Watch" tiles of Sections 2.6.3 and
- * 2.6.4 and the eye badge on the tile.
- *
- * This is the one mutation in this file that is not board state: it records no activity, bumps
- * no version and publishes no event (`user_write`, Section 4.1), so its response carries no
- * `board_version` to merge, the feed is not refetched, and the board cache is patched with the
- * flag the server answered with.
- */
-export function useToggleWatch(
-  boardId: number,
-  cardId: number,
-): UseMutationResult<WatchState, Error, boolean, CardSnapshot> {
-  return useCardMutation(boardId, cardId, {
-    mutationFn: (watching: boolean) => (watching ? watchCard(cardId) : unwatchCard(cardId)),
-    message: "Couldn't change whether you watch this card. Try again.",
-    detail: (detail, watching) => ({ ...detail, is_watching: watching }),
-    board: (state, watching) => applyCardPatch(state, cardId, { is_watching: watching }),
-    mergeDetail: (detail, data) => ({ ...detail, is_watching: data.is_watching }),
-    mergeBoard: (state, data) => applyCardPatch(state, cardId, { is_watching: data.is_watching }),
-    touchesFeed: false,
-  });
-}
-
 // ---------------------------------------------------------------------------- attachments
 
 /** One megabyte, for the size guard `meta.max_upload_mb` states in megabytes (Section 5.8). */
@@ -1229,7 +998,7 @@ export interface PendingUpload {
 export interface UploadAttachmentsResult {
   /**
    * Uploads the files one after another (Section 5.8). `onUploaded` is how "Upload a cover
-   * image" (2.6.5) and the comment box's paste chain their own step onto the stored row.
+   * image" (2.6.5) chains its own step onto the stored row.
    */
   upload: (files: readonly File[], onUploaded?: (attachment: Attachment) => void) => void;
   pending: PendingUpload[];
@@ -1257,12 +1026,12 @@ function writeUploadedAttachment(
     return setBoardVersion(patchCardBadges(previous, cardId, { attachments }), board_version);
   });
   // `attachment.added` is an activity row like every other write's (Section 3.8).
-  void queryClient.invalidateQueries({ queryKey: feedKey(cardId) });
+  void queryClient.invalidateQueries({ queryKey: activityKey(boardId) });
 }
 
 /**
- * `POST /api/cards/{card_id}/attachments`, multipart — the file input, the drop zone and the
- * comment box's paste (Section 5.8).
+ * `POST /api/cards/{card_id}/attachments`, multipart — the file input and the drop zone
+ * (Section 5.8).
  *
  * This is the one write in the card modal that cannot be optimistic: the row exists only once
  * the bytes have arrived, and the name, size, thumbnail and dominant colour are all decided
@@ -1351,7 +1120,6 @@ export function useCreateLinkAttachment(
         {
           id: nextTempId(),
           card_id: cardId,
-          user_id: null,
           name: input.name === undefined || input.name === '' ? input.url : input.name,
           kind: 'link',
           url: input.url,
@@ -1478,8 +1246,7 @@ export interface MoveCardToVariables {
  * are the two callers Section 4.9 distinguishes, not two rules.
  *
  * A cross-board move is a different shape of write: the card gets a new `short_id`, loses its
- * labels and keeps only the members the target board knows, and the response's `board_version`
- * is the **target** board's (Section 4.5). Writing that number into this board's cache would
+ * labels, and the response's `board_version` is the **target** board's (Section 4.5). Writing that number into this board's cache would
  * shut its version gate against every later event, so the card is spliced out of this board
  * instead and both boards are refetched. `['card', id]` is refetched as well, because it carries
  * the `board_name` and `list_name` that no move response returns.
@@ -1551,8 +1318,6 @@ export function useCopyCard(
     mergeBoard: (state, data) =>
       data.item.board_id === boardId ? mergeCardRow(state, data) : state,
     invalidateBoard: true,
-    // `card.copied` is recorded on the new card, so it belongs to that card's feed, not this one.
-    touchesFeed: false,
     onDone: ({ item }, _variables, queryClient) => {
       if (item.board_id !== boardId) invalidateBoard(queryClient, item.board_id);
     },
@@ -1618,10 +1383,9 @@ export function useDeleteCard(
     board: (state) => applyRemoveCard(state, cardId),
     invalidateBoard: true,
     touchesArchived: true,
-    touchesFeed: false,
     onDone: (_data, _variables, queryClient) => {
       queryClient.removeQueries({ queryKey: cardKey(cardId) });
-      queryClient.removeQueries({ queryKey: feedKey(cardId) });
+      queryClient.removeQueries({ queryKey: activityKey(boardId, cardId) });
     },
   });
 }

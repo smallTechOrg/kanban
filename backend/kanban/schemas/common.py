@@ -6,7 +6,7 @@ declares one move body for all four move endpoints; both live here so no router 
 
 from typing import Annotated, Any, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_serializer
+from pydantic import BaseModel, Field, StringConstraints, model_serializer
 from pydantic.functional_serializers import SerializerFunctionWrapHandler
 
 #: An instant in the one format Section 4.1 defines for the whole API: ISO-8601 UTC with a `Z`
@@ -94,10 +94,7 @@ class MoveIn(BaseModel):
 
 
 class CardBadges(BaseModel):
-    """The five tile badge counts of Sections 2.5 and 4.10.1.
-
-    They are filled from the card's real children from the first day, so a tile lights up as
-    M3/M4 add descriptions, comments, attachments and checklists without this shape changing.
+    """The four tile badge counts of Sections 2.5 and 4.10.1.
 
     It lives here rather than in `schemas/cards.py` because three domains answer with it: every
     `CardSummary`, the board payload, and the checklist-item patch of Section 4.6, whose response
@@ -107,22 +104,9 @@ class CardBadges(BaseModel):
     """
 
     description: bool
-    comments: int
     attachments: int
     checklist_done: int
     checklist_total: int
-
-
-class PublicUserOut(BaseModel):
-    """A user as other users may see them: never an email address (Section 4.2)."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    username: str
-    full_name: str
-    initials: str
-    avatar_color: str
 
 
 class Health(BaseModel):
@@ -145,16 +129,12 @@ class LabelColorOut(BaseModel):
 
 
 class Meta(BaseModel):
-    """`GET /api/meta`: the palettes and flags the SPA needs before it authenticates."""
+    """`GET /api/meta`: the palettes and the upload limit the SPA reads at start-up."""
 
     version: str
     label_colors: dict[str, LabelColorOut]
     cover_colors: dict[str, str]
     board_colors: dict[str, str]
-    avatar_colors: list[str]
     board_gradients: dict[str, str]
     list_colors: dict[str, str]
     max_upload_mb: int
-    signup_enabled: bool
-    single_user: bool
-    admin_username: str

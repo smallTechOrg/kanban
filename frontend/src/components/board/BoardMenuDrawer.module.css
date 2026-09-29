@@ -92,18 +92,6 @@
   text-transform: uppercase;
 }
 
-.madeBy {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.ownerName {
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  color: var(--text);
-}
-
 /* Section 2.6.3's grey click-to-edit box, at drawer width. */
 .emptyBox {
   min-height: 56px;
@@ -118,13 +106,6 @@
 
 .emptyBox:hover {
   background: var(--pressed);
-}
-
-.none {
-  margin: 0;
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  color: var(--text-muted);
 }
 
 /* Below 768px the drawer takes the whole width it is allowed (2.9.4). */

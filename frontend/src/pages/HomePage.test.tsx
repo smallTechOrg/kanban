@@ -29,25 +29,25 @@ function section(name: RegExp): HTMLElement {
 }
 
 describe('HomePage', () => {
-  it('renders Starred boards, Recently viewed and the workspace in that order', async () => {
+  it('renders Starred boards, Recently viewed and Your boards in that order', async () => {
     renderWithProviders(<HomePage />);
 
-    // The workspaces heading renders while the query is still in flight, so wait for the data.
+    // The "Your boards" heading renders while the query is still in flight, so wait for the data.
     await screen.findByRole('heading', { name: 'Starred boards' });
     const headings = screen.getAllByRole('heading', {
-      name: /Starred boards|Recently viewed|Your workspaces/,
+      name: /Starred boards|Recently viewed|Your boards/,
     });
     expect(headings.map((heading) => heading.textContent)).toEqual([
       'Starred boards',
       'Recently viewed',
-      'Your workspaces',
+      'Your boards',
     ]);
 
     expect(within(section(/Starred boards/)).getByRole('link', { name: 'Roadmap' })).toBeVisible();
     expect(within(section(/Recently viewed/)).getAllByRole('link')).toHaveLength(
       boardGroupsFixture.recent.length,
     );
-    expect(within(section(/Your workspaces/)).getAllByRole('link')).toHaveLength(
+    expect(within(section(/Your boards/)).getAllByRole('link')).toHaveLength(
       boardGroupsFixture.all.length,
     );
     expect(screen.getByRole('button', { name: 'Create new board' })).toBeVisible();

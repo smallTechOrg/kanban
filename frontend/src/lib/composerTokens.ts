@@ -1,16 +1,16 @@
 /**
- * The `CardComposer` token parser of Section 2.4.4: `#label` attaches labels, `@member`
- * assigns members and `^top` / `^bottom` / `^N` chooses the slot. Matched tokens are stripped
- * from the title and returned so the composer can render its preview chips.
+ * The `CardComposer` token parser of Section 2.4.4: `#label` attaches labels and
+ * `^top` / `^bottom` / `^N` chooses the slot. Matched tokens are stripped from the title and
+ * returned so the composer can render its preview chips.
  *
  * `^N` is Trello's 1-based position, so it becomes the server's 0-based slot `N - 1`, clamped
  * to `[0, activeCount]` — an out-of-range `^99` therefore appends. `^0` and a non-numeric
- * value such as `^abc` are ignored and left in the title as plain text, and so is any `#` or
- * `@` word that matches no label or member on this board.
+ * value such as `^abc` are ignored and left in the title as plain text, and so is any `#` word
+ * that matches no label on this board.
  *
- * Label and member names may contain spaces (`#Bug fix`, `@Asha Rao`), so a token greedily
- * matches the longest run of following words that names something on the board. The parser is
- * pure: the candidates and the active card count are passed in by the hook layer.
+ * A label name may contain spaces (`#Bug fix`), so a token greedily matches the longest run of
+ * following words that names a label on the board. The parser is pure: the candidates and the
+ * active card count are passed in by the hook layer.
  *
  * `pastedLines` is the other rule a composer needs of what was typed into it: the lines a
  * multi-line paste becomes. `CardComposer` offers "Create N cards" and `ChecklistSection`
@@ -30,22 +30,14 @@ export interface LabelCandidate {
   color: string;
 }
 
-export interface MemberCandidate {
-  id: Id;
-  username: string;
-  full_name: string;
-}
-
 export interface ComposerContext {
   labels?: readonly LabelCandidate[];
-  members?: readonly MemberCandidate[];
   /** The list's active card count; `^N` is clamped to `[0, activeCount]` (Section 2.4.4). */
   activeCount?: number;
 }
 
 export type ComposerToken =
   | { kind: 'label'; text: string; id: Id; name: string; color: string }
-  | { kind: 'member'; text: string; id: Id; name: string }
   | { kind: 'position'; text: string; index: SlotIndex };
 
 /** The parsed composer input: a clean title plus what the tokens resolved to. */
@@ -53,7 +45,6 @@ export interface ParsedComposer {
   title: string;
   /** Shaped like the create body, so it spreads straight into `createCard`. */
   label_ids: Id[];
-  member_ids: Id[];
   /** Absent when no `^` token resolved, which means "append" for the server. */
   index?: SlotIndex;
   /** Every matched token in input order, for the preview strip. */
@@ -61,7 +52,6 @@ export interface ParsedComposer {
 }
 
 const LABEL_PREFIX = '#';
-const MEMBER_PREFIX = '@';
 const POSITION_PREFIX = '^';
 
 interface Word {
@@ -102,15 +92,6 @@ function findLabel(
   return candidates.find((label) => sameName(label.color, value));
 }
 
-function findMember(
-  candidates: readonly MemberCandidate[],
-  value: string,
-): MemberCandidate | undefined {
-  const byUsername = candidates.find((member) => sameName(member.username, value));
-  if (byUsername !== undefined) return byUsername;
-  return candidates.find((member) => sameName(member.full_name, value));
-}
-
 /** `^top`, `^bottom`, `^3`; anything else (including `^0`) resolves to nothing. */
 function findSlot(value: string, activeCount: number): SlotIndex | undefined {
   const lowered = value.toLowerCase();
@@ -133,18 +114,16 @@ function cleanTitle(kept: readonly string[]): string {
 }
 
 /**
- * Parses one composer line. Duplicate `#` / `@` tokens resolve once; when several `^` tokens
- * are present the last one wins, the way a user correcting themselves expects.
+ * Parses one composer line. Duplicate `#` tokens resolve once; when several `^` tokens are
+ * present the last one wins, the way a user correcting themselves expects.
  */
 export function parseComposerTokens(text: string, context: ComposerContext = {}): ParsedComposer {
   const labels = context.labels ?? [];
-  const members = context.members ?? [];
   const activeCount = context.activeCount ?? 0;
 
   const all = words(text);
   const tokens: ComposerToken[] = [];
   const labelIds: Id[] = [];
-  const memberIds: Id[] = [];
   const kept: string[] = [];
   let index: SlotIndex | undefined;
   let cursor = 0;
@@ -153,9 +132,7 @@ export function parseComposerTokens(text: string, context: ComposerContext = {})
   for (const [at, word] of all.entries()) {
     if (at < skipUntil) continue;
     const prefix = word.text.slice(0, 1);
-    const isToken =
-      word.text.length > 1 &&
-      (prefix === LABEL_PREFIX || prefix === MEMBER_PREFIX || prefix === POSITION_PREFIX);
+    const isToken = word.text.length > 1 && (prefix === LABEL_PREFIX || prefix === POSITION_PREFIX);
     if (!isToken) continue;
 
     let matched: { count: number; end: number; token: ComposerToken } | undefined;
@@ -175,30 +152,19 @@ export function parseComposerTokens(text: string, context: ComposerContext = {})
         const value = phrase(run);
         const end = Math.max(...run.map((entry) => entry.end));
         const raw = text.slice(word.start, end);
-        if (prefix === LABEL_PREFIX) {
-          const label = findLabel(labels, value);
-          if (label !== undefined) {
-            matched = {
-              count,
-              end,
-              token: {
-                kind: 'label',
-                text: raw,
-                id: label.id,
-                name: label.name,
-                color: label.color,
-              },
-            };
-          }
-        } else {
-          const member = findMember(members, value);
-          if (member !== undefined) {
-            matched = {
-              count,
-              end,
-              token: { kind: 'member', text: raw, id: member.id, name: member.full_name },
-            };
-          }
+        const label = findLabel(labels, value);
+        if (label !== undefined) {
+          matched = {
+            count,
+            end,
+            token: {
+              kind: 'label',
+              text: raw,
+              id: label.id,
+              name: label.name,
+              color: label.color,
+            },
+          };
         }
       }
     }
@@ -213,8 +179,6 @@ export function parseComposerTokens(text: string, context: ComposerContext = {})
     tokens.push(token);
     if (token.kind === 'label') {
       if (!labelIds.includes(token.id)) labelIds.push(token.id);
-    } else if (token.kind === 'member') {
-      if (!memberIds.includes(token.id)) memberIds.push(token.id);
     } else {
       index = token.index;
     }
@@ -225,7 +189,6 @@ export function parseComposerTokens(text: string, context: ComposerContext = {})
   const parsed: ParsedComposer = {
     title: cleanTitle(kept),
     label_ids: labelIds,
-    member_ids: memberIds,
     tokens,
   };
   if (index !== undefined) parsed.index = index;

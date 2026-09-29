@@ -2,13 +2,12 @@ import { expect, test, type BrowserContext, type Locator, type Page } from '@pla
 
 /**
  * The M3 acceptance run of Section 7.2 ("Card detail modal core"), done the way a person does it:
- * one card, opened as a route, given a description, a label, a checklist, a due date and a
- * comment, with every assertion made on what the screen shows — the rendered Markdown, the
- * progress bar, and above all the tile badges *behind* the modal, which are the whole point of
- * the milestone.
+ * one card, opened as a route, given a description, a label, a checklist and a due date, with
+ * every assertion made on what the screen shows — the rendered Markdown, the progress bar, and
+ * above all the tile badges *behind* the modal, which are the whole point of the milestone.
  *
  * `card-modal.spec.ts` is the milestone's own golden path. This file is the audit pass: it adds
- * the inline rename, the code block, the comment edit/delete round trip, the history contract
+ * the inline rename, the code block, the GFM table, the activity feed, the history contract
  * (Esc closes to the board, Back does not reopen the card) and a genuinely cold deep link in a
  * second browser context.
  *
@@ -18,41 +17,35 @@ import { expect, test, type BrowserContext, type Locator, type Page } from '@pla
 /** The lists `POST /api/boards` creates for `default_lists: true` (Section 3.10). */
 const FIRST_LIST = 'To Do';
 
-const BOARD = 'M3 audit';
+/** A fresh board name per run, so the spec also passes against a database that is not empty. */
+const suffix = `${Date.now()}`.slice(-9);
+
+const BOARD = `M3 audit ${suffix}`;
 const CARD = 'Launch checklist';
 const RENAMED = 'Launch checklist v2';
 
 /** Board labels are seeded unnamed, so a chip is addressed by its colour key (Section 2.6.5). */
 const LABEL = 'green';
 
-/** A heading, a list and a fenced code block, to prove Markdown is rendered and not echoed. */
+/** A heading, a list, a GFM table and a fenced code block: Markdown rendered, not echoed. */
 const DESCRIPTION = [
   '## Launch plan',
   '',
   '- Draft the copy',
   '- Ship it',
   '',
+  '| What | When |',
+  '| --- | --- |',
+  '| Launch | Friday |',
+  '',
   '```ts',
   'const ready = true;',
   '```',
 ].join('\n');
 
-/** Section 2.6.3 renders comments with `remark-gfm`, so a GFM table must become a table. */
-const COMMENT = ['| What | When |', '| --- | --- |', '| Launch | Friday |'].join('\n');
-const COMMENT_EDITED = ['| What | When |', '| --- | --- |', '| Launch | Monday |'].join('\n');
-
 const ITEMS = ['Write the copy', 'Pick the palette', 'Review'] as const;
 
 const CHECKLIST = 'Launch tasks';
-
-/** A fresh account per run, so the file also passes against a database that is not empty. */
-const suffix = `${Date.now()}`.slice(-9);
-const user = {
-  fullName: 'Ruth Ellery',
-  email: `ruth_${suffix}@example.com`,
-  username: `ruth_${suffix}`,
-  password: 'correct-horse-battery',
-};
 
 /** One column, which `ListColumn` labels with the list's name. */
 function column(page: Page, name: string): Locator {
@@ -107,17 +100,6 @@ function toRgb(hex: string): string {
   return `rgb(${channel(0)}, ${channel(2)}, ${channel(4)})`;
 }
 
-async function register(page: Page): Promise<void> {
-  await page.goto('/register');
-  await page.getByLabel('Full name').fill(user.fullName);
-  await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Username').fill(user.username);
-  await page.getByLabel('Password').fill(user.password);
-  await page.getByRole('button', { name: 'Sign up' }).click();
-  await expect(page).toHaveURL('http://127.0.0.1:8020/');
-  await expect(page.getByRole('button', { name: 'Create new board' })).toBeVisible();
-}
-
 test.describe.configure({ mode: 'serial' });
 
 test('M3 audit: the card modal round-trips every M3 feature to the tile', async ({
@@ -127,9 +109,8 @@ test('M3 audit: the card modal round-trips every M3 feature to the tile', async 
   let boardPath = '';
   let cardPath = '';
 
-  await test.step('1. register, create a board with the default lists, add a card', async () => {
-    await register(page);
-
+  await test.step('1. create a board with the default lists, add a card', async () => {
+    await page.goto('/');
     await page.getByRole('button', { name: 'Create new board' }).click();
     const popover = page.getByRole('dialog', { name: 'Create board' });
     await popover.getByLabel('Board title *').fill(BOARD);
@@ -188,9 +169,13 @@ test('M3 audit: the card modal round-trips every M3 feature to the tile', async 
     // A bullet list has to look like one: the global reset strips every marker, so the Markdown
     // stylesheet has to put this one back (Section 5.7).
     await expect(description.locator('ul')).toHaveCSS('list-style-type', 'disc');
+    // remark-gfm is on, so a pipe table is a real table and not three lines of pipes.
+    await expect(description.getByRole('table')).toBeVisible();
+    await expect(description.getByRole('cell', { name: 'Friday' })).toBeVisible();
     await expect(description.locator('pre code')).toHaveText('const ready = true;\n');
     // Rendered, not echoed: no raw fence or hash survives on screen.
     await expect(description).not.toContainText('## Launch plan');
+    await expect(description).not.toContainText('| --- |');
     await expect(description).not.toContainText('```');
 
     await expect(
@@ -274,40 +259,28 @@ test('M3 audit: the card modal round-trips every M3 feature to the tile', async 
     await expect(pill).toHaveCSS('background-color', toRgb(await token(page, '--success')));
   });
 
-  await test.step('8. a Markdown comment renders in the feed, then edits and deletes', async () => {
-    const dialog = modal(page, RENAMED);
-    await dialog.getByRole('button', { name: 'Write a comment…' }).click();
-    const box = dialog.getByRole('textbox', { name: 'Write a comment' });
-    await box.fill(COMMENT);
-    await box.press('ControlOrMeta+Enter');
+  await test.step('8. the activity feed is the record of steps 1 to 7', async () => {
+    const activity = modal(page, RENAMED).getByRole('region', { name: 'Activity' });
 
-    const activity = dialog.getByRole('region', { name: 'Activity' });
-    await expect(activity.getByRole('table')).toBeVisible();
-    await expect(activity.getByRole('cell', { name: 'Friday' })).toBeVisible();
-    await expect(activity).not.toContainText('| What |');
+    // Every row is one sentence from `lib/activity.ts` (Section 3.8), and the card feed renders
+    // this card's own title as "this card" (Section 2.6.3). The rename row still names the title
+    // it replaced, which is the whole reason the server denormalises the old one.
+    await expect(activity.getByText(`Added this card to ${FIRST_LIST}`)).toBeVisible();
+    await expect(activity.getByText(`Renamed this card (from ${CARD})`)).toBeVisible();
+    await expect(activity.getByText('Updated the description of this card')).toBeVisible();
+    await expect(activity.getByText(`Added the ${LABEL} label to this card`)).toBeVisible();
+    await expect(activity.getByText(`Added checklist ${CHECKLIST} to this card`)).toBeVisible();
+    await expect(activity.getByText(`Completed ${ITEMS[0]} on ${CHECKLIST}`)).toBeVisible();
+    await expect(activity.getByText('Marked the due date complete')).toBeVisible();
 
-    const comments = tileCard(page, cardPath).locator('[title="Comments"]');
-    await expect(comments).toHaveText('1');
-
-    // The feed is the server's, so the row survives a reload before it is edited.
+    // The feed is the server's, so the rows survive a reload rather than being this session's
+    // optimistic echo of its own writes.
     await page.reload();
     await expect(
       modal(page, RENAMED)
         .getByRole('region', { name: 'Activity' })
-        .getByRole('cell', { name: 'Friday' }),
+        .getByText(`Renamed this card (from ${CARD})`),
     ).toBeVisible();
-
-    const feed = modal(page, RENAMED).getByRole('region', { name: 'Activity' });
-    await feed.getByRole('button', { name: 'Edit', exact: true }).click();
-    const edit = feed.getByRole('textbox', { name: 'Edit comment' });
-    await edit.fill(COMMENT_EDITED);
-    await edit.press('ControlOrMeta+Enter');
-    await expect(feed.getByRole('cell', { name: 'Monday' })).toBeVisible();
-    await expect(feed.getByText('(edited)')).toBeVisible();
-
-    await feed.getByRole('button', { name: 'Delete', exact: true }).click();
-    await expect(feed.getByRole('table')).toHaveCount(0);
-    await expect(tileCard(page, cardPath).locator('[title="Comments"]')).toHaveCount(0);
   });
 
   await test.step('9. Esc closes to the board, and Back does not reopen the card', async () => {
@@ -329,10 +302,9 @@ test('M3 audit: the card modal round-trips every M3 feature to the tile', async 
   });
 
   await test.step('10. a cold deep link opens the board with the modal populated', async () => {
-    const state = await page.context().storageState();
     let fresh: BrowserContext | null = null;
     try {
-      fresh = await browser.newContext({ storageState: state });
+      fresh = await browser.newContext();
       const cold = await fresh.newPage();
       await cold.goto(cardPath);
 

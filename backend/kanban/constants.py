@@ -1,4 +1,4 @@
-"""Palettes, roles and the closed list of activity types.
+"""Palettes and the closed list of activity types.
 
 This module is the single source of truth for every value in this file (CLAUDE.md section 3):
 `models.py` builds its `CHECK (... IN ...)` constraints from these keys, `routers/meta.py` serves
@@ -142,27 +142,6 @@ BOARD_GRADIENTS: Final[dict[str, str]] = {
     "gradient-dusk": "linear-gradient(135deg, #89609E 0%, #CD5A91 100%)",
 }
 
-#: Assigned round-robin to `users.avatar_color` on registration (Section 2.9.3).
-AVATAR_COLORS: Final[tuple[str, ...]] = (
-    "#0052CC",
-    "#00875A",
-    "#DE350B",
-    "#FF991F",
-    "#6554C0",
-    "#00A3BF",
-    "#FF5630",
-    "#36B37E",
-)
-
-#: The default `users.avatar_color`, matching the DDL default in Section 3.4.
-DEFAULT_AVATAR_COLOR: Final[str] = AVATAR_COLORS[0]
-
-#: `board_members.role`, most privileged first (Section 4.3).
-ROLES: Final[tuple[str, ...]] = ("admin", "member", "observer")
-
-#: The bootstrapped single-user account (Section 6.6), echoed by `GET /api/meta`.
-ADMIN_USERNAME: Final[str] = "admin"
-
 #: The closed list of `activities.type` values (Section 3.8). `activity.record()` validates
 #: against it; a type that is not here is a programming error.
 ACTIVITY_TYPES: Final[frozenset[str]] = frozenset(
@@ -170,13 +149,9 @@ ACTIVITY_TYPES: Final[frozenset[str]] = frozenset(
         "board.created",
         "board.renamed",
         "board.description_changed",
-        "board.visibility_changed",
         "board.background_changed",
         "board.closed",
         "board.reopened",
-        "member.added",
-        "member.removed",
-        "member.role_changed",
         "list.created",
         "list.renamed",
         "list.moved",
@@ -207,10 +182,6 @@ ACTIVITY_TYPES: Final[frozenset[str]] = frozenset(
         "card.template_unset",
         "card.label_added",
         "card.label_removed",
-        "card.member_added",
-        "card.member_removed",
-        "card.watched",
-        "card.unwatched",
         "label.created",
         "label.updated",
         "label.deleted",
@@ -225,15 +196,10 @@ ACTIVITY_TYPES: Final[frozenset[str]] = frozenset(
         "checklist.item_unchecked",
         "checklist.item_due_set",
         "checklist.item_due_removed",
-        "checklist.item_assigned",
-        "checklist.item_unassigned",
         "checklist.item_converted",
         "checklist.item_moved",
         "attachment.added",
         "attachment.renamed",
         "attachment.deleted",
-        "comment.added",
-        "comment.edited",
-        "comment.deleted",
     }
 )

@@ -14,7 +14,7 @@
  * ids, exactly the body of Section 4.9, and the server answers with the authoritative
  * `position`.
  */
-import type { Id, Role } from './boardState';
+import type { Id } from './boardState';
 
 /** The one horizontal `Droppable` that holds the columns (Section 5.5). */
 export const BOARD_DROPPABLE_ID = 'board';
@@ -59,11 +59,6 @@ export function parseListId(value: string): Id | null {
 
 export function parseCardId(value: string): Id | null {
   return parsePrefixed(value, CARD_PREFIX);
-}
-
-/** Observers may read a board but never reorder it, so every `Draggable` is disabled for them. */
-export function isDragLocked(role: Role | undefined): boolean {
-  return role === 'observer';
 }
 
 /** One end of a drag, as `@hello-pangea/dnd` reports it. */

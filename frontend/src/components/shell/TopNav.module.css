@@ -83,11 +83,6 @@
   border-radius: 1px;
 }
 
-.avatarButton {
-  display: flex;
-  border-radius: 50%;
-}
-
 /*
  * Section 2.9.4 allows no horizontal page scroll below 768px, and the left group alone is wider
  * than a 390px bar. The wordmark keeps its 24px mark and drops its text — the same trade the

@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Avatar,
   Button,
   ConfirmPopover,
   IconButton,
@@ -22,7 +21,7 @@ import {
   MenuRow,
   cx,
 } from '@/components/ui';
-import { useBoardMeta, useMembers } from '@/hooks/useBoardData';
+import { useBoardMeta } from '@/hooks/useBoardData';
 import { useCloseBoard, useUpdateBoard } from '@/hooks/useBoards';
 import { ArchivedItemsPanel } from './ArchivedItemsPanel';
 import { BoardActivityFeed } from './BoardActivityFeed';
@@ -62,23 +61,17 @@ interface AboutPanelProps {
 }
 
 /**
- * "About this board": the owner's avatar under "Made by", and the board description in the same
- * Markdown editor the card description uses, saved with `PATCH /api/boards/{board_id}`.
- *
- * The owner is read from the board's own member list (Section 5.4.2); an owner who has left the
- * board leaves the documented "?" initials behind rather than an empty row.
+ * "About this board": the board description, in the same Markdown editor the card description
+ * uses, saved with `PATCH /api/boards/{board_id}`.
  */
 function AboutPanel({ boardId }: AboutPanelProps): ReactElement | null {
   const board = useBoardMeta(boardId).data;
-  const members = useMembers(boardId).data ?? [];
   const update = useUpdateBoard(boardId);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
 
   if (board === undefined) return null;
 
-  const owner = members.find((member) => member.id === board.owner_id);
-  const canEdit = board.my_role !== 'observer';
   const hasText = board.description !== '';
 
   function startEditing(): void {
@@ -95,21 +88,9 @@ function AboutPanel({ boardId }: AboutPanelProps): ReactElement | null {
   return (
     <div className={styles.panel}>
       <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Made by</h3>
-        <div className={styles.madeBy}>
-          <Avatar
-            name={owner?.full_name ?? '?'}
-            color={owner?.avatar_color ?? 'var(--hover)'}
-            size={40}
-          />
-          <span className={styles.ownerName}>{owner?.full_name ?? 'Unknown member'}</span>
-        </div>
-      </section>
-
-      <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <h3 className={styles.sectionTitle}>Description</h3>
-          {hasText && !editing && canEdit ? <Button onClick={startEditing}>Edit</Button> : null}
+          {hasText && !editing ? <Button onClick={startEditing}>Edit</Button> : null}
         </div>
         {editing ? (
           <MarkdownEditor
@@ -122,12 +103,10 @@ function AboutPanel({ boardId }: AboutPanelProps): ReactElement | null {
           />
         ) : hasText ? (
           <MarkdownView>{board.description}</MarkdownView>
-        ) : canEdit ? (
+        ) : (
           <button type="button" className={styles.emptyBox} onClick={startEditing}>
             {EMPTY_DESCRIPTION}
           </button>
-        ) : (
-          <p className={styles.none}>No description</p>
         )}
       </section>
     </div>
@@ -148,10 +127,8 @@ function AboutPanel({ boardId }: AboutPanelProps): ReactElement | null {
  * Section 2.8 closes, and that order ("the topmost popover, editor, quick edit, modal or drawer")
  * is decided in one place, `hooks/useKeyboardShortcuts.ts`, rather than by each layer.
  *
- * Every row now opens a panel: "Change background" was the last scope guard, and M5's
- * `BoardBackgroundPicker` replaced its "Coming later" tooltip. Whether the reader may close the
- * board is decided by the endpoint's own rule (admin only, Section 4.3), so that row — and only
- * that row — is absent otherwise.
+ * Every row opens a panel: "Change background" was the last scope guard, and M5's
+ * `BoardBackgroundPicker` replaced its "Coming later" tooltip.
  */
 export function BoardMenuDrawer({
   boardId,
@@ -173,8 +150,6 @@ export function BoardMenuDrawer({
   }, []);
 
   if (board === undefined) return null;
-
-  const isAdmin = board.my_role === 'admin';
 
   return (
     <aside className={cx(styles.drawer, entered && styles.open)} aria-label="Menu">
@@ -199,7 +174,7 @@ export function BoardMenuDrawer({
         {view === 'background' ? <BoardBackgroundPicker boardId={boardId} /> : null}
         {view === 'labels' ? <BoardLabelsPanel boardId={boardId} /> : null}
         {view === 'archived' ? <ArchivedItemsPanel boardId={boardId} /> : null}
-        {view === 'settings' ? <BoardSettingsPanel boardId={boardId} /> : null}
+        {view === 'settings' ? <BoardSettingsPanel /> : null}
         {view === 'activity' ? <BoardActivityFeed boardId={boardId} /> : null}
 
         {view !== 'menu' ? null : (
@@ -222,16 +197,14 @@ export function BoardMenuDrawer({
             <MenuRow icon={<Settings aria-hidden="true" />} onClick={() => setView('settings')}>
               Settings
             </MenuRow>
-            {isAdmin ? (
-              <div ref={closeRow}>
-                <MenuRow
-                  icon={<XCircle aria-hidden="true" />}
-                  onClick={() => setConfirmAnchor(closeRow.current)}
-                >
-                  Close board…
-                </MenuRow>
-              </div>
-            ) : null}
+            <div ref={closeRow}>
+              <MenuRow
+                icon={<XCircle aria-hidden="true" />}
+                onClick={() => setConfirmAnchor(closeRow.current)}
+              >
+                Close board…
+              </MenuRow>
+            </div>
 
             <hr className={styles.divider} />
 

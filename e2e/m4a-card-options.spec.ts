@@ -1,8 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /**
- * The M4a acceptance run of Section 7.2's M4 checklist, card-options half: members and watching,
- * attachments, covers, move and copy across boards, archive and restore, and Share.
+ * The M4a acceptance run of Section 7.2's M4 checklist, card-options half: attachments, covers,
+ * move and copy across boards, and archive and restore.
  *
  * It is one serial journey because every step reads what the step before it wrote, and because
  * the three sections the modal grew in this milestone (`CardCoverStrip`, `AttachmentsSection`,
@@ -13,8 +13,11 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 /** The lists `POST /api/boards` creates for `default_lists: true` (Section 3.10). */
 const FIRST_LIST = 'To Do';
 
-const ALPHA = 'M4a alpha';
-const BETA = 'M4a beta';
+/** A fresh board name per run, so the spec also passes against a database that is not empty. */
+const suffix = `${Date.now()}`.slice(-9);
+
+const ALPHA = `M4a alpha ${suffix}`;
+const BETA = `M4a beta ${suffix}`;
 const CARD = 'Launch plan';
 
 /** Board labels are seeded unnamed, so a chip is addressed by its colour key (Section 2.6.5). */
@@ -31,14 +34,6 @@ const PNG_BYTES = Buffer.from(
   'base64',
 );
 
-const suffix = `${Date.now()}`.slice(-9);
-const user = {
-  fullName: 'Nina Okafor',
-  email: `nina_${suffix}@example.com`,
-  username: `nina_${suffix}`,
-  password: 'correct-horse-battery',
-};
-
 /** One column, which `ListColumn` labels with the list's name. */
 function column(page: Page, name: string): Locator {
   return page.locator(`section[aria-label="${name}"]`);
@@ -49,7 +44,7 @@ function column(page: Page, name: string): Locator {
  *
  * A CSS locator on purpose: while the modal is open everything outside it is `aria-hidden`, so
  * the tile behind it is invisible to every role query — and "the tile behind the modal changed"
- * is exactly what this file asserts. The chips, badges, avatars and pencil are siblings of the
+ * is exactly what this file asserts. The chips, the badge row and the pencil are siblings of the
  * anchor rather than its children (CLAUDE.md section 8), so the tile is the anchor's parent.
  */
 function tileCard(page: Page, path: string): Locator {
@@ -95,32 +90,15 @@ async function createBoard(page: Page, name: string): Promise<string> {
   return new URL(page.url()).pathname;
 }
 
-/** The "Card #n" line of the Share panel (Section 2.6.4), with the panel left open. */
-async function cardNumber(page: Page, card: string): Promise<string> {
-  const popover = await openSidebar(page, card, 'Share', 'Share');
-  return (await popover.locator('p', { hasText: 'Card #' }).innerText()).trim();
-}
-
 test.describe.configure({ mode: 'serial' });
 
-// The Share panel writes the link to the real clipboard, and step 8 reads it back.
-test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
-
-test('M4a: members, attachments, covers, move, copy, archive and share', async ({ page }) => {
+test('M4a: attachments, covers, move, copy, archive and restore', async ({ page }) => {
   let alphaPath = '';
   let betaPath = '';
   let cardPath = '';
   let copyPath = '';
 
-  await test.step('1. register, create two boards, add a card to the first', async () => {
-    await page.goto('/register');
-    await page.getByLabel('Full name').fill(user.fullName);
-    await page.getByLabel('Email').fill(user.email);
-    await page.getByLabel('Username').fill(user.username);
-    await page.getByLabel('Password').fill(user.password);
-    await page.getByRole('button', { name: 'Sign up' }).click();
-    await expect(page.getByRole('button', { name: 'Create new board' })).toBeVisible();
-
+  await test.step('1. create two boards, add a card to the first and open it', async () => {
     alphaPath = await createBoard(page, ALPHA);
     betaPath = await createBoard(page, BETA);
 
@@ -132,52 +110,14 @@ test('M4a: members, attachments, covers, move, copy, archive and share', async (
     await input.press('Enter');
     await input.press('Escape');
     await expect(list.getByRole('link', { name: CARD, exact: true })).toBeVisible();
-  });
 
-  await test.step('2. assign myself through the Members popover; the avatar lands on the tile', async () => {
-    await column(page, FIRST_LIST).getByRole('link', { name: CARD, exact: true }).click();
+    await list.getByRole('link', { name: CARD, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`${alphaPath}/c/\\d+$`));
     cardPath = new URL(page.url()).pathname;
     await expect(modal(page, CARD)).toBeVisible();
-
-    const popover = await openSidebar(page, CARD, 'Members', 'Members');
-    await popover.getByRole('button', { name: user.fullName }).click();
-    await expect(popover.getByRole('button', { name: user.fullName })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    await page.keyboard.press('Escape');
-    await expect(popover).toHaveCount(0);
-
-    // The modal's Members quick-badge group, and the 24px avatar on the tile behind it.
-    await expect(
-      modal(page, CARD).locator(`[aria-labelledby="card-members-label"] [aria-label="${user.fullName}"]`),
-    ).toBeVisible();
-    await expect(tileCard(page, cardPath).locator(`[aria-label="${user.fullName}"]`)).toBeVisible();
-
-    // Watching is the milestone's other per-user write (Section 4.5, outside `write_tx`): the
-    // sidebar row keeps its label and gains the check, and the tile grows the eye badge.
-    await modal(page, CARD).getByRole('button', { name: 'Watch', exact: true }).last().click();
-    await expect(modal(page, CARD).getByText('Watching this card').first()).toBeVisible();
-    await expect(
-      tileCard(page, cardPath).locator('[aria-label="You are watching this card"]'),
-    ).toBeVisible();
-
-    // Section 2.6.3: the check tile sits *flush at the button's right edge* and "the label stays
-    // Watch", so it may never be painted over the label it leaves in place.
-    const notifications = modal(page, CARD).locator('[aria-labelledby="card-notifications-label"]');
-    const watchButton = await notifications
-      .getByRole('button', { name: 'Watch', exact: true })
-      .boundingBox();
-    const checkTile = await notifications
-      .getByText('Watching this card')
-      .locator('xpath=..')
-      .boundingBox();
-    if (watchButton === null || checkTile === null) throw new Error('watch controls not laid out');
-    expect(checkTile.x).toBeGreaterThanOrEqual(watchButton.x + watchButton.width - 1);
   });
 
-  await test.step('3. upload a PNG; the row shows a thumbnail and the tile badge reads 1', async () => {
+  await test.step('2. upload a PNG; the row shows a thumbnail and the tile badge reads 1', async () => {
     const section = modal(page, CARD).getByRole('region', { name: 'Attachments' });
     await section.getByRole('button', { name: 'Add' }).click();
     const picker = page.getByRole('dialog', { name: 'Attach' });
@@ -206,7 +146,7 @@ test('M4a: members, attachments, covers, move, copy, archive and share', async (
     await expect(tileCard(page, cardPath).locator('[title="Attachments"]')).toHaveText('2');
   });
 
-  await test.step('4. make it the cover, then switch to full: the tile title overlays it', async () => {
+  await test.step('3. make it the cover, then switch to full: the tile title overlays it', async () => {
     const section = modal(page, CARD).getByRole('region', { name: 'Attachments' });
     await section.locator('li', { hasText: 'brand.png' }).getByRole('button', { name: 'Make cover' }).click();
     await expect(
@@ -247,7 +187,7 @@ test('M4a: members, attachments, covers, move, copy, archive and share', async (
     await expect(tile.locator('[title="Attachments"]')).toHaveText('2');
   });
 
-  await test.step('5. a checklist of two items, copied to the second board with its own number', async () => {
+  await test.step('4. a checklist of two items, copied to the second board', async () => {
     const popover = await openSidebar(page, CARD, 'Checklist', 'Add checklist');
     await popover.getByLabel('Title').fill(CHECKLIST);
     await popover.getByRole('button', { name: 'Add', exact: true }).click();
@@ -265,8 +205,9 @@ test('M4a: members, attachments, covers, move, copy, archive and share', async (
     const copy = await openSidebar(page, CARD, 'Copy', 'Copy card');
     await expect(copy.getByRole('checkbox', { name: 'Checklists (1)' })).toBeChecked();
     await copy.getByLabel('Board').selectOption({ label: BETA });
-    // Section 4.5: neither travels across boards, so the panel says so instead of sending them.
-    await expect(copy.getByRole('checkbox', { name: /Members/ })).toBeDisabled();
+    // Section 4.5: labels do not travel across boards, so the panel says so instead of sending
+    // them, and the row it blocks is the one whose ids belong to the board being left.
+    await expect(copy.getByRole('checkbox', { name: /Labels/ })).toBeDisabled();
     await copy.getByRole('button', { name: 'Create card' }).click();
     await expect(copy).toHaveCount(0);
 
@@ -282,12 +223,10 @@ test('M4a: members, attachments, covers, move, copy, archive and share', async (
     for (const item of ITEMS) {
       await expect(section2.getByRole('checkbox', { name: item })).toBeVisible();
     }
-    // The copy is the first card of its own board, so the per-board sequence starts again at 1.
-    expect(await cardNumber(page, CARD)).toBe('Card #1');
     await page.keyboard.press('Escape');
   });
 
-  await test.step('6. move the original across boards: it leaves Alpha and drops its labels', async () => {
+  await test.step('5. move the original across boards: it leaves Alpha and drops its labels', async () => {
     await page.goto(cardPath);
     const labels = await openSidebar(page, CARD, 'Labels', 'Labels');
     await labels.getByRole('button', { name: `Label ${LABEL}`, exact: true }).click();
@@ -311,13 +250,11 @@ test('M4a: members, attachments, covers, move, copy, archive and share', async (
     expect(movedPath).not.toBe(cardPath);
     cardPath = movedPath;
 
-    // Section 4.5: a cross-board move takes a fresh `short_id` and strips the card's labels.
-    expect(await cardNumber(page, CARD)).toBe('Card #2');
+    // Section 4.5: a cross-board move strips the card's labels, because their ids belong to the
+    // board it left. The new card id in the URL above is the other half of that write.
     await page.keyboard.press('Escape');
     await expect(modal(page, CARD).locator('[aria-labelledby="card-labels-label"]')).toHaveCount(0);
     await expect(tileCard(page, cardPath).locator(`[aria-label="Label ${LABEL}"]`)).toHaveCount(0);
-    // Members that are on the target board are kept.
-    await expect(tileCard(page, cardPath).locator(`[aria-label="${user.fullName}"]`)).toBeVisible();
 
     // It arrived on Beta (two tiles now) and left Alpha behind.
     await expect(column(page, FIRST_LIST).locator(`a[href="${cardPath}"]`)).toBeVisible();
@@ -328,7 +265,7 @@ test('M4a: members, attachments, covers, move, copy, archive and share', async (
     await page.goto(cardPath);
   });
 
-  await test.step('7. archive shows the band; Send to board returns it to its list', async () => {
+  await test.step('6. archive shows the band; Send to board returns it to its list', async () => {
     const dialog = modal(page, CARD);
     await dialog.getByRole('button', { name: 'Archive', exact: true }).click();
     await expect(dialog.getByText('This card is archived.')).toBeVisible();
@@ -342,27 +279,11 @@ test('M4a: members, attachments, covers, move, copy, archive and share', async (
     await expect(column(page, FIRST_LIST).locator(`a[href="${cardPath}"]`)).toBeVisible();
   });
 
-  await test.step('8. the Share link, copied to the clipboard, resolves to this card', async () => {
-    const popover = await openSidebar(page, CARD, 'Share', 'Share');
-    await popover.getByRole('button', { name: 'Copy', exact: true }).click();
-    await expect(page.getByText('Link copied')).toBeVisible();
-    const copied = await page.evaluate(() => navigator.clipboard.readText());
-    expect(copied).toBe(`http://127.0.0.1:8020${cardPath}`);
-    await page.keyboard.press('Escape');
-
-    await page.goto(copied);
-    await expect(modal(page, CARD)).toBeVisible();
-    await expect(page.locator('h1')).toHaveText(BETA);
-  });
-
-  await test.step('9. everything above survives a reload', async () => {
+  await test.step('7. everything above survives a reload', async () => {
     await page.reload();
     const dialog = modal(page, CARD);
     await expect(dialog).toBeVisible();
 
-    await expect(
-      dialog.locator(`[aria-labelledby="card-members-label"] [aria-label="${user.fullName}"]`),
-    ).toBeVisible();
     const section = dialog.getByRole('region', { name: 'Attachments' });
     await expect(section.locator('li', { hasText: 'brand.png' }).locator('img')).toBeVisible();
     await expect(section.locator('li', { hasText: 'example.com' })).toBeVisible();
@@ -375,16 +296,16 @@ test('M4a: members, attachments, covers, move, copy, archive and share', async (
     await expect(dialog.getByText('This card is archived.')).toHaveCount(0);
     await expect(dialog.locator('[aria-labelledby="card-labels-label"]')).toHaveCount(0);
 
-    // The cover band is still on the card, and the tile still carries the image and the avatar.
+    // The cover band is still on the card, and the tile still carries the image.
     await expect(dialog.getByRole('button', { name: 'Cover', exact: true })).toHaveCount(2);
     await expect(tileCard(page, cardPath).locator('img')).toBeVisible();
     await expect(tileCard(page, cardPath).locator('[title="Attachments"]')).toHaveText('2');
     await expect(tileCard(page, cardPath).locator('[title="Checklist items"]')).toHaveText('0/2');
   });
 
-  await test.step('10. screenshot the modal with its cover, member, attachment and checklist', async () => {
-    // Tall enough for the four things the audit shot has to show at once: the cover band, the
-    // Members group, both attachment rows and the checklist under them.
+  await test.step('8. screenshot the modal with its cover, attachments and checklist', async () => {
+    // Tall enough for the three things the audit shot has to show at once: the cover band, both
+    // attachment rows and the checklist under them.
     await page.setViewportSize({ width: 1280, height: 1180 });
     await expect(modal(page, CARD).getByRole('region', { name: CHECKLIST })).toBeVisible();
     await page.screenshot({ path: 'docs/audit/screens/m4a-card.png' });

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Button } from './Button';
 import { Popover } from './Popover';
-import { Textarea, type TextareaProps } from './Textarea';
+import { Textarea } from './Textarea';
 import styles from './MarkdownEditor.module.css';
 
 /** Section 5.7: the six GFM rows the "Formatting help" popover lists. */
@@ -20,14 +20,10 @@ export interface MarkdownEditorProps {
   onChange: (next: string) => void;
   onSave: () => void;
   onCancel: () => void;
-  /** Accessible name of the textarea, e.g. "Description" or "Write a comment". */
+  /** Accessible name of the textarea, e.g. "Description" or "Board description". */
   label: string;
   placeholder?: string;
   minRows?: number;
-  /** The caller's own ref, when it has to insert text at the caret (`@mention`). */
-  inputRef?: RefObject<HTMLTextAreaElement>;
-  /** An extra key handler, run before the textarea's own (`CommentBox`). */
-  onKeyDown?: TextareaProps['onKeyDown'];
 }
 
 /**
@@ -48,19 +44,14 @@ export function MarkdownEditor({
   label,
   placeholder,
   minRows = 3,
-  inputRef,
-  onKeyDown,
 }: MarkdownEditorProps): ReactElement {
-  const ownRef = useRef<HTMLTextAreaElement>(null);
-  const ref = inputRef ?? ownRef;
+  const ref = useRef<HTMLTextAreaElement>(null);
   const [help, setHelp] = useState<HTMLElement | null>(null);
 
   // Opening the editor is always a decision to type, so the caret goes there — and `autoFocus`
   // is banned by the lint rules, which is why this is an effect (Section 5.10).
   useEffect(() => {
     ref.current?.focus();
-    // `ref` is one object for the editor's lifetime: this runs once, on open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -76,7 +67,6 @@ export function MarkdownEditor({
         onChange={(event) => onChange(event.target.value)}
         onSubmit={onSave}
         onCancel={onCancel}
-        onKeyDown={onKeyDown}
       />
 
       <div className={styles.footer}>

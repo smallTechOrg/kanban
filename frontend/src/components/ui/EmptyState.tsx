@@ -11,7 +11,7 @@ export interface EmptyStateProps {
   action?: ReactNode;
 }
 
-/** The shared empty state of Section 2.10 ("No archived cards", "No comments yet", ...). */
+/** The shared empty state of Section 2.10 ("No archived cards", "No activity yet", ...). */
 export function EmptyState({ message, title, icon, action }: EmptyStateProps): ReactElement {
   return (
     <div className={styles.empty}>

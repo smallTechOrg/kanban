@@ -14,7 +14,7 @@ The upload route is `async def` (Section 6.4) because it awaits the received spo
 after that - Pillow, and the short `write_tx` - runs in `run_in_threadpool`, so the event loop is
 never blocked and the write lock is never held while bytes or thumbnails are in flight.
 
-The two access dependencies are `auth.py`'s, like every other child-row route: `card_access` for
+The two access dependencies are `access.py`'s, like every other child-row route: `card_access` for
 the two `/api/cards/...` paths and `attachment_access` - the seventh factory - for the two keyed by
 an attachment id, so no permission decision is written down here (CLAUDE.md section 3).
 """
@@ -29,8 +29,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
 from kanban import storage
-from kanban.auth import BoardCtx, CurrentUser, Db, Role, attachment_access, card_access
-from kanban.models import User
+from kanban.access import BoardCtx, Db, attachment_access, card_access
 from kanban.schemas.attachments import (
     AttachmentCreateIn,
     AttachmentMutated,
@@ -51,9 +50,9 @@ MULTIPART_PREFIX = "multipart/form-data"
 FILE_FIELD = "file"
 
 
-#: Attaching, renaming, deleting and covering all need `member`, and are refused while closed.
-CardAccess = Annotated[BoardCtx, Depends(card_access(Role.member))]
-AttachmentAccess = Annotated[BoardCtx, Depends(attachment_access(Role.member))]
+#: Attaching, renaming, deleting and covering are all refused with 409 while the board is closed.
+CardAccess = Annotated[BoardCtx, Depends(card_access())]
+AttachmentAccess = Annotated[BoardCtx, Depends(attachment_access())]
 
 #: Section 4.6's two request bodies on one path, as the OpenAPI document advertises them. The
 #: JSON schema is generated from the model, so `gen:types` cannot drift from the validation.
@@ -95,7 +94,7 @@ def _link_body(payload: Any) -> AttachmentCreateIn:
 
 
 async def _create_from_upload(
-    request: Request, db: Session, user: User, *, board_id: int, card_id: int
+    request: Request, db: Session, *, board_id: int, card_id: int
 ) -> service.AttachmentMutation:
     """The multipart branch: receive, hash, thumbnail, then one short transaction (Section 6.9)."""
     form = await request.form()
@@ -111,7 +110,6 @@ async def _create_from_upload(
     return await run_in_threadpool(
         service.create_file_attachment,
         db,
-        user,
         board_id=board_id,
         card_id=card_id,
         upload=upload,
@@ -119,7 +117,7 @@ async def _create_from_upload(
 
 
 async def _create_from_link(
-    request: Request, db: Session, user: User, *, board_id: int, card_id: int
+    request: Request, db: Session, *, board_id: int, card_id: int
 ) -> service.AttachmentMutation:
     """The JSON branch: `{url, name?}`, validated here so 422 reads like every other 422."""
     try:
@@ -130,7 +128,6 @@ async def _create_from_link(
     return await run_in_threadpool(
         service.create_link_attachment,
         db,
-        user,
         board_id=board_id,
         card_id=card_id,
         url=body.url,
@@ -145,7 +142,7 @@ async def _create_from_link(
     openapi_extra={"requestBody": CREATE_REQUEST_BODY},
 )
 async def create_attachment(
-    card_id: CardId, request: Request, access: CardAccess, user: CurrentUser, db: Db
+    card_id: CardId, request: Request, access: CardAccess, db: Db
 ) -> AttachmentMutated:
     """Attach a file or a link to a card (Sections 4.6 and 6.9).
 
@@ -157,7 +154,7 @@ async def create_attachment(
         if request.headers.get("content-type", "").startswith(MULTIPART_PREFIX)
         else _create_from_link
     )
-    result = await branch(request, db, user, board_id=access.board_id, card_id=card_id)
+    result = await branch(request, db, board_id=access.board_id, card_id=card_id)
     return AttachmentMutated(
         item=AttachmentOut.model_validate(result.item), board_version=result.board_version
     )
@@ -168,12 +165,11 @@ def rename_attachment(
     attachment_id: AttachmentId,
     body: AttachmentUpdateIn,
     access: AttachmentAccess,
-    user: CurrentUser,
     db: Db,
 ) -> AttachmentMutated:
     """Rename an attachment's display name; the file on disk keeps its own (Section 4.6)."""
     result = service.rename_attachment(
-        db, user, board_id=access.board_id, attachment_id=attachment_id, name=body.name
+        db, board_id=access.board_id, attachment_id=attachment_id, name=body.name
     )
     return AttachmentMutated(
         item=AttachmentOut.model_validate(result.item), board_version=result.board_version
@@ -181,21 +177,16 @@ def rename_attachment(
 
 
 @router.delete("/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_attachment(
-    attachment_id: AttachmentId, access: AttachmentAccess, user: CurrentUser, db: Db
-) -> None:
+def delete_attachment(attachment_id: AttachmentId, access: AttachmentAccess, db: Db) -> None:
     """Delete an attachment and its files, clearing the card's cover with it (Section 4.6)."""
-    service.delete_attachment(db, user, board_id=access.board_id, attachment_id=attachment_id)
+    service.delete_attachment(db, board_id=access.board_id, attachment_id=attachment_id)
 
 
 @router.put("/cards/{card_id}/cover", response_model=CardMutated)
-def set_cover(
-    card_id: CardId, body: CoverIn, access: CardAccess, user: CurrentUser, db: Db
-) -> CardMutated:
+def set_cover(card_id: CardId, body: CoverIn, access: CardAccess, db: Db) -> CardMutated:
     """Set a card's cover to a palette colour or one of its image attachments (Section 4.5)."""
     result = service.set_cover(
         db,
-        user,
         board_id=access.board_id,
         card_id=card_id,
         kind=body.kind,
@@ -208,9 +199,9 @@ def set_cover(
 
 
 @router.delete("/cards/{card_id}/cover", response_model=CardMutated)
-def clear_cover(card_id: CardId, access: CardAccess, user: CurrentUser, db: Db) -> CardMutated:
+def clear_cover(card_id: CardId, access: CardAccess, db: Db) -> CardMutated:
     """Remove a card's cover (Section 4.5)."""
-    result = service.clear_cover(db, user, board_id=access.board_id, card_id=card_id)
+    result = service.clear_cover(db, board_id=access.board_id, card_id=card_id)
     return CardMutated(
         item=CardSummary.model_validate(result.item), board_version=result.board_version
     )

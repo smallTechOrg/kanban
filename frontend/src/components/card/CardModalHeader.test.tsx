@@ -24,7 +24,7 @@ function seed(): QueryClient {
   return client;
 }
 
-function open(isWatching = false): void {
+function open(): void {
   render(
     <QueryClientProvider client={seed()}>
       <MemoryRouter>
@@ -33,7 +33,6 @@ function open(isWatching = false): void {
           cardId={CARD_ID}
           title="Design home page"
           listName="To Do"
-          isWatching={isWatching}
         />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -50,13 +49,11 @@ describe('CardModalHeader', () => {
     expect(await screen.findByRole('dialog', { name: 'Move card' })).toBeInTheDocument();
   });
 
-  it('shows the eye only while the card is watched, and never as a control', () => {
+  it('renames the card from the title, whose accessible name carries it (WCAG 2.5.3)', () => {
     open();
-    expect(screen.queryByText('Watching this card')).not.toBeInTheDocument();
 
-    open(true);
-    // Section 2.6.2 makes the eye a state indicator; the two Watch buttons are elsewhere.
-    expect(screen.getByText('Watching this card')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /watch/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rename card Design home page' })).toHaveTextContent(
+      'Design home page',
+    );
   });
 });

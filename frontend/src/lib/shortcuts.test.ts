@@ -101,19 +101,15 @@ describe('shortcutFor', () => {
 
   it('dispatches the board and card keys', () => {
     expect(press('f')).toBe('openFilter');
-    expect(press('q')).toBe('toggleMineFilter');
     expect(press('x')).toBe('clearFilters');
     expect(press('w')).toBe('toggleBoardMenu');
     expect(press('Enter')).toBe('openCard');
     expect(press('e')).toBe('quickEdit');
     expect(press('t')).toBe('quickEditTitle');
     expect(press('n')).toBe('composeBelow');
-    expect(press(' ')).toBe('toggleSelfMember');
     expect(press('l')).toBe('openLabels');
-    expect(press('m')).toBe('openMembers');
     expect(press('d')).toBe('openDates');
     expect(press('c')).toBe('archiveCard');
-    expect(press('s')).toBe('toggleWatch');
     expect(press(',')).toBe('moveToPreviousList');
     expect(press('<')).toBe('moveToPreviousList');
     expect(press('.')).toBe('moveToNextList');
@@ -125,6 +121,8 @@ describe('shortcutFor', () => {
     expect(press('ArrowLeft')).toBe('selectListLeft');
     expect(press('ArrowRight')).toBe('selectListRight');
     expect(press('y')).toBeNull();
+    // Space belongs to the drag library alone now that no row of either table claims it.
+    expect(press(' ')).toBeNull();
   });
 
   it('carries the label number for 1-9', () => {
@@ -160,22 +158,21 @@ describe('shortcutFor', () => {
     expect(press('c', { target: element('<div></div>') })).toBe('archiveCard');
   });
 
-  it('leaves Space, Enter and the arrows to the drag library', () => {
+  it('leaves Enter and the arrows to the drag library', () => {
     const handle = element('<a data-rfd-drag-handle-draggable-id="card-1"><b>Card</b></a>');
     const inside = handle.firstElementChild ?? handle;
 
-    expect(press(' ', { target: inside })).toBeNull();
     expect(press('Enter', { target: inside })).toBeNull();
     expect(press('ArrowDown', { target: inside })).toBeNull();
     // Everything else still works from a focused handle.
     expect(press('c', { target: inside })).toBe('archiveCard');
 
-    expect(press(' ', {}, 'board', true)).toBeNull();
+    expect(press('ArrowUp', {}, 'board', true)).toBeNull();
     expect(press('ArrowLeft', {}, 'board', true)).toBeNull();
     expect(press('c', {}, 'board', true)).toBe('archiveCard');
   });
 
-  it('leaves Enter and Space to a focused control that activates on them', () => {
+  it('leaves Enter to a focused control that activates on it', () => {
     for (const html of [
       '<button><span>Labels</span></button>',
       '<a href="/b/1"><span>Card</span></a>',
@@ -188,8 +185,7 @@ describe('shortcutFor', () => {
       const target = element(html);
       const inner = target.firstElementChild ?? target;
       expect(press('Enter', { target: inner })).toBeNull();
-      expect(press(' ', { target: inner })).toBeNull();
-      // Only those two keys: the card shortcuts still fire from a focused button.
+      // Only that one key: the card shortcuts still fire from a focused button.
       expect(press('c', { target: inner })).toBe('archiveCard');
       expect(press('3', { target: inner })).toBe('toggleLabelAtIndex');
       // And the arrows keep moving the focus ring, which no button consumes.
@@ -198,7 +194,6 @@ describe('shortcutFor', () => {
 
     // A plain container is not a control, so Enter still opens the current card.
     expect(press('Enter', { target: element('<div></div>') })).toBe('openCard');
-    expect(press(' ', { target: element('<div></div>') })).toBe('toggleSelfMember');
     // An anchor without an href is not a link and activates on nothing.
     expect(press('Enter', { target: element('<a></a>') })).toBe('openCard');
   });

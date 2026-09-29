@@ -32,8 +32,8 @@ export function sortBoardsByName<T extends { id: number; name: string }>(boards:
 
 /**
  * Applies a star or unstar to every cached copy of one board: the flag flips wherever the
- * tile appears, and the tile enters or leaves the Starred group. `recent` and `all`
- * membership never changes — only the flag its `StarButton` reads.
+ * tile appears, and the tile enters or leaves the Starred group. Which boards `recent` and
+ * `all` hold never changes — only the flag their `StarButton` reads.
  */
 export function setBoardStarred<T extends GroupableBoard>(
   groups: BoardGrouping<T>,
@@ -102,24 +102,8 @@ export function boardBackgroundStyle(
 }
 
 /**
- * The initials the server stores on a user (first letters of the first two words,
- * upper-cased, Section 4.2), for names that arrive without them — a workspace badge
- * ("K" with `letters = 1`) or an optimistic row.
- */
-export function initialsFromName(name: string, letters = 2): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .filter((word) => word.length > 0)
-    .slice(0, letters)
-    .map((word) => word.charAt(0))
-    .join('')
-    .toUpperCase();
-}
-
-/**
  * The board's name as the `['boards']` cache already knows it, for the board page's loading
- * header (Section 2.10): a user who arrived from the home page sees the name immediately
+ * header (Section 2.10): arriving from the home page shows the name immediately
  * instead of an empty band. `undefined` when that cache has never been filled or does not
  * hold this board — a direct deep link.
  */

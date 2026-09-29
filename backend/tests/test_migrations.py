@@ -8,22 +8,16 @@ from kanban.models import Base
 #: Section 3.4, plus the FTS5 virtual table that only the migration can create.
 EXPECTED_TABLES = frozenset(
     {
-        "users",
-        "sessions",
         "board_backgrounds",
         "boards",
-        "board_members",
         "board_stars",
         "board_views",
         "lists",
         "cards",
         "labels",
         "card_labels",
-        "card_members",
-        "card_watchers",
         "checklists",
         "checklist_items",
-        "comments",
         "attachments",
         "activities",
         "cards_fts",

@@ -15,7 +15,7 @@ initTheme();
  * when the window regains focus.
  *
  * There is deliberately no global `staleTime`: Section 5.4.1 gives every key its own
- * (`['me']` and `['meta']` Infinity, `['board', id]` 30 s, `['lists', id]` 10 s), and a
+ * (`['meta']` Infinity, `['board', id]` 30 s, `['lists', id]` 10 s), and a
  * blanket 30 s froze the keys that ask for none — `['boards']` kept serving the groups it
  * had when a board was created, so a board opened after that never reached "Recently
  * viewed" until a full page reload.

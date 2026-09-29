@@ -1,4 +1,4 @@
-/* Section 2.6.3: one 32px avatar per entry, comments in a white bubble, activity as a line. */
+/* Section 2.6.3: one sentence per entry with the relative time under it. */
 .feed {
   margin: 0 0 8px;
   padding: 0;
@@ -6,63 +6,7 @@
 }
 
 .row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
   margin-bottom: 16px;
-}
-
-.content {
-  flex: 1;
-  min-width: 0;
-}
-
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: baseline;
-  margin: 0 0 4px;
-}
-
-.name {
-  font-size: var(--fs-body);
-  font-weight: 700;
-  color: var(--text);
-}
-
-.time {
-  font-size: var(--fs-meta);
-  line-height: 16px;
-  color: var(--text-muted);
-}
-
-.edited {
-  font-size: var(--fs-meta);
-  color: var(--text-muted);
-}
-
-/* The white comment card: the same shadow as the collapsed comment box. */
-.bubble {
-  padding: 8px 12px;
-  background: var(--surface);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-card);
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin: 4px 0 0;
-}
-
-/* The dot between "Edit" and "Delete" (Section 2.6.3). */
-.dot {
-  width: 3px;
-  height: 3px;
-  background: var(--text-muted);
-  border-radius: 50%;
 }
 
 .sentence {
@@ -72,12 +16,10 @@
   color: var(--text);
 }
 
-/* A row the server wrote with no actor (a migration, a deleted user). */
-.systemAvatar {
-  width: var(--avatar-modal);
-  height: var(--avatar-modal);
-  background: var(--hover);
-  border-radius: 50%;
+.time {
+  font-size: var(--fs-meta);
+  line-height: 16px;
+  color: var(--text-muted);
 }
 
 .loading {

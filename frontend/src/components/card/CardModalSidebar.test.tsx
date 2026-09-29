@@ -18,7 +18,6 @@ import {
   makeCardDetail,
   makeCardSummary,
   metaFixture,
-  userFixture,
 } from '@/test/handlers';
 import { server } from '@/test/server';
 import { CardModalSidebar } from './CardModalSidebar';
@@ -26,13 +25,8 @@ import { CardModalSidebar } from './CardModalSidebar';
 const BOARD_ID = 7;
 const CARD_ID = 101;
 
-/**
- * Every row of Section 2.6.4 that this milestone turns on, plus the three that were already
- * live: not one of them may be disabled behind a "Coming soon" tooltip any more.
- */
+/** Every row of Section 2.6.4: not one of them may be disabled. */
 const ROWS = [
-  'Join',
-  'Members',
   'Labels',
   'Checklist',
   'Dates',
@@ -41,23 +35,13 @@ const ROWS = [
   'Move',
   'Copy',
   'Make template',
-  'Watch',
   'Archive',
-  'Share',
 ];
 
 /** Every write the sidebar can make, in the order it made them. */
 function recordWrites(): string[] {
   const calls: string[] = [];
   server.use(
-    http.put('/api/cards/:cardId/members/:userId', ({ params }) => {
-      calls.push(`JOIN ${String(params['userId'])}`);
-      return HttpResponse.json({ member_ids: [Number(params['userId'])], board_version: 2 });
-    }),
-    http.put('/api/cards/:cardId/watch', () => {
-      calls.push('WATCH');
-      return HttpResponse.json({ is_watching: true });
-    }),
     http.post('/api/cards/:cardId/archive', ({ params }) => {
       calls.push(`ARCHIVE ${String(params['cardId'])}`);
       const item = makeCardSummary({ id: Number(params['cardId']), is_archived: true });
@@ -76,9 +60,8 @@ function recordWrites(): string[] {
   return calls;
 }
 
-/** A card nobody has joined, so the "Join" row of Section 2.6.4 renders. */
 function card(overrides: Partial<CardDetail> = {}): CardDetail {
-  return makeCardDetail({ id: CARD_ID, member_ids: [], ...overrides });
+  return makeCardDetail({ id: CARD_ID, ...overrides });
 }
 
 function seed(detail: CardDetail): QueryClient {
@@ -93,14 +76,7 @@ function seed(detail: CardDetail): QueryClient {
     normalizeBoard({
       ...boardPayloadFixture,
       board: makeBoardSummary({ id: BOARD_ID }),
-      cards: [
-        makeCardSummary({
-          id: CARD_ID,
-          member_ids: detail.member_ids,
-          is_archived: detail.is_archived,
-          is_watching: detail.is_watching,
-        }),
-      ],
+      cards: [makeCardSummary({ id: CARD_ID, is_archived: detail.is_archived })],
     }),
   );
   return client;
@@ -138,16 +114,15 @@ afterEach(() => {
 });
 
 describe('CardModalSidebar', () => {
-  it('renders every row of Section 2.6.4 live', async () => {
+  it('renders every row of Section 2.6.4 live', () => {
     open();
 
-    // "Join" needs to know who I am before it can render (`GET /api/auth/me`).
     for (const label of ROWS) {
-      expect(await screen.findByRole('button', { name: label })).toBeEnabled();
+      expect(screen.getByRole('button', { name: label })).toBeEnabled();
     }
   });
 
-  it('opens the Move, Copy and Share panels from their own rows', async () => {
+  it('opens the Move and Copy panels from their own rows', async () => {
     const user = userEvent.setup();
     open();
 
@@ -162,23 +137,6 @@ describe('CardModalSidebar', () => {
 
     await user.click(screen.getByRole('button', { name: 'Copy' }));
     expect(await screen.findByRole('button', { name: 'Create card' })).toBeInTheDocument();
-    await user.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Share' }));
-    expect(await screen.findByText(`Card #${makeCardSummary().short_id}`)).toBeInTheDocument();
-  });
-
-  it('joins the card and starts watching it', async () => {
-    const user = userEvent.setup();
-    const calls = recordWrites();
-    open();
-
-    await user.click(await screen.findByRole('button', { name: 'Join' }));
-    await waitFor(() => expect(calls).toEqual([`JOIN ${userFixture.id}`]));
-
-    await user.click(screen.getByRole('button', { name: 'Watch' }));
-    await waitFor(() => expect(calls).toEqual([`JOIN ${userFixture.id}`, 'WATCH']));
   });
 
   it('archives with the Undo toast that sends the card back', async () => {

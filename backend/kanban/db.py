@@ -6,8 +6,8 @@ discipline it implements is the reason "readers never block" holds literally:
 * the `connect` listener applies the PRAGMAs and sets `dbapi_conn.isolation_level = None`, so
   pysqlite stops emitting its own implicit deferred `BEGIN`;
 * the `begin` listener issues `BEGIN IMMEDIATE` only for a connection procured with
-  `execution_options(write=True)` - which only `write_tx()` and `user_write()` do - and a plain
-  deferred `BEGIN` (a WAL read snapshot) for everything else.
+  `execution_options(write=True)` - which only `write_tx()` and `unversioned_write()` do - and
+  a plain deferred `BEGIN` (a WAL read snapshot) for everything else.
 """
 
 import logging
@@ -155,12 +155,13 @@ def write_tx(db: Session, board_ids: Iterable[int] = ()) -> Iterator[WriteCtx]:
 
 
 @contextmanager
-def user_write(db: Session) -> Iterator[None]:
-    """The per-user writes that bypass `write_tx` (Section 4.1).
+def unversioned_write(db: Session) -> Iterator[None]:
+    """The writes that bypass `write_tx` (Section 4.1).
 
-    The `board_views` upsert, star, watch and the session slide run by `current_user`: the same
-    lock discipline (end the read snapshot, BEGIN IMMEDIATE, one statement, COMMIT) with no
-    version bump, no activity row and no event. Never call it with a `write_tx` open.
+    The `board_views` upsert and the star toggle: the same lock discipline (end the read snapshot,
+    BEGIN IMMEDIATE, one statement, COMMIT) with no version bump, no activity row and no event.
+    Neither changes anything the board document renders, so bumping the version would make every
+    open tab refetch for a row nothing displays. Never call it with a `write_tx` open.
     """
     db.rollback()
     with db.begin():

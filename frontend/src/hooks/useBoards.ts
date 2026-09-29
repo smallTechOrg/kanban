@@ -1,7 +1,6 @@
 /**
  * The board queries and mutations of Section 4.3, keyed exactly as Section 5.4.1 defines:
- * `['boards']`, `['boards', 'closed']`, `['board', boardId]`. A board's members need no key
- * of their own: the board payload carries `members[]`, which `useMembers` reads.
+ * `['boards']`, `['boards', 'closed']`, `['board', boardId]`.
  *
  * Starring is optimistic (CLAUDE.md section 5): snapshot, move the tile between groups,
  * roll back with a toast. The rest write the server's authoritative row into the cache and
@@ -45,9 +44,8 @@ const selectClosedBoards = (data: ClosedBoards): BoardSummary[] => sortBoardsByN
  * Writes a mutation's authoritative `BoardSummary` into the cached board document.
  *
  * `['board', boardId]` holds the normalised `BoardState` of Section 5.4.2 (`useBoardData`
- * fills it), whose `board` field is exactly the row these mutations return, so a rename, a
- * visibility change or a reopen is one field write and the lists, cards and members
- * around it are untouched.
+ * fills it), whose `board` field is exactly the row these mutations return, so a rename or a
+ * reopen is one field write and the lists and cards around it are untouched.
  */
 function mergeBoard(previous: BoardState | undefined, item: BoardSummary): BoardState | undefined {
   return previous === undefined ? undefined : { ...previous, board: item };
@@ -87,7 +85,7 @@ export function useCreateBoard(): UseMutationResult<BoardSummary, Error, CreateB
   });
 }
 
-/** `PATCH /api/boards/{board_id}` — rename, description, visibility and background. */
+/** `PATCH /api/boards/{board_id}` — rename, description and background. */
 export function useUpdateBoard(
   boardId: number,
 ): UseMutationResult<Mutated<BoardSummary>, Error, UpdateBoardInput> {

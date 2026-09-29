@@ -33,19 +33,15 @@ export type ShortcutAction =
   | 'openShortcuts'
   | 'closeTopmost'
   | 'openFilter'
-  | 'toggleMineFilter'
   | 'clearFilters'
   | 'toggleBoardMenu'
   | 'openCard'
   | 'quickEdit'
   | 'quickEditTitle'
   | 'composeBelow'
-  | 'toggleSelfMember'
   | 'openLabels'
-  | 'openMembers'
   | 'openDates'
   | 'archiveCard'
-  | 'toggleWatch'
   | 'toggleLabelAtIndex'
   | 'moveToPreviousList'
   | 'moveToNextList'
@@ -64,7 +60,7 @@ export interface Shortcut {
   description: string;
 }
 
-/** The four Global-scope keys, live on every page including Home and `/w/*` (Section 2.8). */
+/** The four Global-scope keys, live on every page including Home (Section 2.8). */
 export const global: readonly Shortcut[] = [
   {
     keys: ['/'],
@@ -104,13 +100,6 @@ export const board: readonly Shortcut[] = [
     action: 'openFilter',
     group: 'Board',
     description: 'Open the Filter popover',
-  },
-  {
-    keys: ['Q'],
-    chips: ['Q'],
-    action: 'toggleMineFilter',
-    group: 'Board',
-    description: 'Toggle the "Cards assigned to me" filter',
   },
   {
     keys: ['X'],
@@ -183,25 +172,11 @@ export const board: readonly Shortcut[] = [
     description: 'Add a card below the current one',
   },
   {
-    keys: ['Space'],
-    chips: ['Space'],
-    action: 'toggleSelfMember',
-    group: 'Card',
-    description: 'Assign or unassign yourself',
-  },
-  {
     keys: ['L'],
     chips: ['L'],
     action: 'openLabels',
     group: 'Card',
     description: 'Open the Labels popover',
-  },
-  {
-    keys: ['M'],
-    chips: ['M'],
-    action: 'openMembers',
-    group: 'Card',
-    description: 'Open the Members popover',
   },
   {
     keys: ['D'],
@@ -216,13 +191,6 @@ export const board: readonly Shortcut[] = [
     action: 'archiveCard',
     group: 'Card',
     description: 'Archive the card (with an Undo toast)',
-  },
-  {
-    keys: ['S'],
-    chips: ['S'],
-    action: 'toggleWatch',
-    group: 'Card',
-    description: 'Watch or unwatch the card',
   },
   {
     keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
@@ -250,7 +218,7 @@ export const board: readonly Shortcut[] = [
     chips: ['Ctrl', 'Enter'],
     action: null,
     group: 'Editors',
-    description: 'Submit the focused description, comment, card or list composer',
+    description: 'Submit the focused description, card or list composer',
   },
   {
     keys: [],
@@ -278,15 +246,12 @@ export const board: readonly Shortcut[] = [
   },
 ];
 
-/** The keys the DnD library owns while a drag is live or a handle has focus (Section 2.8). */
-const DRAG_KEYS: readonly string[] = [
-  'Space',
-  'Enter',
-  'ArrowUp',
-  'ArrowDown',
-  'ArrowLeft',
-  'ArrowRight',
-];
+/**
+ * The keys of the tables above that the DnD library owns while a drag is live or a handle has
+ * focus (Section 2.8). Space is the library's alone — no row of either table claims it — so it
+ * needs no entry: nothing here would ever `preventDefault` it away from the sensor.
+ */
+const DRAG_KEYS: readonly string[] = ['Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
 /** The dispatch table of Section 5.9: one normalised key to one action, per scope. */
 function buildDispatch(rows: readonly Shortcut[]): Map<string, ShortcutAction> {
@@ -346,8 +311,8 @@ export function isDragHandleTarget(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest(DRAG_HANDLE_SELECTOR) !== null;
 }
 
-/** The two keys a focused control activates on by itself. */
-const ACTIVATION_KEYS: readonly string[] = ['Enter', 'Space'];
+/** `Enter` is the one key these tables claim that a focused control activates on by itself. */
+const ACTIVATION_KEYS: readonly string[] = ['Enter'];
 
 /**
  * Everything the browser (or an ARIA widget) activates when Enter or Space is pressed on it
@@ -376,11 +341,11 @@ const ACTIVATABLE_SELECTOR = [
  * Section 2.8's guards name text fields and drag handles, but the same rule has to hold for a
  * focused button: a keystroke this handler claims is `preventDefault`ed, and `preventDefault`
  * on an `Enter` keydown cancels the button's native activation. With a card open — which makes
- * `openCardId` the "current card" of Section 2.8 — that silently disabled Enter and Space on
- * every button in the modal, so a keyboard-only reader could not reach the Labels popover at
- * all while a mouse user could (Section 5.10, "every interactive element is reachable by
- * keyboard"). Only those two keys are affected; a focused button ignores `L`, `C` or `1`, so
- * the card shortcuts still fire while the focus sits on one.
+ * `openCardId` the "current card" of Section 2.8 — that silently disabled Enter on every button
+ * in the modal, so a keyboard-only reader could not reach the Labels popover at all while a
+ * mouse user could (Section 5.10, "every interactive element is reachable by keyboard"). Only
+ * that one key is affected; a focused button ignores `L`, `C` or `1`, so the card shortcuts
+ * still fire while the focus sits on one.
  */
 export function isActivatableTarget(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest(ACTIVATABLE_SELECTOR) !== null;
@@ -390,8 +355,8 @@ export function isActivatableTarget(target: EventTarget | null): boolean {
  * The action one keystroke asks for in one scope, or `null` when the key belongs to somebody
  * else: a modifier combination (`Ctrl/Cmd+Enter` is the focused editor's, and Trello's copy-paste
  * shortcuts are deliberately not implemented), an IME composition, a field being typed in
- * (Escape excepted), Space / Enter / an arrow while a drag is live or a handle has focus, or
- * Space / Enter on a control that activates on them itself (`isActivatableTarget`).
+ * (Escape excepted), Enter or an arrow while a drag is live or a handle has focus, or Enter on a
+ * control that activates on it itself (`isActivatableTarget`).
  */
 export function shortcutFor(
   scope: ShortcutScope,

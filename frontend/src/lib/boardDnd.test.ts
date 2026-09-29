@@ -4,7 +4,6 @@ import {
   CARD_DRAG_TYPE,
   LIST_DRAG_TYPE,
   cardDragId,
-  isDragLocked,
   listDropId,
   moveFromDrop,
   parseCardId,
@@ -47,12 +46,6 @@ describe('drag ids', () => {
     expect(parseListId('card-101')).toBeNull();
     expect(parseCardId(BOARD_DROPPABLE_ID)).toBeNull();
     expect(parseListId('list-abc')).toBeNull();
-  });
-
-  it('locks dragging for an observer only', () => {
-    expect(isDragLocked('observer')).toBe(true);
-    expect(isDragLocked('member')).toBe(false);
-    expect(isDragLocked(undefined)).toBe(false);
   });
 });
 

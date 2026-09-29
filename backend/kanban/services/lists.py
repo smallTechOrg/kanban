@@ -2,7 +2,7 @@
 
 Every mutation here opens exactly one `write_tx()`, takes its positions from `ordering.py` and
 records its activity rows through `activity.record()`. Permission checks are not repeated: by the
-time a router calls in, `auth.board_access(min_role)` has resolved the caller's role on the board
+time a router calls in, `access.board_access()` has resolved the board
 the list belongs to, and the `board_id` each function receives is the one it resolved. Each
 mutation re-reads the list under the write lock, because the router's read snapshot is gone by
 then and may be stale (Section 6.7.2 step 6).
@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from kanban import activity, copy, storage
 from kanban.db import write_tx
 from kanban.errors import BadRequest, Conflict, NotFound
-from kanban.models import Card, List, User
+from kanban.models import Card, List
 from kanban.ordering import check_neighbours, place_in_container, renumber
 from kanban.services.boards import orphaned_upload_ids
 from kanban.services.cards import (
@@ -25,7 +25,6 @@ from kanban.services.cards import (
     board_name,
     next_short_id,
     reassign_board,
-    record_copied_comments,
     target_board,
 )
 
@@ -139,7 +138,7 @@ def _destination_list(db: Session, *, list_id: int, board_id: int, to_list_id: i
 def list_lists(db: Session, *, board_id: int) -> list[dict[str, Any]]:
     """The board's active lists with their active card counts (Section 4.4).
 
-    One query: the lists left-joined onto their non-archived cards. Observer role suffices, which
+    One query: the lists left-joined onto their non-archived cards. It is a read, which
     is what the router's read dependency enforces.
     """
     rows = db.execute(
@@ -153,7 +152,7 @@ def list_lists(db: Session, *, board_id: int) -> list[dict[str, Any]]:
 
 
 def create_list(
-    db: Session, user: User, *, board_id: int, name: str, index: int | None
+    db: Session, *, board_id: int, name: str, index: int | None
 ) -> tuple[dict[str, Any], int]:
     """Add a list to a board; an absent `index` appends (Sections 4.4 and 3.6).
 
@@ -164,13 +163,13 @@ def create_list(
         row = List(board_id=board_id, name=name, position=position)
         db.add(row)
         db.flush()  # the id the activity row references
-        activity.record(ctx, "list.created", user_id=user.id, list_id=row.id, list_name=name)
+        activity.record(ctx, "list.created", list_id=row.id, list_name=name)
         list_id = row.id
     return _load_list(db, list_id), ctx.board_version
 
 
 def update_list(
-    db: Session, user: User, *, list_id: int, board_id: int, changes: dict[str, Any]
+    db: Session, *, list_id: int, board_id: int, changes: dict[str, Any]
 ) -> tuple[dict[str, Any], int]:
     """Rename a list or change its colour (Section 4.4).
 
@@ -184,7 +183,6 @@ def update_list(
             activity.record(
                 ctx,
                 "list.renamed",
-                user_id=user.id,
                 list_id=list_id,
                 **{"from": row.name, "to": changes["name"]},
             )
@@ -194,7 +192,6 @@ def update_list(
             activity.record(
                 ctx,
                 "list.color_changed",
-                user_id=user.id,
                 list_id=list_id,
                 list_name=row.name,
                 color=row.color,
@@ -204,7 +201,6 @@ def update_list(
 
 def move_list(
     db: Session,
-    user: User,
     *,
     list_id: int,
     board_id: int,
@@ -223,12 +219,12 @@ def move_list(
     boards** (`write_tx(db, [source, target])`), exactly as the cross-board card move of
     `services.cards.move_card`: every card of the column - archived ones included, because they
     belong to the list and come back with it - goes through `services.cards.reassign_board`, so
-    each gets a fresh `short_id` on the target board and loses its labels and any member or watcher
-    who is not a member there. The rows are `list.moved_out` on the source board with the source's
+    each gets a fresh `short_id` on the target board and loses its labels, which belong to the
+    board it left. The rows are `list.moved_out` on the source board with the source's
     version and `list.moved_in` on the target with the target's, both bumped in the same COMMIT, so
     the column can never be missing from both boards. The returned version is the destination's.
 
-    Raises `Forbidden` (403) when the caller may not write to `to_board_id`, `Conflict` (409) when
+    Raises `NotFound` (404) when `to_board_id` names no board, `Conflict` (409) when
     it is closed, `BadRequest` (400) when a neighbour is the list itself or belongs to another
     board, and `Busy` (503).
     """
@@ -237,7 +233,7 @@ def move_list(
     assert destination_board_id is not None  # `crossing` is False when `to_board_id` is None
     # Checked before the transaction opens: `write_tx` reads the version of every board it is
     # given, so a board the caller may not write to must never reach it.
-    other_board = target_board(db, user, board_id=destination_board_id) if crossing else None
+    other_board = target_board(db, board_id=destination_board_id) if crossing else None
     with write_tx(db, [board_id, destination_board_id] if crossing else [board_id]) as ctx:
         row = _locked_list(db, list_id=list_id, board_id=board_id)
         check_neighbours(
@@ -265,7 +261,6 @@ def move_list(
             activity.record(
                 ctx,
                 "list.moved",
-                user_id=user.id,
                 list_id=list_id,
                 list_name=row.name,
                 index=index,
@@ -284,7 +279,6 @@ def move_list(
                 activity.record(
                     ctx,
                     type_,
-                    user_id=user.id,
                     list_id=list_id,
                     board_id=feed_board_id,
                     list_name=row.name,
@@ -296,20 +290,18 @@ def move_list(
 
 
 def copy_list(
-    db: Session, user: User, *, list_id: int, board_id: int, name: str, index: int | None
+    db: Session, *, list_id: int, board_id: int, name: str, index: int | None
 ) -> tuple[dict[str, Any], int]:
     """Copy a list and its non-archived cards (Section 4.4).
 
     An absent `index` puts the copy directly after the source. What a copied card *is* - its
-    columns, its labels and members, its checklists with their items, its attachments with their
-    files and its comments - belongs to `kanban/copy.py`, which the card copy of Section 4.5 shares
-    (CLAUDE.md section 3); this function owns the request: the destination slot, the first of the
-    consecutive `short_id`s the copies take and the activity rows. Which cards travel is the rule
-    here: the active ones, so an archived card is not silently resurrected as a copy.
+    columns, its labels, its checklists with their items and its attachments with their files -
+    belongs to `kanban/copy.py`, which the card copy of Section 4.5 shares (CLAUDE.md section 3);
+    this function owns the request: the destination slot, the first of the consecutive `short_id`s
+    the copies take and the activity rows. Which cards travel is the rule here: the active ones, so
+    an archived card is not silently resurrected as a copy.
 
-    Activity `list.copied`, plus one `card.copied` per copied card and one `comment.added` per
-    comment that came along (the card feed is driven by `activities` alone, Section 3.8). Raises
-    `Busy` (503).
+    Activity `list.copied`, plus one `card.copied` per copied card. Raises `Busy` (503).
     """
     with write_tx(db, [board_id]) as ctx:
         source = _locked_list(db, list_id=list_id, board_id=board_id)
@@ -324,12 +316,10 @@ def copy_list(
             position=position,
             cards=cards,
             short_id=next_short_id(db, board_id),
-            created_by=user.id,
         )
         activity.record(
             ctx,
             "list.copied",
-            user_id=user.id,
             list_id=result.list.id,
             list_name=name,
             source_list_id=list_id,
@@ -340,7 +330,6 @@ def copy_list(
             activity.record(
                 ctx,
                 "card.copied",
-                user_id=user.id,
                 card_id=copied.card.id,
                 list_id=result.list.id,
                 card_title=copied.card.title,
@@ -349,36 +338,31 @@ def copy_list(
                 source_list_name=source.name,
                 list_name=name,
             )
-            record_copied_comments(ctx, copied, list_id=result.list.id)
         copy_id = result.list.id
     return _load_list(db, copy_id), ctx.board_version
 
 
-def archive_list(
-    db: Session, user: User, *, list_id: int, board_id: int
-) -> tuple[dict[str, Any], int]:
+def archive_list(db: Session, *, list_id: int, board_id: int) -> tuple[dict[str, Any], int]:
     """Archive a list; its cards stay attached and are hidden with it (Sections 3.7 and 6.8).
 
     `position` is retained, so `unarchive_list` restores the original slot. Activity
     `list.archived`. Raises `Busy` (503).
     """
-    return _set_archived(db, user, list_id=list_id, board_id=board_id, archived=True)
+    return _set_archived(db, list_id=list_id, board_id=board_id, archived=True)
 
 
-def unarchive_list(
-    db: Session, user: User, *, list_id: int, board_id: int
-) -> tuple[dict[str, Any], int]:
+def unarchive_list(db: Session, *, list_id: int, board_id: int) -> tuple[dict[str, Any], int]:
     """Send an archived list back to the board, into its old slot (Sections 3.6 and 4.4).
 
     The neighbour query of `ordering.place_in_container` counts archived rows, so the retained
     `position` is still a valid slot and nothing is renumbered. Activity `list.unarchived`.
     Raises `Busy` (503).
     """
-    return _set_archived(db, user, list_id=list_id, board_id=board_id, archived=False)
+    return _set_archived(db, list_id=list_id, board_id=board_id, archived=False)
 
 
 def _set_archived(
-    db: Session, user: User, *, list_id: int, board_id: int, archived: bool
+    db: Session, *, list_id: int, board_id: int, archived: bool
 ) -> tuple[dict[str, Any], int]:
     """The one write behind `/archive` and `/unarchive`: flip the flag, record the activity."""
     with write_tx(db, [board_id]) as ctx:
@@ -387,7 +371,6 @@ def _set_archived(
         activity.record(
             ctx,
             "list.archived" if archived else "list.unarchived",
-            user_id=user.id,
             list_id=list_id,
             list_name=row.name,
         )
@@ -413,7 +396,7 @@ def delete_list(db: Session, *, list_id: int, board_id: int) -> None:
 
 
 def move_all_cards(
-    db: Session, user: User, *, list_id: int, board_id: int, to_list_id: int
+    db: Session, *, list_id: int, board_id: int, to_list_id: int
 ) -> tuple[int, dict[int, float], int]:
     """Move every active card of a list to another list of the same board (Section 4.4).
 
@@ -438,7 +421,6 @@ def move_all_cards(
             activity.record(
                 ctx,
                 "card.moved",
-                user_id=user.id,
                 card_id=card.id,
                 list_id=to_list_id,
                 card_title=card.title,
@@ -451,9 +433,7 @@ def move_all_cards(
     return len(moving), positions, ctx.board_version
 
 
-def archive_all_cards(
-    db: Session, user: User, *, list_id: int, board_id: int
-) -> tuple[list[int], int]:
+def archive_all_cards(db: Session, *, list_id: int, board_id: int) -> tuple[list[int], int]:
     """Archive every active card of a list in one transaction (Section 4.4).
 
     Returns the archived ids in `position` order, which the Undo toast hands straight back to
@@ -467,7 +447,6 @@ def archive_all_cards(
             activity.record(
                 ctx,
                 "card.archived",
-                user_id=user.id,
                 card_id=card.id,
                 list_id=list_id,
                 card_title=card.title,
@@ -477,7 +456,7 @@ def archive_all_cards(
 
 
 def unarchive_cards(
-    db: Session, user: User, *, list_id: int, board_id: int, card_ids: Sequence[int]
+    db: Session, *, list_id: int, board_id: int, card_ids: Sequence[int]
 ) -> tuple[int, int]:
     """Undo "Archive all cards": restore the listed cards of this list (Section 4.4).
 
@@ -508,7 +487,6 @@ def unarchive_cards(
             activity.record(
                 ctx,
                 "card.unarchived",
-                user_id=user.id,
                 card_id=card.id,
                 list_id=list_id,
                 card_title=card.title,
@@ -517,9 +495,7 @@ def unarchive_cards(
     return restored, ctx.board_version
 
 
-def sort_list(
-    db: Session, user: User, *, list_id: int, board_id: int, by: str
-) -> tuple[dict[int, float], int]:
+def sort_list(db: Session, *, list_id: int, board_id: int, by: str) -> tuple[dict[int, float], int]:
     """Sort a list's active cards and renumber them `STEP, 2*STEP, ...` (Sections 4.4 and 3.6).
 
     `by` is one of `created_desc`, `created_asc`, `title` (card name) or `due`, which sorts cards
@@ -535,7 +511,6 @@ def sort_list(
             activity.record(
                 ctx,
                 "card.reordered",
-                user_id=user.id,
                 card_id=card.id,
                 list_id=list_id,
                 card_title=card.title,

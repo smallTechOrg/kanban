@@ -94,7 +94,7 @@ describe('CreateBoardPopover', () => {
     );
   });
 
-  it('sends the chosen background, visibility and default lists, then opens the board', async () => {
+  it('sends the chosen background and default lists, then opens the board', async () => {
     const user = userEvent.setup();
     useFullPalette();
     const captured = recordCreate();
@@ -102,14 +102,12 @@ describe('CreateBoardPopover', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Ocean gradient background' }));
     await user.type(screen.getByLabelText('Board title *'), 'Roadmap');
-    await user.selectOptions(screen.getByLabelText('Visibility'), 'workspace');
     await user.click(screen.getByLabelText('Start with default lists'));
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() =>
       expect(captured.input).toEqual({
         name: 'Roadmap',
-        visibility: 'workspace',
         default_lists: false,
         background_type: 'gradient',
         background_value: GRADIENT_KEY,

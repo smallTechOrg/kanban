@@ -13,9 +13,7 @@ import {
   labelFixtures,
   makeBoardSummary,
   makeCardSummary,
-  memberFixture,
   metaFixture,
-  userFixture,
 } from '@/test/handlers';
 import { BoardCanvas } from './BoardCanvas';
 import { BoardHeader } from './BoardHeader';
@@ -37,14 +35,13 @@ function cardClass(name: string): string {
 const TILE = cardClass('tile');
 const HIDDEN = cardClass('hidden');
 
-/** Two cards that differ in title, label, member, due date, status and last activity. */
+/** Two cards that differ in title, label, due date, status and last activity. */
 function cards(): CardSummary[] {
   return [
     makeCardSummary({
       id: 101,
       title: 'Launch plan',
       label_ids: [BUG_FIX],
-      member_ids: [memberFixture.id],
       due_at: new Date(Date.now() - DAY_MS).toISOString(),
       due_complete: false,
       updated_at: new Date(Date.now() - DAY_MS).toISOString(),
@@ -54,7 +51,6 @@ function cards(): CardSummary[] {
       title: 'Launch notes',
       position: 2 * 65536,
       label_ids: [],
-      member_ids: [],
       due_at: null,
       due_complete: true,
       updated_at: new Date(Date.now() - 40 * DAY_MS).toISOString(),
@@ -70,21 +66,19 @@ function UrlProbe(): ReactElement {
 
 /**
  * The header, one list of tiles and the URL probe: everything the filter touches, with the
- * board, the palette and `['me']` seeded so no assertion waits on the network.
+ * board and the palette seeded so no assertion waits on the network.
  */
 function renderBoard(route = `/b/${BOARD_ID}`, rows: CardSummary[] = cards()): void {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
   client.setQueryData(['meta'], metaFixture);
-  client.setQueryData(['me'], userFixture);
   client.setQueryData(
     boardKey(BOARD_ID),
     normalizeBoard({
       ...boardPayloadFixture,
       board: makeBoardSummary({ id: BOARD_ID }),
       labels: labelFixtures,
-      members: [memberFixture],
       cards: rows,
     }),
   );
@@ -149,7 +143,7 @@ describe('FilterPopover', () => {
     expect(isVisible('Launch plan')).toBe(false);
   });
 
-  it('narrows by label, member, status, due date and activity', async () => {
+  it('narrows by label, status, due date and activity', async () => {
     const user = userEvent.setup();
     renderBoard();
     const panel = await openFilter();
@@ -158,11 +152,6 @@ describe('FilterPopover', () => {
     expect(isVisible('Launch plan')).toBe(true);
     expect(isVisible('Launch notes')).toBe(false);
     await user.click(within(panel).getByRole('checkbox', { name: /Bug fix/ }));
-
-    await user.click(within(panel).getByRole('checkbox', { name: 'Cards assigned to me' }));
-    expect(isVisible('Launch plan')).toBe(true);
-    expect(isVisible('Launch notes')).toBe(false);
-    await user.click(within(panel).getByRole('checkbox', { name: 'Cards assigned to me' }));
 
     await user.click(within(panel).getByRole('checkbox', { name: 'Marked as complete' }));
     expect(isVisible('Launch notes')).toBe(true);

@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Calendar, MoreHorizontal, User, X } from 'lucide-react';
-import { Avatar, Button, IconButton, MenuRow, Popover, Textarea, cx } from '@/components/ui';
-import { useMembers } from '@/hooks/useBoardData';
+import { Calendar, MoreHorizontal, X } from 'lucide-react';
+import { Button, IconButton, MenuRow, Popover, Textarea, cx } from '@/components/ui';
 import {
   useConvertChecklistItem,
   useDeleteChecklistItem,
@@ -12,7 +11,6 @@ import type { ChecklistItem } from '@/api/types';
 import { isTempId } from '@/lib/boardState';
 import { itemDragId } from '@/lib/cardDnd';
 import { formatDate, formatDateTime } from '@/lib/dates';
-import { ItemAssignPopover } from './ItemAssignPopover';
 import { ItemDuePopover } from './ItemDuePopover';
 import styles from './ChecklistItemRow.module.css';
 
@@ -22,15 +20,12 @@ export interface ChecklistItemRowProps {
   item: ChecklistItem;
   /** The row's slot in the checklist's rendered order, which is the `Draggable` index. */
   index: number;
-  /** Observers read a card but never write to it (Section 4.1). */
-  readOnly?: boolean;
 }
 
 /**
- * One checklist row (Section 2.6.3): the 16px checkbox, the item text, its due badge and
- * assignee avatar, and on hover the calendar and person icons plus the three-dots menu with
- * "Convert to card" and "Delete". Clicking the text opens the inline editor — a `Textarea`, a
- * `primary` "Save" and a close X.
+ * One checklist row (Section 2.6.3): the 16px checkbox, the item text and its due badge, and on
+ * hover the calendar icon plus the three-dots menu with "Convert to card" and "Delete". Clicking
+ * the text opens the inline editor — a `Textarea`, a `primary` "Save" and a close X.
  *
  * The row is a `<Draggable>` of its checklist's `CHECKLIST_ITEM` droppable, so an item can be
  * reordered inside its checklist or dragged into another one on the same card; the drop itself
@@ -45,22 +40,18 @@ export function ChecklistItemRow({
   cardId,
   item,
   index,
-  readOnly = false,
 }: ChecklistItemRowProps): ReactElement {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.name);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [duePanel, setDuePanel] = useState<HTMLElement | null>(null);
-  const [assignPanel, setAssignPanel] = useState<HTMLElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const update = useUpdateChecklistItem(boardId, cardId);
   const remove = useDeleteChecklistItem(boardId, cardId);
   const convert = useConvertChecklistItem(boardId, cardId);
-  const assignee = useMembers(boardId).data?.find((member) => member.id === item.assignee_id);
 
-  const pending = isTempId(item.id);
-  const locked = readOnly || pending;
+  const locked = isTempId(item.id);
 
   useEffect(() => {
     if (!editing) return;
@@ -156,10 +147,6 @@ export function ChecklistItemRow({
             </span>
           )}
 
-          {assignee === undefined ? null : (
-            <Avatar name={assignee.full_name} color={assignee.avatar_color} tooltip />
-          )}
-
           {locked ? null : (
             <div className={styles.actions}>
               <IconButton
@@ -169,14 +156,6 @@ export function ChecklistItemRow({
                 onClick={(event) => setDuePanel(event.currentTarget)}
               >
                 <Calendar aria-hidden="true" />
-              </IconButton>
-              <IconButton
-                size="sm"
-                label={`Assign ${item.name}`}
-                tooltip="Assign"
-                onClick={(event) => setAssignPanel(event.currentTarget)}
-              >
-                <User aria-hidden="true" />
               </IconButton>
               <IconButton
                 size="sm"
@@ -196,16 +175,6 @@ export function ChecklistItemRow({
               item={item}
               anchor={duePanel}
               onClose={() => setDuePanel(null)}
-            />
-          )}
-
-          {assignPanel === null ? null : (
-            <ItemAssignPopover
-              boardId={boardId}
-              cardId={cardId}
-              item={item}
-              anchor={assignPanel}
-              onClose={() => setAssignPanel(null)}
             />
           )}
 

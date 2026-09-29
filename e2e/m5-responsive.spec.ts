@@ -19,21 +19,15 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 const FIRST_LIST = 'To Do';
 const DOING = 'Doing';
 
-const BOARD = 'M5 responsive';
+/** A fresh board name per run, so the spec also passes against a database that is not empty. */
+const suffix = `${Date.now()}`.slice(-9);
+
+const BOARD = `M5 responsive ${suffix}`;
 const CARDS = ['Audit the gutters', 'Stack the sidebar'] as const;
 
 /** Section 2.9.4's two bands: one width inside 768-1023, one phone. */
 const TABLET = { width: 1000, height: 800 };
 const PHONE = { width: 390, height: 844 };
-
-/** A fresh account per run, so the spec also passes against a database that is not empty. */
-const suffix = `${Date.now()}`.slice(-9);
-const user = {
-  fullName: 'Noor Haddad',
-  email: `noor_${suffix}@example.com`,
-  username: `noor_${suffix}`,
-  password: 'correct-horse-battery',
-};
 
 test.use({ viewport: PHONE, hasTouch: true });
 
@@ -106,16 +100,9 @@ async function touchDrag(page: Page, handle: Locator, dy: number): Promise<void>
 test.describe.configure({ mode: 'serial' });
 
 test('M5: responsive breakpoints and a touch drag on a phone viewport', async ({ page }) => {
-  await test.step('1. register and create a board with the default lists', async () => {
+  await test.step('1. create a board with the default lists', async () => {
     await page.setViewportSize(TABLET);
-    await page.goto('/register');
-    await page.getByLabel('Full name').fill(user.fullName);
-    await page.getByLabel('Email').fill(user.email);
-    await page.getByLabel('Username').fill(user.username);
-    await page.getByLabel('Password').fill(user.password);
-    await page.getByRole('button', { name: 'Sign up' }).click();
-    await expect(page).toHaveURL('http://127.0.0.1:8020/');
-
+    await page.goto('/');
     await page.getByRole('button', { name: 'Create new board' }).click();
     const popover = page.getByRole('dialog', { name: 'Create board' });
     await popover.getByLabel('Board title *').fill(BOARD);
@@ -151,18 +138,18 @@ test('M5: responsive breakpoints and a touch drag on a phone viewport', async ({
     await header(page).getByRole('button', { name: 'Boards', exact: true }).click();
     await expect(page).toHaveURL('http://127.0.0.1:8020/');
 
-    const nav = page.getByRole('navigation', { name: 'Workspace' });
-    const boards = await box(nav.getByRole('link', { name: 'Boards' }).first());
-    const templates = await box(nav.getByRole('button', { name: 'Templates' }));
+    const nav = await box(page.getByRole('navigation', { name: 'Boards' }));
+    const grid = await box(page.getByRole('button', { name: 'Create new board' }));
 
-    // A strip, not a column: the first two rows share a baseline and sit side by side.
-    expect(Math.abs(boards.y - templates.y)).toBeLessThan(2);
-    expect(templates.x).toBeGreaterThan(boards.x);
+    // A strip, not a column: it spans the content instead of taking 240px beside it, and the
+    // boards start below it rather than to its right (Section 2.9.4).
+    expect(nav.w).toBeGreaterThan(TABLET.width / 2);
+    expect(nav.y + nav.h).toBeLessThanOrEqual(grid.y);
   });
 
   await test.step('5. <768px: 16px gutters and no horizontal page scroll', async () => {
     await page.setViewportSize(PHONE);
-    const heading = await box(page.getByRole('heading', { name: 'Your workspaces' }));
+    const heading = await box(page.getByRole('heading', { name: 'Your boards' }));
     expect(heading.x).toBeGreaterThanOrEqual(16);
     expect(heading.x).toBeLessThanOrEqual(24);
 

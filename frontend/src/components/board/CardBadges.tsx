@@ -1,14 +1,5 @@
 import { memo, type ReactElement } from 'react';
-import {
-  AlignLeft,
-  Check,
-  CheckSquare,
-  Clock,
-  Eye,
-  MessageSquare,
-  Paperclip,
-  Square,
-} from 'lucide-react';
+import { AlignLeft, Check, CheckSquare, Clock, Paperclip, Square } from 'lucide-react';
 import { Tooltip, cx } from '@/components/ui';
 import { cardBadges, type CardBadge, type DueState } from '@/lib/badges';
 import type { CardRow } from '@/lib/boardState';
@@ -35,16 +26,12 @@ const DUE_TITLE: Record<DueState, string> = {
 /** The accessible name of one badge; the icon itself is always `aria-hidden`. */
 function badgeTitle(badge: CardBadge): string {
   switch (badge.kind) {
-    case 'watch':
-      return 'You are watching this card';
     case 'due':
       return DUE_TITLE[badge.state ?? 'none'];
     case 'start':
       return 'Start date';
     case 'description':
       return DESCRIPTION_TOOLTIP;
-    case 'comments':
-      return 'Comments';
     case 'attachments':
       return 'Attachments';
     case 'checklist':
@@ -54,8 +41,6 @@ function badgeTitle(badge: CardBadge): string {
 
 function badgeIcon(badge: CardBadge): ReactElement {
   switch (badge.kind) {
-    case 'watch':
-      return <Eye aria-hidden="true" />;
     case 'due':
       return badge.state === 'complete' ? (
         <Check aria-hidden="true" />
@@ -66,8 +51,6 @@ function badgeIcon(badge: CardBadge): ReactElement {
       return <Clock aria-hidden="true" />;
     case 'description':
       return <AlignLeft aria-hidden="true" />;
-    case 'comments':
-      return <MessageSquare aria-hidden="true" />;
     case 'attachments':
       return <Paperclip aria-hidden="true" />;
     case 'checklist':
@@ -92,10 +75,9 @@ export interface CardBadgesProps {
  * component only paints them, in that order, and renders nothing at all when the card has none —
  * a zero count is an absent badge, not a "0".
  *
- * Every badge lights up from the card's own row — the paperclip from `badges.attachments` and
- * the eye from `is_watching`, both of which the board payload carries — and the two checklist
- * numbers are recomputed on the spot by `lib/badges.ts`, so ticking an item repaints the tile at
- * once.
+ * Every badge lights up from the card's own row — the paperclip from `badges.attachments`, which
+ * the board payload carries — and the two checklist numbers are recomputed on the spot by
+ * `lib/badges.ts`, so ticking an item repaints the tile at once.
  *
  * The due badge is the only interactive one. Its accessible name keeps the visible date and adds
  * the action ("Sep 24 Mark complete") rather than replacing it with a label, which WCAG 2.5.3

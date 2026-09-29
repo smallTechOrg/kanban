@@ -2,7 +2,7 @@
 
 Outermost middleware in the stack: it stamps every response with `X-Request-Id`, publishes the
 same id to the logging filter through a `ContextVar`, and writes the one access line per request
-that replaces uvicorn's own (`method path status duration_ms user_id`).
+that replaces uvicorn's own (`method path status duration_ms`).
 """
 
 import logging
@@ -59,17 +59,10 @@ class RequestIdMiddleware:
         finally:
             duration_ms = (time.perf_counter() - started) * 1000
             logger.info(
-                "%s %s %s %.1fms user_id=%s",
+                "%s %s %s %.1fms",
                 scope.get("method", "-"),
                 scope.get("path", "-"),
                 status_code,
                 duration_ms,
-                _resolved_user_id(scope),
             )
             _request_id.reset(token)
-
-
-def _resolved_user_id(scope: Scope) -> str:
-    """The authenticated user id when a dependency resolved one, `-` otherwise."""
-    state = scope.get("state") or {}
-    return str(state.get("user_id", NO_REQUEST_ID))

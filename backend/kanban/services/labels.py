@@ -2,8 +2,8 @@
 
 Every mutation here opens exactly one `write_tx()`, takes its position from `ordering.py` and
 records its activity rows through `activity.record()`. Permission checks are not repeated: by the
-time a router calls in, `auth.board_access(min_role)` has resolved the caller's role on the board,
-and "admin only" for a delete is the dependency that route declares rather than a role comparison
+time a router calls in, `access.board_access()` has resolved the board and applied the
+closed-board guard, so no function here repeats either check
 in this module (CLAUDE.md section 3). Each mutation re-reads its rows under the write lock, because
 the router's read snapshot is gone by then and may be stale (Section 6.7.2 step 6).
 
@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from kanban import activity
 from kanban.db import write_tx
 from kanban.errors import BadRequest, NotFound
-from kanban.models import Card, CardLabel, Label, User
+from kanban.models import Card, CardLabel, Label
 from kanban.ordering import place_in_container
 from kanban.services import boards
 from kanban.services.cards import card_label_ids
@@ -69,13 +69,13 @@ def list_board_labels(db: Session, *, board_id: int) -> list[dict[str, Any]]:
 
     The board document carries the same array, so the query and the row shape live in
     `services.boards.list_labels` and this delegates to them rather than writing either a second
-    time (CLAUDE.md section 3). Observer role suffices, which the router's dependency enforces.
+    time (CLAUDE.md section 3). It is a read, so a closed board still answers it.
     """
     return boards.list_labels(db, board_id=board_id)
 
 
 def create_label(
-    db: Session, user: User, *, board_id: int, name: str, color: str, tone: str
+    db: Session, *, board_id: int, name: str, color: str, tone: str
 ) -> tuple[Label, int]:
     """Append a label to the board's palette (Sections 4.3 and 3.6).
 
@@ -90,7 +90,6 @@ def create_label(
         activity.record(
             ctx,
             "label.created",
-            user_id=user.id,
             label_id=row.id,
             label_name=name,
             label_color=color,
@@ -101,7 +100,7 @@ def create_label(
 
 
 def update_label(
-    db: Session, user: User, *, label_id: int, board_id: int, changes: dict[str, Any]
+    db: Session, *, label_id: int, board_id: int, changes: dict[str, Any]
 ) -> tuple[Label, int]:
     """Rename, recolour or re-tone a label (Section 4.3).
 
@@ -119,7 +118,6 @@ def update_label(
             activity.record(
                 ctx,
                 "label.updated",
-                user_id=user.id,
                 label_id=label_id,
                 label_name=row.name,
                 label_color=row.color,
@@ -131,11 +129,11 @@ def update_label(
     return _load(db, label_id), ctx.board_version
 
 
-def delete_label(db: Session, user: User, *, label_id: int, board_id: int) -> int:
+def delete_label(db: Session, *, label_id: int, board_id: int) -> int:
     """Delete a label and every `card_labels` row of it, returning the new board version.
 
     Admin only (Section 4.3, a deliberate deviation from Trello recorded in Appendix B); the route
-    declares `board_access(Role.admin)` and this function does not re-check it. The join rows go
+    declares `board_access()` and this function does not re-check it. The join rows go
     with the label through `ON DELETE CASCADE`, and their count is captured for the
     `label.deleted` activity row before the delete. Raises `Busy` (503).
     """
@@ -149,7 +147,6 @@ def delete_label(db: Session, user: User, *, label_id: int, board_id: int) -> in
         activity.record(
             ctx,
             "label.deleted",
-            user_id=user.id,
             label_id=label_id,
             label_name=row.name,
             label_color=row.color,
@@ -161,7 +158,7 @@ def delete_label(db: Session, user: User, *, label_id: int, board_id: int) -> in
 
 
 def attach_label(
-    db: Session, user: User, *, card_id: int, board_id: int, label_id: int
+    db: Session, *, card_id: int, board_id: int, label_id: int
 ) -> tuple[list[int], int]:
     """Put a label on a card, idempotently (Section 4.5).
 
@@ -181,7 +178,6 @@ def attach_label(
             activity.record(
                 ctx,
                 "card.label_added",
-                user_id=user.id,
                 card_id=card_id,
                 card_title=card.title,
                 label_id=label_id,
@@ -192,7 +188,7 @@ def attach_label(
 
 
 def detach_label(
-    db: Session, user: User, *, card_id: int, board_id: int, label_id: int
+    db: Session, *, card_id: int, board_id: int, label_id: int
 ) -> tuple[list[int], int]:
     """Take a label off a card, idempotently (Section 4.5).
 
@@ -208,7 +204,6 @@ def detach_label(
             activity.record(
                 ctx,
                 "card.label_removed",
-                user_id=user.id,
                 card_id=card_id,
                 card_title=card.title,
                 label_id=label_id,

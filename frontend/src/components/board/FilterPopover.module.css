@@ -44,17 +44,6 @@
   cursor: pointer;
 }
 
-/* A member row keeps its 24px avatar beside the name (2.3.3). */
-.member {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* The label rows are full-width chips, so the checkbox keeps its column. */
 .chip {
   flex: 1;

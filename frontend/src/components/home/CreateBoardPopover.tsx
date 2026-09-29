@@ -1,8 +1,7 @@
 import { useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CreateBoardInput } from '@/api/boards';
-import type { Visibility } from '@/api/types';
-import { Button, Checkbox, Field, Popover, Select, TextInput } from '@/components/ui';
+import { Button, Checkbox, Field, Popover, TextInput } from '@/components/ui';
 import { useCreateBoard } from '@/hooks/useBoards';
 import { useMeta } from '@/hooks/useMeta';
 import { boardBackgroundStyle, type BackgroundStyle } from '@/lib/boardGroups';
@@ -11,8 +10,6 @@ import styles from './CreateBoardPopover.module.css';
 
 /** Section 2.2.1 item 3, shown under the input once it has been left empty. */
 const TITLE_HINT = '\u{1F44B} Board title is required';
-
-const VISIBILITIES: readonly Visibility[] = ['private', 'workspace', 'public'];
 
 export interface CreateBoardPopoverProps {
   anchor: HTMLElement | DOMRect;
@@ -36,14 +33,9 @@ function previewStyle(
   );
 }
 
-/** A `<select>` hands back a string; this keeps the state honest without a cast. */
-function toVisibility(value: string): Visibility {
-  return VISIBILITIES.find((option) => option === value) ?? 'private';
-}
-
 /**
  * "Create board" (Section 2.2.1): a live 200x120 preview, the preset background picker, the
- * required title, visibility, the default-lists checkbox, and a Create button that stays
+ * required title, the default-lists checkbox, and a Create button that stays
  * disabled until the title holds a non-space character. On success it navigates to the board.
  */
 export function CreateBoardPopover({ anchor, onClose }: CreateBoardPopoverProps): ReactElement {
@@ -54,7 +46,6 @@ export function CreateBoardPopover({ anchor, onClose }: CreateBoardPopoverProps)
   const [hovered, setHovered] = useState<BackgroundChoice | null>(null);
   const [name, setName] = useState('');
   const [blurred, setBlurred] = useState(false);
-  const [visibility, setVisibility] = useState<Visibility>('private');
   const [defaultLists, setDefaultLists] = useState(true);
 
   const colors = meta?.board_colors ?? {};
@@ -64,7 +55,7 @@ export function CreateBoardPopover({ anchor, onClose }: CreateBoardPopoverProps)
   const error = blurred && title === '' ? TITLE_HINT : undefined;
 
   function submit(): void {
-    const input: CreateBoardInput = { name: title, visibility, default_lists: defaultLists };
+    const input: CreateBoardInput = { name: title, default_lists: defaultLists };
     if (selected !== null) {
       input.background_type = selected.type;
       input.background_value = selected.value;
@@ -114,20 +105,6 @@ export function CreateBoardPopover({ anchor, onClose }: CreateBoardPopoverProps)
               onChange={(event) => setName(event.target.value)}
               onBlur={() => setBlurred(true)}
             />
-          )}
-        </Field>
-
-        <Field label="Visibility">
-          {(control) => (
-            <Select
-              {...control}
-              value={visibility}
-              onChange={(event) => setVisibility(toVisibility(event.target.value))}
-            >
-              <option value="private">Private</option>
-              <option value="workspace">Workspace</option>
-              <option value="public">Public</option>
-            </Select>
           )}
         </Field>
 

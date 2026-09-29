@@ -52,23 +52,3 @@
   background: none;
   border: 0;
 }
-
-.listName:disabled {
-  text-decoration: none;
-  cursor: default;
-}
-
-/* The 12px eye that follows the list name while the caller watches the card (Section 2.6.2). */
-.watch {
-  display: inline-flex;
-  color: var(--text-muted);
-}
-
-.state {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}

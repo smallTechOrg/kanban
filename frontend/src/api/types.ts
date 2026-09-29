@@ -8,7 +8,7 @@
  *
  * Until the M1 backend serves that document these shapes are written out by hand from
  * Sections 4.2, 4.3, 4.7 and 4.10.1, with the server's own `snake_case` field names.
- * Request bodies live beside the call that sends them (`api/auth.ts`, `api/boards.ts`).
+ * Request bodies live beside the call that sends them (`api/boards.ts`, `api/cards.ts`).
  */
 
 /** `GET /api/health` — used by reverse proxies and the home page's status line. */
@@ -37,44 +37,10 @@ export interface Meta {
   label_colors: Record<string, LabelColor>;
   cover_colors: Record<string, string>;
   board_colors: Record<string, string>;
-  /** `constants.py` `AVATAR_COLORS`, the swatches of `ProfileModal` (Section 2.9.3). */
-  avatar_colors: string[];
   board_gradients: Record<string, string>;
   list_colors: Record<string, string>;
   max_upload_mb: number;
-  signup_enabled: boolean;
-  single_user: boolean;
-  admin_username: string;
 }
-
-/**
- * The caller's own account. Only `/api/auth/*` returns `email` (Section 4.2);
- * everyone else is seen through `PublicUser`.
- */
-export interface User {
-  id: number;
-  email: string;
-  username: string;
-  full_name: string;
-  initials: string;
-  avatar_color: string;
-  created_at: string;
-}
-
-/** Every user embedded for other people to see: members, comment authors, activity actors. */
-export interface PublicUser {
-  id: number;
-  username: string;
-  full_name: string;
-  initials: string;
-  avatar_color: string;
-}
-
-/** `board_members.role`, ordered `admin` > `member` > `observer` (Section 4.1). */
-export type BoardRole = 'admin' | 'member' | 'observer';
-
-/** Stored on `boards.visibility`; informational in v1 (Section 2.2.1). */
-export type Visibility = 'private' | 'workspace' | 'public';
 
 export type BackgroundType = 'color' | 'gradient' | 'image';
 
@@ -83,16 +49,13 @@ export interface BoardSummary {
   id: number;
   name: string;
   description: string;
-  owner_id: number;
   background_type: BackgroundType;
   background_value: string;
   /** The 400x240 `/uploads/backgrounds/{id}.thumb.jpg` for image backgrounds, else null. */
   background_thumb_url: string | null;
-  visibility: Visibility;
   is_closed: boolean;
   version: number;
   is_starred: boolean;
-  my_role: BoardRole;
   created_at: string;
   updated_at: string;
 }
@@ -107,22 +70,6 @@ export interface BoardGroups {
 /** `GET /api/boards?closed=1`, the rows of `ClosedBoardsModal`. */
 export interface ClosedBoards {
   closed: BoardSummary[];
-}
-
-/** `MemberOut = PublicUser & {role, joined_at}`; never carries `email` (Section 4.3). */
-export interface Member extends PublicUser {
-  role: BoardRole;
-  joined_at: string;
-}
-
-/** `GET /api/boards/{board_id}/members`. */
-export interface MemberList {
-  items: Member[];
-}
-
-/** `GET /api/users` — never another user's email, so the rows are `PublicUser` (Section 4.2). */
-export interface UserList {
-  items: PublicUser[];
 }
 
 /** `lists.color`: one of the ten keys `GET /api/meta` publishes as `list_colors` (Section 4.4). */
@@ -180,10 +127,9 @@ export interface ListList {
   items: ListWithCount[];
 }
 
-/** The five tile badge counts of Sections 2.5.3 and 4.10.1. */
+/** The four tile badge counts of Sections 2.5.3 and 4.10.1. */
 export interface Badges {
   description: boolean;
-  comments: number;
   attachments: number;
   checklist_done: number;
   checklist_total: number;
@@ -224,8 +170,6 @@ export interface CardSummary {
   due_complete: boolean;
   cover: CardCover | null;
   label_ids: number[];
-  member_ids: number[];
-  is_watching: boolean;
   badges: Badges;
   created_at: string;
   updated_at: string;
@@ -240,7 +184,6 @@ export interface ChecklistItem {
   is_checked: boolean;
   checked_at: string | null;
   due_at: string | null;
-  assignee_id: number | null;
 }
 
 /**
@@ -294,8 +237,6 @@ export type AttachmentKind = 'upload' | 'link';
 export interface Attachment {
   id: number;
   card_id: number;
-  /** Null once the uploader's account is gone; the row and its file stay (Section 3.4). */
-  user_id: number | null;
   name: string;
   kind: AttachmentKind;
   url: string;
@@ -318,9 +259,9 @@ export type DueReminderMinutes = 0 | 5 | 10 | 15 | 60 | 120 | 1440 | 2880;
 
 /**
  * `GET /api/cards/{card_id}` — `CardSummary` plus the fields only the modal reads (Section 4.5).
- * `label_ids` and `member_ids` stay id arrays because the board payload already cached every
- * label and member of the board; `attachments` does not, because only the modal renders it and
- * the cover strip reads the original image out of it by `Number(cover.value)` (Section 2.6.1).
+ * `label_ids` stays an id array because the board payload already cached every label of the
+ * board; `attachments` does not, because only the modal renders it and the cover strip reads
+ * the original image out of it by `Number(cover.value)` (Section 2.6.1).
  */
 export interface CardDetail extends CardSummary {
   description: string;
@@ -342,73 +283,28 @@ export interface CardLabels {
 }
 
 /**
- * `PUT` / `DELETE /api/cards/{card_id}/members/{user_id}` (Section 4.5) — the member form of
- * `CardLabels`: the card's whole assignee list comes back, so the avatars row and the tile are
- * patched from one array instead of a card refetch.
- */
-export interface CardMembers {
-  member_ids: number[];
-  board_version: number;
-}
-
-/**
- * `PUT` / `DELETE /api/cards/{card_id}/watch` (Section 4.5). Per-user state: it carries no
- * `board_version` at all, because watching bumps no version, records no activity and publishes
- * no event (`user_write`, Section 4.1).
- */
-export interface WatchState {
-  is_watching: boolean;
-}
-
-/** One `comments` row as the feed and every comment mutation return it (Section 4.6). */
-export interface Comment {
-  id: number;
-  card_id: number;
-  user: PublicUser;
-  body: string;
-  created_at: string;
-  /** Null until the first edit; set is what makes the feed render "(edited)" (Section 2.6.3). */
-  edited_at: string | null;
-}
-
-/**
- * One `activities` row as the feed carries it (Section 4.6). `data` holds the names denormalised
- * at write time, and `lib/activity.ts` renders the Section 3.8 sentence from `type` + `data`.
+ * One `activities` row as either feed carries it (Sections 4.3 and 4.5). `data` holds the names
+ * denormalised at write time, and `lib/activity.ts` renders the Section 3.8 sentence from
+ * `type` + `data`, so a row about a deleted card still reads correctly.
  */
 export interface Activity {
   id: number;
   board_id: number;
   card_id: number | null;
   list_id: number | null;
-  user: PublicUser | null;
   type: string;
   data: Record<string, unknown>;
   board_version: number;
   created_at: string;
 }
 
-/** One entry of `GET /api/cards/{card_id}/feed`, discriminated by `kind` (Section 4.5). */
-export type FeedItem =
-  { kind: 'comment'; comment: Comment } | { kind: 'activity'; activity: Activity };
-
-/**
- * `GET /api/cards/{card_id}/feed` — newest first. `next_before` is the `activities.id` of the
- * last row the page *read*, so a page whose only row was a deleted comment still advances the
- * cursor; it is `null` when the page was not full, which is how "Load more" knows to stop.
- */
-export interface CardFeed {
-  items: FeedItem[];
-  next_before: number | null;
-}
-
 /**
  * `GET /api/boards/{board_id}` — the single round-trip board document (Section 4.10.1),
- * returned for every member including when the board is closed. `lists` and `cards` hold
- * the active rows only; `lib/normalize.ts` turns the arrays into the cache shape of 5.4.2.
+ * served for a closed board too. `lists` and `cards` hold the active rows only;
+ * `lib/normalize.ts` turns the arrays into the cache shape of 5.4.2.
  */
 export interface BoardPayload {
   board: BoardSummary;
-  members: Member[];
   labels: Label[];
   lists: ListOut[];
   cards: CardSummary[];
@@ -423,12 +319,12 @@ export interface CardsCreated {
   board_version: number;
 }
 
-/** `PUT` / `DELETE /api/boards/{board_id}/star`. Per-user state: no version, no activity. */
+/** `PUT` / `DELETE /api/boards/{board_id}/star`. A star bumps no version and records no activity. */
 export interface StarState {
   is_starred: boolean;
 }
 
-/** `GET /api/boards/{board_id}/backgrounds` — the `/api/meta` presets plus the caller's uploads. */
+/** `GET /api/boards/{board_id}/backgrounds` — the `/api/meta` presets plus the uploaded images. */
 export interface BoardBackgrounds {
   colors: { key: string; hex: string }[];
   gradients: { key: string; css: string }[];
@@ -510,7 +406,7 @@ export interface SearchCardLabel {
 /**
  * One card hit of `GET /api/search` (Section 4.7), ranked by `bm25(cards_fts)`. Deliberately
  * **not** a `CardSummary`: the FTS statement produces exactly these columns plus the labels
- * above — no badges, cover, members or watch flag — and the popover row needs nothing else.
+ * above — no badges and no cover — and the popover row needs nothing else.
  */
 export interface SearchCard {
   id: number;
@@ -530,18 +426,17 @@ export interface SearchResults {
 }
 
 /**
- * One cursor page of `GET /api/boards/{board_id}/activity` (Section 4.3), newest first. The rows
- * are the same `Activity` the card feed carries, so `lib/activity.ts` renders both feeds from one
- * table; `next_before` is the `activities.id` to page before and `null` once the end is reached.
+ * One cursor page of `GET /api/boards/{board_id}/activity` (Sections 4.3 and 4.5), newest first.
+ * The card modal reads the same page narrowed by `card_id`, so one shape serves both feeds;
+ * `next_before` is the `activities.id` to page before and `null` once the end is reached.
  */
 export interface ActivityPage {
   items: Activity[];
   next_before: number | null;
 }
 
-/** The nine entities an event can name (Section 4.8); `item` is a checklist item. */
-export type EventEntity =
-  'board' | 'list' | 'card' | 'label' | 'member' | 'checklist' | 'item' | 'comment' | 'attachment';
+/** The seven entities an event can name (Section 4.8); `item` is a checklist item. */
+export type EventEntity = 'board' | 'list' | 'card' | 'label' | 'checklist' | 'item' | 'attachment';
 
 /**
  * One SSE frame of `GET /api/boards/{board_id}/events` and one item of `/changes` (Section 4.8).
@@ -552,8 +447,7 @@ export type EventEntity =
  * row carries no `card_id`, and which the client therefore treats as a board-level change.
  * `type` is an activity type of Section 3.8 plus the synthetic `hello` (the current version, sent
  * on connect) and `resync` (more than 500 versions were missed). `card_id`, `list_id` and
- * `position` are absent rather than null when the event has none, and `actor_id` is `null` for
- * the two synthetic events and for a write whose author has since been deleted.
+ * `position` are absent rather than null when the event has none.
  */
 export interface BoardEvent {
   version: number;
@@ -563,7 +457,6 @@ export interface BoardEvent {
   card_id?: number;
   list_id?: number;
   position?: number;
-  actor_id: number | null;
   at: string;
 }
 

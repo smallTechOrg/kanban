@@ -40,13 +40,12 @@ export interface CreateItemInput {
 
 /**
  * `PATCH /api/checklist-items/{item_id}` (Section 4.6). `due_at: null` removes the item's due
- * date and `assignee_id: null` unassigns; `name` and `is_checked` are never nullable.
+ * date; `name` and `is_checked` are never nullable.
  */
 export interface UpdateItemInput {
   name?: string;
   is_checked?: boolean;
   due_at?: string | null;
-  assignee_id?: number | null;
 }
 
 /** The move body of Section 4.9 plus the destination checklist, which is on the same card. */

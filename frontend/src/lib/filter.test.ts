@@ -22,7 +22,6 @@ function card(overrides: Partial<FilterCard> = {}): FilterCard {
   return {
     title: 'Write launch announcement',
     label_ids: [],
-    member_ids: [],
     due_at: null,
     due_complete: false,
     is_template: false,
@@ -34,11 +33,6 @@ function card(overrides: Partial<FilterCard> = {}): FilterCard {
 const CONTEXT: FilterContext = {
   now: NOW,
   labelsById: { 31: { name: 'Bug fix' }, 32: { name: '' } },
-  membersById: {
-    1: { full_name: 'Vivek Sharma', username: 'vivek' },
-    2: { full_name: 'Asha Patel', username: 'asha' },
-  },
-  meId: 1,
 };
 
 function filter(overrides: Partial<BoardFilter> = {}): BoardFilter {
@@ -59,31 +53,11 @@ describe('matchesFilter', () => {
     expect(matches({}, { match: 'all' })).toBe(true);
   });
 
-  it('matches the keyword against the title, its labels and its members', () => {
+  it('matches the keyword against the title and its label names', () => {
     expect(matches({}, { q: '  LAUNCH ' })).toBe(true);
     expect(matches({ label_ids: [31, 99] }, { q: 'bug' })).toBe(true);
-    expect(matches({ member_ids: [2] }, { q: 'asha' })).toBe(true);
-    expect(matches({ member_ids: [2] }, { q: 'Patel' })).toBe(true);
-    expect(matches({ member_ids: [7] }, { q: 'patel' })).toBe(false);
     expect(matches({ label_ids: [32] }, { q: 'design' })).toBe(false);
-  });
-
-  it('matches the members group by "No members", "assigned to me" and named members', () => {
-    expect(matches({}, { noMembers: true })).toBe(true);
-    expect(matches({ member_ids: [1] }, { noMembers: true })).toBe(false);
-    expect(matches({ member_ids: [1] }, { mine: true })).toBe(true);
-    expect(matches({ member_ids: [2] }, { mine: true })).toBe(false);
-    expect(matches({ member_ids: [2] }, { memberIds: [2, 3] })).toBe(true);
-    expect(matches({ member_ids: [1] }, { memberIds: [2] })).toBe(false);
-  });
-
-  it('cannot match "assigned to me" before the signed-in user is known', () => {
-    expect(
-      matchesFilter(card({ member_ids: [1] }), filter({ mine: true }), {
-        ...CONTEXT,
-        meId: null,
-      }),
-    ).toBe(false);
+    expect(matches({}, { q: 'design' })).toBe(false);
   });
 
   it('matches the labels group by "No labels" and by label id', () => {
@@ -148,15 +122,12 @@ describe('activeFilterCount', () => {
           q: 'launch',
           noLabels: true,
           labelIds: [31, 32],
-          noMembers: true,
-          mine: true,
-          memberIds: [2],
           status: 'complete',
           due: 'overdue',
           activity: 'week',
         }),
       ),
-    ).toBe(10);
+    ).toBe(7);
   });
 
   it('is what turns the header button into a pill', () => {
@@ -176,8 +147,6 @@ describe('filterToSearchParams', () => {
       filter({
         q: ' launch ',
         labelIds: [1, 2],
-        memberIds: [3],
-        mine: true,
         due: 'overdue',
         status: 'incomplete',
         activity: 'week',
@@ -185,13 +154,12 @@ describe('filterToSearchParams', () => {
       }),
     );
     expect(params.toString()).toBe(
-      'q=launch&labels=1%2C2&members=3&mine=1&status=incomplete&due=overdue&activity=week&match=all',
+      'q=launch&labels=1%2C2&status=incomplete&due=overdue&activity=week&match=all',
     );
   });
 
   it('writes "none" in the same key as the ids', () => {
     expect(filterToSearchParams(filter({ noLabels: true })).get('labels')).toBe('none');
-    expect(filterToSearchParams(filter({ noMembers: true })).get('members')).toBe('none');
     expect(filterToSearchParams(filter({ noLabels: true, labelIds: [2] })).get('labels')).toBe(
       'none,2',
     );
@@ -208,9 +176,6 @@ describe('filterFromSearchParams', () => {
       q: 'launch',
       labelIds: [1, 2],
       noLabels: true,
-      memberIds: [3],
-      noMembers: true,
-      mine: true,
       status: 'complete',
       due: 'week',
       activity: 'inactive',
@@ -221,10 +186,8 @@ describe('filterFromSearchParams', () => {
 
   it('drops tokens and values it cannot read', () => {
     const params = new URLSearchParams(
-      'labels=none,2,2,abc,0&members=x&mine=yes&status=maybe&due=soon&activity=daily&match=any',
+      'labels=none,2,2,abc,0&status=maybe&due=soon&activity=daily&match=any',
     );
-    expect(filterFromSearchParams(params)).toEqual(
-      filter({ labelIds: [2], noLabels: true, memberIds: [] }),
-    );
+    expect(filterFromSearchParams(params)).toEqual(filter({ labelIds: [2], noLabels: true }));
   });
 });

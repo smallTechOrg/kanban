@@ -11,15 +11,7 @@
  * it is what lets `normalize.test.ts` prove the normaliser loses nothing.
  */
 import { byPosition } from './boardState';
-import type {
-  BoardDocument,
-  BoardState,
-  CardRow,
-  Id,
-  LabelRow,
-  ListRow,
-  MemberRow,
-} from './boardState';
+import type { BoardDocument, BoardState, CardRow, Id, LabelRow, ListRow } from './boardState';
 
 function byId<T extends { id: Id }>(rows: readonly T[]): Record<Id, T> {
   const map: Record<Id, T> = {};
@@ -46,7 +38,6 @@ export function normalizeBoard(payload: BoardDocument): BoardState {
     lists: byId(lists),
     cards: byId(cards),
     labels: byId(payload.labels),
-    members: byId(payload.members),
     listOrder: lists.filter((list) => !list.is_archived).map((list) => list.id),
     cardOrder,
   };
@@ -57,6 +48,5 @@ export function denormalizeBoard(state: BoardState): BoardDocument {
   const lists: ListRow[] = Object.values(state.lists).sort(byPosition);
   const cards: CardRow[] = Object.values(state.cards).sort(byPosition);
   const labels: LabelRow[] = Object.values(state.labels).sort(byPosition);
-  const members: MemberRow[] = Object.values(state.members);
-  return { board: state.board, members, labels, lists, cards };
+  return { board: state.board, labels, lists, cards };
 }

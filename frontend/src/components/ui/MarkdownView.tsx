@@ -40,7 +40,7 @@ function Image({ src, alt, ...rest }: ImgHTMLAttributes<HTMLImageElement>): Reac
 }
 
 export interface MarkdownViewProps {
-  /** The stored Markdown: a description or a comment body. */
+  /** The stored Markdown: a card or board description. */
   children: string;
 }
 

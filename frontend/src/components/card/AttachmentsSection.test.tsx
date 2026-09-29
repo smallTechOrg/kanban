@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { Attachment, AttachmentKind, CardDetail } from '@/api/types';
 import type { CoverInput } from '@/api/attachments';
 import { cardKey, useCardDetail } from '@/hooks/useCard';
@@ -93,17 +93,17 @@ function seed(detail: CardDetail): QueryClient {
  * subscribes to `['card', id]` the way `CardDetailModal` does — which is what makes the
  * optimistic patches of the delete and cover writes visible here.
  */
-function Host({ onComment }: { onComment?: (markdown: string) => void }): ReactElement | null {
+function Host(): ReactElement | null {
   const detail = useCardDetail(CARD_ID).data;
   if (detail === undefined) return null;
-  return <AttachmentsSection boardId={BOARD_ID} card={detail} onComment={onComment} />;
+  return <AttachmentsSection boardId={BOARD_ID} card={detail} />;
 }
 
-function open(detail: CardDetail = card(), onComment?: (markdown: string) => void): void {
+function open(detail: CardDetail = card()): void {
   server.use(http.get('/api/cards/:cardId', () => HttpResponse.json(detail)));
   render(
     <QueryClientProvider client={seed(detail)}>
-      <Host onComment={onComment} />
+      <Host />
     </QueryClientProvider>,
   );
 }
@@ -169,16 +169,6 @@ describe('AttachmentsSection', () => {
 
     await waitFor(() => expect(calls).toEqual([`COVER attachment:${String(IMAGE.id)}:normal`]));
     expect(await screen.findByRole('button', { name: 'Remove cover' })).toBeInTheDocument();
-  });
-
-  it('hands the comment box the attachment as Markdown', async () => {
-    const user = userEvent.setup();
-    const onComment = vi.fn();
-    open(card(), onComment);
-
-    await user.click(within(rowFor(IMAGE.name)).getByRole('button', { name: 'Comment' }));
-
-    expect(onComment).toHaveBeenCalledWith(`[${IMAGE.name}](${IMAGE.url})`);
   });
 
   it('shows the empty state until the card has an attachment', () => {
