@@ -16,15 +16,15 @@ export type DueState = 'none' | 'soon' | 'overdue' | 'complete';
 export const DUE_SOON_MS = 24 * 60 * 60 * 1000;
 
 /** The badges of Section 2.5.3, in the left-to-right order the row renders them. */
-export type BadgeKind = 'due' | 'start' | 'description' | 'attachments' | 'checklist';
+export type BadgeKind = 'due' | 'start' | 'description' | 'items';
 
 export interface CardBadge {
   kind: BadgeKind;
-  /** The badge's label: a date range, a count, or `done/total` for a checklist. */
+  /** The badge's label: a date range, or `done/total` for the items badge. */
   text?: string;
   /** Only on the `due` badge: which of the four colours it wears. */
   state?: DueState;
-  /** Only on the `checklist` badge: every item is checked, so it goes green. */
+  /** Only on the `items` badge: every item is checked, so it goes green. */
   complete?: boolean;
 }
 
@@ -59,54 +59,45 @@ export function cardBadges(card: CardRow, now: Date): CardBadge[] {
     badges.push({ kind: 'start', text: `Started ${formatDate(card.start_at, now)}` });
   }
   if (card.badges.description) badges.push({ kind: 'description' });
-  if (card.badges.attachments > 0) {
-    badges.push({ kind: 'attachments', text: String(card.badges.attachments) });
-  }
-  if (card.badges.checklist_total > 0) {
+  if (card.badges.item_total > 0) {
     badges.push({
-      kind: 'checklist',
-      text: `${card.badges.checklist_done}/${card.badges.checklist_total}`,
-      complete: card.badges.checklist_done === card.badges.checklist_total,
+      kind: 'items',
+      text: `${card.badges.item_done}/${card.badges.item_total}`,
+      complete: card.badges.item_done === card.badges.item_total,
     });
   }
   return badges;
 }
 
-/** What `checklistCounts` needs of one checklist: `CardDetail.checklists[n]` satisfies it. */
-export interface ChecklistLike {
-  items: readonly { is_checked: boolean }[];
+/** What the two counters below need of one item. `CardDetail.items[n]` satisfies it. */
+export interface ItemLike {
+  is_checked: boolean;
 }
 
 /**
- * `checklist_done` / `checklist_total` recomputed from a card's checklists (Section 4.6).
- *
- * These are the only two numbers of `CardRow.badges` the client can derive itself, and the card
- * modal has to: ticking an item must light the tile up before the server answers, and the
- * checklist and item deletes answer 204 with no badges at all (Section 5.4.3 -> "Card-modal
- * mutations write to both `['card', id]` and the matching `CardRow`").
+ * A card's `done / total`, which `ItemsSection` shows twice — as the `ProgressBar` and as
+ * "Hide checked items (n)" — and which `itemCounts` turns into the tile badge. One rule, so
+ * the section does not count its own rows.
  */
-export function checklistCounts(
-  checklists: readonly ChecklistLike[],
-): Pick<BadgeCounts, 'checklist_done' | 'checklist_total'> {
+export function itemProgress(items: readonly ItemLike[]): { done: number; total: number } {
   let done = 0;
-  let total = 0;
-  for (const checklist of checklists) {
-    const progress = checklistProgress(checklist);
-    done += progress.done;
-    total += progress.total;
-  }
-  return { checklist_done: done, checklist_total: total };
-}
-
-/**
- * One checklist's `done / total`, which `ChecklistSection` shows twice — as the `ProgressBar`
- * and as "Hide checked items (n)" — and which `checklistCounts` sums for the tile badge. One
- * rule, so the section does not count its own rows.
- */
-export function checklistProgress(checklist: ChecklistLike): { done: number; total: number } {
-  let done = 0;
-  for (const item of checklist.items) {
+  for (const item of items) {
     if (item.is_checked) done += 1;
   }
-  return { done, total: checklist.items.length };
+  return { done, total: items.length };
+}
+
+/**
+ * `item_done` / `item_total` recomputed from a card's items (Section 4.6).
+ *
+ * These are the only two numbers of `CardRow.badges` the client can derive itself, and the card
+ * modal has to: ticking an item must light the tile up before the server answers, and the item
+ * delete answers 204 with no badges at all (Section 5.4.3 -> "Card-modal mutations write to both
+ * `['card', id]` and the matching `CardRow`").
+ */
+export function itemCounts(
+  items: readonly ItemLike[],
+): Pick<BadgeCounts, 'item_done' | 'item_total'> {
+  const { done, total } = itemProgress(items);
+  return { item_done: done, item_total: total };
 }

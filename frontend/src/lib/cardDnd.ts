@@ -1,13 +1,10 @@
 /**
- * The pure half of the card modal's drag-and-drop: the ids its two droppables carry and the
- * move one drop describes (Sections 2.6.3, 4.6 and 5.5).
+ * The pure half of the card modal's drag-and-drop: the ids its droppable carries and the move
+ * one drop describes (Sections 2.6.3, 4.6 and 5.5).
  *
- * The modal has its own `DragDropContext` with two nested droppable *types*, which is what keeps
- * checklists and items from ever mixing: the sections sit in one vertical
- * `checklists-{cardId}` / `CHECKLIST` droppable and each section's rows in a
- * `checklist-{id}` / `CHECKLIST_ITEM` droppable inside it. `@hello-pangea/dnd` only ever offers a
- * `Draggable` the droppables of its own type, so a lifted item cannot land between two sections
- * and a lifted section cannot land inside a checklist.
+ * The modal has its own `DragDropContext` with a single `items-{cardId}` / `ITEM` droppable: a
+ * card's items hang off the card itself, so there is no second container to move between and a
+ * drop is always a reorder.
  *
  * As on the board (`lib/boardDnd.ts`), the whole decision lives here as one function over plain
  * data and `CardDetailModal` only calls it, and no position is computed: the outcome carries the
@@ -17,26 +14,15 @@
 import { dropDestination, parsePrefixed, type DragDrop } from './boardDnd';
 import type { Id } from './boardState';
 
-/** `Droppable` types. A `Draggable` inherits the type of its parent `Droppable`. */
-export const CHECKLIST_DRAG_TYPE = 'CHECKLIST';
-export const CHECKLIST_ITEM_DRAG_TYPE = 'CHECKLIST_ITEM';
+/** The one `Droppable` type. A `Draggable` inherits the type of its parent `Droppable`. */
+export const ITEM_DRAG_TYPE = 'ITEM';
 
-const CHECKLISTS_PREFIX = 'checklists-';
-const CHECKLIST_PREFIX = 'checklist-';
+const ITEMS_PREFIX = 'items-';
 const ITEM_PREFIX = 'item-';
 
-/** `checklists-{cardId}`: the one vertical droppable the sections are reordered in (2.6.3). */
-export function checklistsDropId(cardId: Id): string {
-  return `${CHECKLISTS_PREFIX}${cardId}`;
-}
-
-/**
- * `checklist-{id}`: the id of a checklist's item droppable and of the section's own
- * `Draggable`, which may share one string because the library keeps droppables and draggables
- * in two registries (the same pairing `listDropId` relies on).
- */
-export function checklistDropId(checklistId: Id): string {
-  return `${CHECKLIST_PREFIX}${checklistId}`;
+/** `items-{cardId}`: the one vertical droppable the card's items are reordered in (2.6.3). */
+export function itemsDropId(cardId: Id): string {
+  return `${ITEMS_PREFIX}${cardId}`;
 }
 
 /** `item-{id}`. An optimistic item's id is negative until the create response swaps it. */
@@ -44,46 +30,23 @@ export function itemDragId(itemId: Id): string {
   return `${ITEM_PREFIX}${itemId}`;
 }
 
-export function parseChecklistId(value: string): Id | null {
-  return parsePrefixed(value, CHECKLIST_PREFIX);
-}
-
 export function parseItemId(value: string): Id | null {
   return parsePrefixed(value, ITEM_PREFIX);
 }
 
-/** The body of `POST /api/checklists/{checklist_id}/move`: the index alone (Section 4.6). */
-export interface ChecklistMove {
-  checklistId: Id;
-  index: number;
-}
-
-/** The body of `POST /api/checklist-items/{item_id}/move` (Sections 4.6 and 4.9). */
+/** The body of `POST /api/card-items/{item_id}/move` (Sections 4.6 and 4.9). */
 export interface ItemMove {
   itemId: Id;
-  toChecklistId: Id;
   index: number;
   prevId: Id | null;
   nextId: Id | null;
 }
 
-export type CardDropOutcome =
-  | { kind: 'checklist'; checklist: ChecklistMove }
-  | { kind: 'item'; item: ItemMove }
-  | { kind: 'none' };
-
-/** `checklistId` -> item ids in order. One map of what is rendered, one of everything. */
-export type ItemOrder = Readonly<Record<Id, readonly Id[]>>;
-
-/** What the order helpers need of a card's checklists: `CardDetail.checklists` satisfies it. */
-export interface ChecklistShape {
-  id: Id;
-  items: readonly { id: Id; is_checked: boolean }[];
-}
+export type CardDropOutcome = { kind: 'item'; item: ItemMove } | { kind: 'none' };
 
 const NO_MOVE: CardDropOutcome = { kind: 'none' };
 
-/** The rows one checklist shows: all of them, or only the unchecked ones (Section 2.6.3). */
+/** The rows the card shows: all of them, or only the unchecked ones (Section 2.6.3). */
 export function visibleItems<T extends { is_checked: boolean }>(
   items: readonly T[],
   hideChecked: boolean,
@@ -91,20 +54,12 @@ export function visibleItems<T extends { is_checked: boolean }>(
   return hideChecked ? items.filter((item) => !item.is_checked) : items;
 }
 
-/**
- * The `ItemOrder` for one card. `hiddenChecklistIds` are the checklists with "Hide checked
- * items" on, whose checked rows are left out — pass none for the order the cache holds.
- */
+/** The ids of a card's items in order. Pass `hideChecked` to get the rendered order. */
 export function itemOrder(
-  checklists: readonly ChecklistShape[],
-  hiddenChecklistIds: readonly Id[] = [],
-): ItemOrder {
-  const order: Record<Id, readonly Id[]> = {};
-  for (const checklist of checklists) {
-    const rows = visibleItems(checklist.items, hiddenChecklistIds.includes(checklist.id));
-    order[checklist.id] = rows.map((item) => item.id);
-  }
-  return order;
+  items: readonly { id: Id; is_checked: boolean }[],
+  hideChecked = false,
+): readonly Id[] {
+  return visibleItems(items, hideChecked).map((item) => item.id);
 }
 
 /**
@@ -135,31 +90,18 @@ function landing(
  * cancelled outside every droppable, a drop back into the slot it came from, or an id that is
  * not one of ours.
  *
- * `rendered` is the order the sections put on screen and `full` the order the card cache holds;
- * they are the same object when no checklist hides its checked items.
+ * `rendered` is the order the section puts on screen and `full` the order the card cache holds;
+ * they are the same array unless "Hide checked items" is on.
  */
 export function cardMoveFromDrop(
   drop: DragDrop,
-  rendered: ItemOrder,
-  full: ItemOrder = rendered,
+  rendered: readonly Id[],
+  full: readonly Id[] = rendered,
 ): CardDropOutcome {
   const destination = dropDestination(drop);
   if (destination === null) return NO_MOVE;
 
-  if (drop.type === CHECKLIST_DRAG_TYPE) {
-    const checklistId = parseChecklistId(drop.draggableId);
-    if (checklistId === null) return NO_MOVE;
-    return { kind: 'checklist', checklist: { checklistId, index: destination.index } };
-  }
-
   const itemId = parseItemId(drop.draggableId);
-  const toChecklistId = parseChecklistId(destination.droppableId);
-  if (itemId === null || toChecklistId === null) return NO_MOVE;
-  const place = landing(
-    rendered[toChecklistId] ?? [],
-    full[toChecklistId] ?? [],
-    itemId,
-    destination.index,
-  );
-  return { kind: 'item', item: { itemId, toChecklistId, ...place } };
+  if (itemId === null) return NO_MOVE;
+  return { kind: 'item', item: { itemId, ...landing(rendered, full, itemId, destination.index) } };
 }

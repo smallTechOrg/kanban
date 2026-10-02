@@ -190,12 +190,13 @@ test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ pag
     await expect(page.getByRole('dialog', { name: BETA })).toHaveCount(0);
   });
 
-  await test.step('5. "B" opens the boards popover with Recent and Starred', async () => {
+  await test.step('5. "B" opens the boards popover: one list, one filter', async () => {
     await page.keyboard.press('b');
     const boards = page.getByRole('dialog', { name: 'Boards' });
     await expect(boards).toBeVisible();
-    await expect(boards.getByRole('heading', { name: 'Recent' })).toBeVisible();
-    await expect(boards.getByRole('heading', { name: 'Starred' })).toBeVisible();
+    // One person's boards are one list: there is no Recent or Starred group in it.
+    await expect(boards.getByRole('heading', { name: 'Recent' })).toHaveCount(0);
+    await expect(boards.getByRole('heading', { name: 'Starred' })).toHaveCount(0);
     await expect(boards.getByLabel('Filter boards')).toBeVisible();
     await expect(boards.getByRole('button', { name: BOARD, exact: true })).toBeVisible();
 

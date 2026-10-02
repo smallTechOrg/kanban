@@ -13,7 +13,7 @@
  * active card count are passed in by the hook layer.
  *
  * `pastedLines` is the other rule a composer needs of what was typed into it: the lines a
- * multi-line paste becomes. `CardComposer` offers "Create N cards" and `ChecklistSection`
+ * multi-line paste becomes. `CardComposer` offers "Create N cards" and `ItemsSection`
  * "Add N items" from the same count, and the server splits the block the same way
  * (`split_pasted_lines`, Sections 4.4 and 4.6), so both read it from here.
  */
@@ -199,8 +199,8 @@ export function parseComposerTokens(text: string, context: ComposerContext = {})
 export const MIN_PASTE_LINES = 2;
 
 /**
- * The lines a pasted block becomes: trimmed, with the blank ones dropped. One card or one
- * checklist item per line, exactly as the server's `split_lines` counts them.
+ * The lines a pasted block becomes: trimmed, with the blank ones dropped. One card or one card
+ * item per line, exactly as the server's `split_lines` counts them.
  */
 export function pastedLines(text: string): string[] {
   return text

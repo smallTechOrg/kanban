@@ -41,9 +41,9 @@ describe('ActivityFeed', () => {
       }),
       activity(9003, 'card.moved', { from_list_name: 'To Do', to_list_name: 'Doing' }),
       activity(9002, 'card.label_added', { label_name: '', label_color: 'green' }),
-      activity(9001, 'checklist.item_checked', { item_name: 'Wireframe', checklist_name: 'Steps' }),
+      activity(9001, 'item.checked', { item_name: 'Wireframe' }),
       // A reorder travels over SSE only and has no sentence: the feed skips it (Section 3.8).
-      activity(9000, 'checklist.item_moved', { item_name: 'Wireframe' }),
+      activity(9000, 'item.moved', { item_name: 'Wireframe' }),
     ]);
     renderWithProviders(<ActivityFeed boardId={BOARD_ID} cardId={CARD_ID} />);
     await screen.findByText('Moved this card from To Do to Doing');
@@ -51,7 +51,7 @@ describe('ActivityFeed', () => {
     // `card_title` reads "this card" in the open card's own feed (Section 2.6.3).
     expect(screen.getByText('Added this card to To Do')).toBeInTheDocument();
     expect(screen.getByText('Added the green label to this card')).toBeInTheDocument();
-    expect(screen.getByText('Completed Wireframe on Steps')).toBeInTheDocument();
+    expect(screen.getByText('Completed Wireframe')).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(4);
   });
 

@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Kan Ban -- Unix mirror of the root npm scripts (see package.json).
+# My Day -- Unix mirror of the root npm scripts (see package.json).
 #
 # package.json is the single source of truth for what each task does; this file
 # repeats only the small set of targets Unix users expect from `make`, using the
@@ -36,7 +36,7 @@ start: ## Serve the API and the built SPA from one Python process
 migrate: ## Apply Alembic migrations up to head
 	$(PY) -m kanban migrate
 
-seed: ## Create the "Welcome to Kan Ban" demo fixture
+seed: ## Create the four example boards
 	$(PY) -m kanban seed --demo
 
 backup: ## VACUUM INTO data/backups/ and zip data/uploads/

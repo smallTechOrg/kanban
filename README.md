@@ -1,17 +1,28 @@
-# Kan Ban
+# My Day
 
-A self-hosted, Trello-inspired kanban board for one person. There is no account to create and no sign-in
-step: start it and the boards are there. One Python process serves the JSON API under `/api` and the
-compiled React single-page app; SQLite is the only datastore; Node is the build and dev toolchain and
-never runs in production.
+**Everything you're on, in one place.**
+
+A self-hosted board for keeping track of your own life: one for the shopping, one for the bills,
+one for the week ahead. There is no account to create and no sign-in step: start it and the
+boards are there. One Python process serves the JSON API under `/api` and the compiled React
+single-page app; SQLite is the only datastore; Node is the build and dev toolchain and never runs
+in production.
+
+The board reads like Trello's, and nothing else does. The parts of Trello that answer a *team's*
+problems — starred and recently-viewed boards, attachments, covers, card templates, move and copy
+between boards, checklists as named containers — are not here. A card holds a title, a description,
+labels, dates and items to tick off, and its one destructive action is Delete.
 
 > Trello is a trademark of Atlassian. This project is not affiliated with, endorsed by, or sponsored by
-> Atlassian. Trello is referenced here only as a UX reference point for the interface this app imitates.
+> Atlassian. Trello is referenced here only as a visual reference point for the board itself.
+
+`npm run seed` fills a fresh install with four example boards — Shopping, This week, Money and
+Home & errands — so the first thing you see is a week that looks like yours.
 
 - Specification and single source of truth: [docs/PLANNING.md](docs/PLANNING.md)
 - Engineering rules every change must follow: [CLAUDE.md](CLAUDE.md)
 
-> **There is no authentication.** Kan Ban has no accounts, no passwords and no login page, so anything
+> **There is no authentication.** My Day has no accounts, no passwords and no login page, so anything
 > that can reach the port can read and change every board. It binds `127.0.0.1` by default and is meant
 > to stay that way, or to sit on a network you trust. If you need it reachable from elsewhere, put a
 > reverse proxy in front of it that does the authenticating (and covers `/uploads` and the event stream
@@ -116,8 +127,8 @@ Before setting `KANBAN_HOST=0.0.0.0`, decide what is in front of it:
   Wi-Fi, so bind it to the interface you mean rather than all of them where you can.
 - **Anything reachable from the internet**: put a reverse proxy in front that requires a credential
   (HTTP basic auth, an identity-aware proxy, a VPN or a tunnel) and forward only to the loopback port.
-  The proxy must cover `/uploads` and `GET /api/boards/{id}/events` as well as `/api`, or attachments
-  and the live event stream stay open.
+  The proxy must cover `/uploads` and `GET /api/boards/{id}/events` as well as `/api`, or the board
+  background images and the live event stream stay open.
 - Under Docker, `ports:` is that boundary: `'127.0.0.1:8000:8000'` keeps the container on loopback
   while `'8000:8000'` publishes it to the whole network.
 
@@ -144,8 +155,8 @@ container `KANBAN_HOST` is `0.0.0.0`, because a loopback bind would not reach th
 To build and run without Compose:
 
 ```bash
-docker build -t kanban .
-docker run --rm -p 8000:8000 -v "$(pwd)/data:/app/data" kanban
+docker build -t myday .
+docker run --rm -p 8000:8000 -v "$(pwd)/data:/app/data" myday
 ```
 
 ---
@@ -181,7 +192,7 @@ the repo root from their own location, so they work from any directory.
 | `npm run build` | `make build` | Build the SPA into `frontend/dist` |
 | `npm start` | `make start` | Serve API + SPA from one Python process |
 | `npm run migrate` | `make migrate` | Apply Alembic migrations to head |
-| `npm run seed` | `make seed` | Create the "Welcome to Kan Ban" demo fixture |
+| `npm run seed` | `make seed` | Create the four example boards (Shopping, This week, Money, Home & errands) |
 | `npm run backup` | `make backup` | `VACUUM INTO data/backups/` plus a zip of `data/uploads/` |
 | `npm run lint` | `make lint` | `ruff check` + `ruff format --check` on the backend, eslint on the frontend |
 | `npm run format` | `make format` | Rewrite Python with `ruff format`, TypeScript with prettier |
@@ -191,7 +202,9 @@ the repo root from their own location, so they work from any directory.
 | `npm run test:js` | `make test-js` | vitest only |
 | `npm run gen:types` | `make gen-types` | Regenerate `frontend/src/api/types.ts` from the running API |
 
-Playwright end-to-end specs land in M2; the CI job for them is present but skipped until then.
+The Playwright suite is not on that table: it needs a running server, so it is started by hand
+(or by the `e2e` CI job) against a throwaway data directory - the comment at the top of
+[e2e/playwright.config.ts](e2e/playwright.config.ts) has the three commands.
 
 ### Tests and lint
 
@@ -221,7 +234,6 @@ override any of them; relative paths resolve against the repo root, never the cw
 | `KANBAN_PORT` | `8000` | Bind port |
 | `KANBAN_DATA_DIR` | `./data` | Root for the database, uploads and backups (relative paths resolve against the repo root, never the cwd) |
 | `KANBAN_DB_PATH` | `${KANBAN_DATA_DIR}/kanban.db` | SQLite file path |
-| `KANBAN_MAX_UPLOAD_MB` | `25` | Attachment upload size cap (413 above it); board background images are capped at 10 MB |
 | `KANBAN_FRONTEND_DIST` | `./frontend/dist` | Where the built SPA lives (relative to the repo root); lets a packaged install point elsewhere |
 | `KANBAN_LOG_LEVEL` | `info` | uvicorn/app log level |
 | `KANBAN_LOG_FORMAT` | `text` | `text` or `json` (one JSON object per line for log shippers) |

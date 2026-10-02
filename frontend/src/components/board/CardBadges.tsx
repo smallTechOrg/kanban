@@ -1,5 +1,5 @@
 import { memo, type ReactElement } from 'react';
-import { AlignLeft, Check, CheckSquare, Clock, Paperclip, Square } from 'lucide-react';
+import { AlignLeft, Check, CheckSquare, Clock, Square } from 'lucide-react';
 import { Tooltip, cx } from '@/components/ui';
 import { cardBadges, type CardBadge, type DueState } from '@/lib/badges';
 import type { CardRow } from '@/lib/boardState';
@@ -32,10 +32,8 @@ function badgeTitle(badge: CardBadge): string {
       return 'Start date';
     case 'description':
       return DESCRIPTION_TOOLTIP;
-    case 'attachments':
-      return 'Attachments';
-    case 'checklist':
-      return 'Checklist items';
+    case 'items':
+      return 'Items';
   }
 }
 
@@ -51,9 +49,7 @@ function badgeIcon(badge: CardBadge): ReactElement {
       return <Clock aria-hidden="true" />;
     case 'description':
       return <AlignLeft aria-hidden="true" />;
-    case 'attachments':
-      return <Paperclip aria-hidden="true" />;
-    case 'checklist':
+    case 'items':
       return <CheckSquare aria-hidden="true" />;
   }
 }
@@ -75,9 +71,8 @@ export interface CardBadgesProps {
  * component only paints them, in that order, and renders nothing at all when the card has none —
  * a zero count is an absent badge, not a "0".
  *
- * Every badge lights up from the card's own row — the paperclip from `badges.attachments`, which
- * the board payload carries — and the two checklist numbers are recomputed on the spot by
- * `lib/badges.ts`, so ticking an item repaints the tile at once.
+ * Every badge lights up from the card's own row, and the two item numbers are recomputed on the
+ * spot by `lib/badges.ts`, so ticking an item repaints the tile at once.
  *
  * The due badge is the only interactive one. Its accessible name keeps the visible date and adds
  * the action ("Sep 24 Mark complete") rather than replacing it with a label, which WCAG 2.5.3
@@ -94,7 +89,7 @@ function CardBadgesView({ card, now, onToggleDueComplete }: CardBadgesProps): Re
         const badgeClass = cx(
           styles.badge,
           badge.kind === 'due' && DUE_CLASS[badge.state ?? 'none'],
-          badge.kind === 'checklist' && badge.complete === true && styles.complete,
+          badge.kind === 'items' && badge.complete === true && styles.complete,
         );
         if (badge.kind === 'due' && onToggleDueComplete !== undefined) {
           const isComplete = badge.state === 'complete';

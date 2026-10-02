@@ -1,6 +1,6 @@
 """Board resolution and the closed-board guard (Sections 4.1 and 6.6).
 
-Kan Ban is a single-person install: there is no account, no session and no role, so there is
+My Day is a single-person install: there is no account, no session and no role, so there is
 nothing here to authenticate a caller *as*. What is left is the one rule that still decides
 whether a request may proceed, and this module is its single source of truth (CLAUDE.md
 section 3): no service re-reads a board to decide what a request may do.
@@ -10,11 +10,10 @@ It owns
 * `board_access()`, which loads the board a `/api/boards/{board_id}` route names, answers 404
   `not_found` when there is none and 409 `conflict` "Board is closed" for a mutation on a closed
   board. `allow_closed` exempts the routes that must keep working while a board is closed -
-  reopen, board delete and star/unstar (Section 4.1). Reads are never refused;
-* the six child-row factories - `list_access`, `card_access`, `label_access`,
-  `checklist_access`, `item_access`, `attachment_access` - which resolve a child row's board and
-  then apply that same check, so a `/api/cards/{card_id}` route holds no SELECT of its own
-  (CLAUDE.md section 8);
+  reopen and board delete (Section 4.1). Reads are never refused;
+* the four child-row factories - `list_access`, `card_access`, `label_access`, `item_access` -
+  which resolve a child row's board and then apply that same check, so a `/api/cards/{card_id}`
+  route holds no SELECT of its own (CLAUDE.md section 8);
 * `CsrfHeaderMiddleware`. It is the one guard that survives the removal of accounts, and for a
   different reason than it was written: with the API open to whatever can reach the port, the
   `X-Requested-With: fetch` header is what stops a web page the reader happens to be visiting
@@ -34,7 +33,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from kanban.db import get_db
 from kanban.errors import Conflict, Forbidden, NotFound, error_response
-from kanban.models import Attachment, Board, Card, Checklist, ChecklistItem, Label, List
+from kanban.models import Board, Card, CardItem, Label, List
 
 #: The header every `/api` mutation must carry (Section 4.1).
 CSRF_HEADER: Final[str] = "X-Requested-With"
@@ -148,52 +147,17 @@ def label_access() -> Callable[..., BoardCtx]:
     return dependency
 
 
-def checklist_access() -> Callable[..., BoardCtx]:
-    """Build the dependency of a `/api/checklists/{checklist_id}` route (Section 4.6)."""
-    check = board_access()
-
-    def dependency(request: Request, checklist_id: PathId, db: Db) -> BoardCtx:
-        board_id = _board_id_of(
-            db,
-            select(Card.board_id)
-            .join(Checklist, Checklist.card_id == Card.id)
-            .where(Checklist.id == checklist_id),
-            missing="That checklist does not exist.",
-        )
-        return check(request=request, board_id=board_id, db=db)
-
-    return dependency
-
-
 def item_access() -> Callable[..., BoardCtx]:
-    """Build the dependency of a `/api/checklist-items/{item_id}` route (Section 4.6)."""
+    """Build the dependency of a `/api/card-items/{item_id}` route (Section 4.6)."""
     check = board_access()
 
     def dependency(request: Request, item_id: PathId, db: Db) -> BoardCtx:
         board_id = _board_id_of(
             db,
             select(Card.board_id)
-            .join(Checklist, Checklist.card_id == Card.id)
-            .join(ChecklistItem, ChecklistItem.checklist_id == Checklist.id)
-            .where(ChecklistItem.id == item_id),
-            missing="That checklist item does not exist.",
-        )
-        return check(request=request, board_id=board_id, db=db)
-
-    return dependency
-
-
-def attachment_access() -> Callable[..., BoardCtx]:
-    """Build the dependency of an `/api/attachments/{attachment_id}` route (Section 4.6)."""
-    check = board_access()
-
-    def dependency(request: Request, attachment_id: PathId, db: Db) -> BoardCtx:
-        board_id = _board_id_of(
-            db,
-            select(Card.board_id)
-            .join(Attachment, Attachment.card_id == Card.id)
-            .where(Attachment.id == attachment_id),
-            missing="That attachment does not exist.",
+            .join(CardItem, CardItem.card_id == Card.id)
+            .where(CardItem.id == item_id),
+            missing="That item does not exist.",
         )
         return check(request=request, board_id=board_id, db=db)
 

@@ -1,3 +1,3 @@
-"""Kan Ban - the single Python process that serves the JSON API and the compiled SPA."""
+"""My Day - the single Python process that serves the JSON API and the compiled SPA."""
 
-__version__ = "2.0.0"
+__version__ = "3.0.0"

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Kan Ban -- start the API (:8000, --reload) and Vite (:5173) together.
+  My Day -- start the API (:8000, --reload) and Vite (:5173) together.
 .DESCRIPTION
   Thin wrapper over `npm run dev`; package.json owns the two commands. Resolves
   the repo root from its own location and checks that the venv interpreter the

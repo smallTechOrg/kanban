@@ -57,8 +57,6 @@ class BoardSummary(BaseModel):
     background_thumb_url: str | None
     is_closed: bool
     version: int
-    #: From `board_stars`.
-    is_starred: bool
     created_at: str
     updated_at: str
 
@@ -66,13 +64,10 @@ class BoardSummary(BaseModel):
 class BoardGroups(BaseModel):
     """`GET /api/boards` with the default `closed=0` (Section 2.2).
 
-    `starred` is ordered by `board_stars.position`, `recent` is the four most recently viewed
-    boards, `all` is every board alphabetically (`COLLATE NOCASE`) - a starred or recently
-    viewed board appears in `all` as well.
+    One flat list: `all` is every open board alphabetically (`COLLATE NOCASE`). The home page
+    shows exactly this, with no starred or recently-viewed group above it.
     """
 
-    starred: list[BoardSummary]
-    recent: list[BoardSummary]
     all: list[BoardSummary]
 
 
@@ -143,12 +138,6 @@ class BoardUpdateIn(BaseModel):
         if self.background_type is not None and self.background_value is not None:
             validated_background(self.background_type, self.background_value)
         return self
-
-
-class StarOut(BaseModel):
-    """`PUT` / `DELETE /api/boards/{board_id}/star` - not board state, so no `board_version`."""
-
-    is_starred: bool
 
 
 class BackgroundColorOut(BaseModel):

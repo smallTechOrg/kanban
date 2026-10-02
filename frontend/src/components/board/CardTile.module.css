@@ -98,17 +98,40 @@
   overflow-wrap: anywhere;
 }
 
-/* Section 2.5.1: cards with `is_template` are prefixed by a grey pill. */
-.template {
-  display: inline-block;
-  margin-right: 4px;
-  padding: 0 6px;
+/*
+ * Section 2.5.1: the card's items, listed under the title with the ticks the modal shows.
+ *
+ * No `position` and no `z-index`, unlike the chips and the badges: these rows are text rather
+ * than controls, so they stay under the anchor's stretched `::after` and a click on one opens
+ * the card. A checked row is struck through and dimmed; its name still wraps like the title.
+ */
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.item {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
   font-size: var(--fs-meta);
-  font-weight: 600;
   line-height: 16px;
-  color: var(--text);
-  background: var(--border);
-  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.item svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  margin-top: 2px;
+}
+
+.checked {
+  text-decoration: line-through;
+  opacity: 0.7;
 }
 
 /* Section 2.5.2: the chip row, and the two global modes a click toggles. */
@@ -144,57 +167,3 @@
   border-radius: var(--radius-sm);
 }
 
-/*
- * Section 2.5.1 block 1, the cover. A colour cover is a 32px band; an image cover grows to
- * 260px and is contained on its dominant colour. Both bleed to the tile's edges through the
- * negative margins the 8px/12px padding leaves.
- */
-.cover {
-  position: relative;
-  margin: -8px -12px 8px;
-  border-radius: var(--card-radius) var(--card-radius) 0 0;
-  overflow: hidden;
-  min-height: 32px;
-}
-
-.coverImage {
-  display: block;
-  width: 100%;
-  max-height: 260px;
-  object-fit: contain;
-}
-
-/*
- * `cover.size = 'full'`: the whole tile is the cover, the badge row is not rendered and the
- * title sits bottom-left in white over the scrim.
- */
-.full {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  min-height: 96px;
-}
-
-.fullCover,
-.scrim {
-  position: absolute;
-  inset: 0;
-  border-radius: var(--card-radius);
-}
-
-.fullImage {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: inherit;
-}
-
-.scrim {
-  background: linear-gradient(transparent, var(--cover-scrim));
-}
-
-.full .title {
-  position: relative;
-  font-weight: 600;
-  color: var(--text-inverse);
-}

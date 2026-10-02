@@ -3,6 +3,8 @@ import {
   dateInputValue,
   formatDate,
   formatDateTime,
+  formatLongDate,
+  greeting,
   relativeTime,
   timeInputValue,
   toUtcIso,
@@ -120,5 +122,34 @@ describe('tomorrowNoon', () => {
 
   it('defaults to the current clock', () => {
     expect(timeInputValue(tomorrowNoon())).toBe('12:00');
+  });
+});
+
+describe('greeting', () => {
+  it('names the three windows of the day (Section 2.2)', () => {
+    expect(greeting(new Date(2026, 8, 24, 0, 0))).toBe('Good morning');
+    expect(greeting(new Date(2026, 8, 24, 11, 59))).toBe('Good morning');
+    expect(greeting(new Date(2026, 8, 24, 12, 0))).toBe('Good afternoon');
+    expect(greeting(new Date(2026, 8, 24, 17, 59))).toBe('Good afternoon');
+    expect(greeting(new Date(2026, 8, 24, 18, 0))).toBe('Good evening');
+    expect(greeting(new Date(2026, 8, 24, 23, 59))).toBe('Good evening');
+  });
+
+  it('defaults to the current clock', () => {
+    expect(greeting()).toMatch(/^Good (morning|afternoon|evening)$/);
+  });
+});
+
+describe('formatLongDate', () => {
+  it('writes the weekday, the day and the month', () => {
+    expect(formatLongDate(new Date(2026, 8, 24, 9, 0))).toBe('Thursday, 24 September');
+  });
+
+  it('is empty for a value that is not a date, like every other formatter here', () => {
+    expect(formatLongDate('not a date')).toBe('');
+  });
+
+  it('defaults to the current clock', () => {
+    expect(formatLongDate()).not.toBe('');
   });
 });

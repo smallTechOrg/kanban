@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   FALLBACK_LABEL_KEY,
-  coverStyle,
   labelPatternIndex,
   labelStyle,
   listBackground,
   tokenVar,
-  type CoverPalette,
   type LabelPalette,
 } from './colors';
 
@@ -87,44 +85,5 @@ describe('labelPatternIndex', () => {
 
   it('answers -1 for a key this palette does not publish', () => {
     expect(labelPatternIndex('teal', palette)).toBe(-1);
-  });
-});
-
-describe('coverStyle', () => {
-  const covers: CoverPalette = { green: 'rgb(75, 206, 151)', blue: 'rgb(87, 157, 255)' };
-
-  it("paints a colour cover with the server's hex for its key", () => {
-    expect(coverStyle({ kind: 'color', value: 'green' }, covers)).toEqual({
-      background: 'rgb(75, 206, 151)',
-      imageUrl: null,
-    });
-  });
-
-  it('falls back to the neutral wash for a colour key this server does not publish', () => {
-    expect(coverStyle({ kind: 'color', value: 'chartreuse' }, covers)).toEqual({
-      background: 'var(--hover)',
-      imageUrl: null,
-    });
-  });
-
-  it('paints an image cover over the dominant colour Pillow reported', () => {
-    expect(
-      coverStyle(
-        {
-          kind: 'attachment',
-          value: '401',
-          image_url: '/uploads/attachments/401/thumb.jpg',
-          dominant_color: 'rgb(9, 30, 66)',
-        },
-        covers,
-      ),
-    ).toEqual({ background: 'rgb(9, 30, 66)', imageUrl: '/uploads/attachments/401/thumb.jpg' });
-  });
-
-  it('leaves an image cover without a thumbnail as a plain wash', () => {
-    expect(coverStyle({ kind: 'attachment', value: '401' }, covers)).toEqual({
-      background: 'var(--hover)',
-      imageUrl: null,
-    });
   });
 });

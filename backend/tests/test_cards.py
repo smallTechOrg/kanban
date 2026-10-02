@@ -61,16 +61,6 @@ def archive_list(list_id: int) -> None:
         db.close()
 
 
-def set_color_cover(api: TestClient, card_id: int, color: str, size: str = "full") -> None:
-    """`PUT /api/cards/{card_id}/cover` with a palette colour (Section 4.5)."""
-    response = api.put(
-        f"/api/cards/{card_id}/cover",
-        json={"kind": "color", "value": color, "size": size},
-        headers=CSRF_HEADERS,
-    )
-    assert response.status_code == 200, response.text
-
-
 def active_cards(list_id: int) -> list[tuple[int, float]]:
     """`(id, position)` of the list's active cards in the order the client sorts them.
 
@@ -275,70 +265,6 @@ def test_create_in_an_archived_list_is_400(api: TestClient, todo: int) -> None:
     assert response.json()["error"]["details"] == {"list_id": todo}
 
 
-def test_a_pasted_url_becomes_a_link_attachment_named_after_its_host(
-    api: TestClient, todo: int
-) -> None:
-    """Section 4.4: a bare `http(s)` title is a pasted link, so the host becomes the title."""
-
-    item = create_card(api, todo, "https://example.com/launch")["item"]
-
-    assert item["title"] == "example.com"
-    assert item["badges"]["attachments"] == 1
-
-    detail = api.get(f"/api/cards/{item['id']}").json()
-    assert [(row["kind"], row["url"], row["name"]) for row in detail["attachments"]] == [
-        ("link", "https://example.com/launch", "example.com")
-    ]
-
-
-def test_the_pasted_url_records_its_attachment_after_the_card(
-    api: TestClient, board: dict[str, Any], todo: int
-) -> None:
-    """Section 4.4 orders the two rows: `card.created` first, then `attachment.added`."""
-
-    card_id = create_card(api, todo, "https://example.com/launch")["item"]["id"]
-
-    page = api.get(f"/api/boards/{board['id']}/activity", params={"card_id": card_id}).json()
-    assert [row["type"] for row in page["items"]] == ["attachment.added", "card.created"]
-    assert page["items"][0]["data"]["attachment_name"] == "example.com"
-
-
-def test_a_title_that_only_looks_like_a_link_is_kept(api: TestClient, todo: int) -> None:
-    """A scheme-less host, a spaced sentence and a non-http scheme are all ordinary titles."""
-
-    for title in ("example.com/launch", "Read https://example.com now", "ftp://example.com"):
-        item = create_card(api, todo, title)["item"]
-        assert item["title"] == title
-        assert item["badges"]["attachments"] == 0
-
-
-def test_a_url_with_no_host_stays_the_title(api: TestClient, todo: int) -> None:
-    """There is no host to name the card after, so nothing the person pasted is lost."""
-
-    item = create_card(api, todo, "https:///launch")["item"]
-
-    assert item["title"] == "https:///launch"
-    assert item["badges"]["attachments"] == 0
-
-
-def test_every_pasted_line_that_is_a_url_gets_its_own_link(api: TestClient, todo: int) -> None:
-    """`split_lines` creates one card per line, so the rule applies per card (Section 4.4)."""
-
-    response = api.post(
-        f"/api/lists/{todo}/cards",
-        json={
-            "title": "https://one.example/a\nPlain title\nhttps://two.example/b",
-            "split_lines": True,
-        },
-        headers=CSRF_HEADERS,
-    )
-
-    assert response.status_code == 201
-    items = response.json()["items"]
-    assert [row["title"] for row in items] == ["one.example", "Plain title", "two.example"]
-    assert [row["badges"]["attachments"] for row in items] == [1, 0, 1]
-
-
 def test_create_needs_a_list_that_exists(api: TestClient) -> None:
     response = api.post("/api/lists/999999/cards", json={"title": "Nowhere"}, headers=CSRF_HEADERS)
 
@@ -359,36 +285,17 @@ def test_the_summary_carries_every_documented_field(api: TestClient, todo: int) 
         "title",
         "position",
         "is_archived",
-        "is_template",
         "start_at",
         "due_at",
         "due_complete",
-        "cover",
         "label_ids",
+        "items",
         "badges",
         "created_at",
         "updated_at",
     }
-    assert item["cover"] is None
-    assert item["badges"] == {
-        "description": False,
-        "attachments": 0,
-        "checklist_done": 0,
-        "checklist_total": 0,
-    }
-
-
-def test_a_stored_cover_is_rendered_as_the_documented_object(api: TestClient, todo: int) -> None:
-    item = create_card(api, todo, "With a cover")["item"]
-    set_color_cover(api, item["id"], "green")
-
-    # Section 4.5 types `image_url` / `dominant_color` as optional and the Section 4.10.1 example
-    # of a colour cover carries neither key, so they are absent rather than null.
-    assert api.get(f"/api/cards/{item['id']}").json()["cover"] == {
-        "kind": "color",
-        "value": "green",
-        "size": "full",
-    }
+    assert item["items"] == []
+    assert item["badges"] == {"description": False, "item_done": 0, "item_total": 0}
 
 
 def test_rename_records_the_new_title(api: TestClient, board: dict[str, Any], todo: int) -> None:
@@ -457,17 +364,20 @@ def test_archive_is_idempotent(api: TestClient, todo: int) -> None:
     assert again.json()["item"]["is_archived"] is True
 
 
-def test_delete_before_archive_is_409(api: TestClient, todo: int) -> None:
+def test_delete_does_not_need_the_card_archived_first(api: TestClient, todo: int) -> None:
+    """Delete is the card's one destructive action, so it works on an active card.
+
+    The modal confirms instead, because there is no undo (Sections 2.6.4 and 3.7).
+    """
     item = create_card(api, todo, "Still active")["item"]
 
     response = api.delete(f"/api/cards/{item['id']}", headers=CSRF_HEADERS)
 
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "conflict"
-    assert card_row(item["id"]) is not None
+    assert response.status_code == 204
+    assert card_row(item["id"]) is None
 
 
-def test_delete_after_archive_removes_the_row(api: TestClient, todo: int) -> None:
+def test_delete_after_archive_also_removes_the_row(api: TestClient, todo: int) -> None:
     item = create_card(api, todo, "Goodbye")["item"]
     api.post(f"/api/cards/{item['id']}/archive", headers=CSRF_HEADERS)
 

@@ -55,20 +55,10 @@ const SENTENCES: [string, Record<string, unknown>, string][] = [
   ['card.created', { card_title: 'Write plan', list_name: 'To Do' }, 'Added this card to To Do'],
   [
     'card.copied',
-    {
-      card_title: 'Write plan',
-      source_card_id: 41,
-      source_card_title: 'Plan v1',
-      source_list_name: 'Backlog',
-      list_name: 'To Do',
-    },
+    { card_title: 'Write plan', source_card_title: 'Plan v1', source_list_name: 'Backlog' },
     'Copied this card from Plan v1 in list Backlog',
   ],
-  [
-    'card.renamed',
-    { from: 'Write plan', to: 'Write PLANNING.md' },
-    'Renamed this card (from Write plan)',
-  ],
+  ['card.renamed', { from: 'Plan', to: 'Write plan' }, 'Renamed this card (from Plan)'],
   [
     'card.description_changed',
     { card_title: 'Write plan' },
@@ -78,23 +68,13 @@ const SENTENCES: [string, Record<string, unknown>, string][] = [
     'card.moved',
     {
       card_title: 'Write plan',
-      from_list_id: 3,
+      from_list_id: 1,
       from_list_name: 'To Do',
-      to_list_id: 4,
+      to_list_id: 2,
       to_list_name: 'Doing',
       index: 0,
     },
     'Moved this card from To Do to Doing',
-  ],
-  [
-    'card.moved_out',
-    { card_title: 'Write plan', other_board_id: 9, other_board_name: 'Ops', list_name: 'Inbox' },
-    'Moved this card to board Ops',
-  ],
-  [
-    'card.moved_in',
-    { card_title: 'Write plan', other_board_id: 7, other_board_name: 'Launch', list_name: 'Inbox' },
-    'Moved this card from board Launch',
   ],
   ['card.archived', { card_title: 'Write plan' }, 'Archived this card'],
   ['card.unarchived', { card_title: 'Write plan' }, 'Sent this card to the board'],
@@ -116,18 +96,6 @@ const SENTENCES: [string, Record<string, unknown>, string][] = [
   ['card.due_removed', { card_title: 'Write plan' }, 'Removed the due date from this card'],
   ['card.due_completed', { card_title: 'Write plan' }, 'Marked the due date complete'],
   ['card.due_incompleted', { card_title: 'Write plan' }, 'Marked the due date incomplete'],
-  [
-    'card.cover_changed',
-    { card_title: 'Write plan', cover_type: 'color', cover_value: 'green' },
-    'Updated the cover of this card',
-  ],
-  ['card.cover_removed', { card_title: 'Write plan' }, 'Removed the cover from this card'],
-  ['card.template_set', { card_title: 'Write plan' }, 'Made this card a template'],
-  [
-    'card.template_unset',
-    { card_title: 'Write plan' },
-    'Converted this card from a template to a normal card',
-  ],
   [
     'card.label_added',
     { card_title: 'Write plan', label_id: 2, label_name: 'Urgent', label_color: 'red' },
@@ -184,80 +152,32 @@ const SENTENCES: [string, Record<string, unknown>, string][] = [
   ],
 
   [
-    'checklist.added',
-    { card_title: 'Write plan', checklist_id: 5, checklist_name: 'Steps' },
-    'Added checklist Steps to this card',
+    'item.added',
+    { item_id: 12, item_name: 'Draft' },
+    'Added Draft to this card',
   ],
   [
-    'checklist.renamed',
-    { card_title: 'Write plan', checklist_id: 5, from: 'Steps', checklist_name: 'Launch steps' },
-    'Renamed checklist Launch steps (from Steps)',
+    'item.renamed',
+    { item_id: 12, from: 'Draft', item_name: 'Draft outline' },
+    'Renamed Draft outline (from Draft)',
   ],
   [
-    'checklist.deleted',
-    { card_title: 'Write plan', checklist_id: 5, checklist_name: 'Steps' },
-    'Removed checklist Steps from this card',
+    'item.deleted',
+    { item_id: 12, item_name: 'Draft' },
+    'Removed Draft from this card',
   ],
+  ['item.checked', { item_id: 12, item_name: 'Draft' }, 'Completed Draft'],
+  ['item.unchecked', { item_id: 12, item_name: 'Draft' }, 'Marked Draft incomplete'],
   [
-    'checklist.item_added',
-    { checklist_name: 'Steps', item_id: 12, item_name: 'Draft' },
-    'Added Draft to Steps',
+    'item.due_set',
+    { item_id: 12, item_name: 'Draft', due_at: ITEM_DUE_ISO },
+    'Set Draft to be due Sep 30 at 12:00 PM',
   ],
-  [
-    'checklist.item_renamed',
-    { checklist_name: 'Steps', item_id: 12, from: 'Draft', item_name: 'Draft outline' },
-    'Renamed Draft outline on Steps (from Draft)',
-  ],
-  [
-    'checklist.item_deleted',
-    { checklist_name: 'Steps', item_id: 12, item_name: 'Draft' },
-    'Removed Draft from Steps',
-  ],
-  [
-    'checklist.item_checked',
-    { checklist_name: 'Steps', item_id: 12, item_name: 'Draft' },
-    'Completed Draft on Steps',
-  ],
-  [
-    'checklist.item_unchecked',
-    { checklist_name: 'Steps', item_id: 12, item_name: 'Draft' },
-    'Marked Draft incomplete on Steps',
-  ],
-  [
-    'checklist.item_due_set',
-    { checklist_name: 'Steps', item_id: 12, item_name: 'Draft', due_at: ITEM_DUE_ISO },
-    'Set Draft on Steps to be due Sep 30 at 12:00 PM',
-  ],
-  [
-    'checklist.item_due_removed',
-    { checklist_name: 'Steps', item_id: 12, item_name: 'Draft' },
-    'Removed the due date from Draft on Steps',
-  ],
-  [
-    'checklist.item_converted',
-    { checklist_name: 'Steps', item_id: 12, item_name: 'Draft', new_card_id: 77 },
-    'Converted Draft to a card',
-  ],
-
-  [
-    'attachment.added',
-    { attachment_id: 3, attachment_name: 'photo.png', kind: 'upload' },
-    'Attached photo.png to this card',
-  ],
-  [
-    'attachment.renamed',
-    { attachment_id: 3, from: 'photo.png', attachment_name: 'Mock-up', kind: 'upload' },
-    'Renamed the attachment Mock-up (from photo.png)',
-  ],
-  [
-    'attachment.deleted',
-    { attachment_id: 3, attachment_name: 'photo.png', kind: 'upload' },
-    'Deleted the photo.png attachment from this card',
-  ],
+  ['item.due_removed', { item_id: 12, item_name: 'Draft' }, 'Removed the due date from Draft'],
 ];
 
-/** Section 3.8's three types with no sentence: the reorders, which travel over SSE only. */
-const SILENT_TYPES = ['card.reordered', 'checklist.moved', 'checklist.item_moved'];
+/** Section 3.8's two types with no sentence: the reorders, which travel over SSE only. */
+const SILENT_TYPES = ['card.reordered', 'item.moved'];
 
 describe('activitySentence', () => {
   it.each(SENTENCES)('renders %s as the Section 3.8 sentence', (type, data, expected) => {
@@ -277,7 +197,7 @@ describe('activitySentence', () => {
   it('covers every type of the closed ACTIVITY_TYPES list', () => {
     const rendered = new Set(SENTENCES.map(([type]) => type));
     for (const type of SILENT_TYPES) rendered.add(type);
-    expect(rendered.size).toBe(55);
+    expect(rendered.size).toBe(41);
   });
 
   it('keeps the card title outside the open card', () => {
@@ -289,13 +209,9 @@ describe('activitySentence', () => {
   });
 
   it('never says "this card" when no card is open', () => {
-    const copied = row('card.copied', {
-      card_title: 'Write plan',
-      source_card_title: 'Plan v1',
-      source_list_name: 'Backlog',
-    });
-    expect(activitySentence(copied, { openCardId: null, now: NOW })).toBe(
-      'Copied Write plan from Plan v1 in list Backlog',
+    const created = row('card.created', { card_title: 'Write plan', list_name: 'To Do' });
+    expect(activitySentence(created, { openCardId: null, now: NOW })).toBe(
+      'Added Write plan to To Do',
     );
   });
 

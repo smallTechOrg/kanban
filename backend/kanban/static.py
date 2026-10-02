@@ -26,7 +26,7 @@ from kanban import storage
 from kanban.access import Db
 from kanban.config import Settings
 from kanban.errors import NotFound
-from kanban.models import Attachment, BoardBackground, Card
+from kanban.models import BoardBackground
 
 logger = logging.getLogger(__name__)
 
@@ -79,29 +79,6 @@ class UploadTarget(NamedTuple):
 
     #: The type recorded when the bytes were sniffed, which is the only one the browser is told.
     media_type: str | None
-    #: Images are shown in place, everything else is downloaded (Sections 4.11 and 6.9).
-    inline: bool
-
-
-def _upload_target(db: Session, relative: str) -> UploadTarget | None:
-    """The attachment that owns `relative`, matched on `file_path` or `thumb_path`, or `None`.
-
-    Section 3.11 makes the stored path and the URL suffix the same string, so this is an equality
-    test and never a second naming scheme. The join to `cards` is what makes an attachment whose
-    card is gone unreachable, since the row cascaded away with it.
-    """
-    row = db.execute(
-        select(Attachment.mime_type, Attachment.thumb_path, Attachment.is_image)
-        .join(Card, Card.id == Attachment.card_id)
-        .where(or_(Attachment.file_path == relative, Attachment.thumb_path == relative))
-    ).first()
-    if row is None:
-        return None
-    is_thumb = row.thumb_path == relative
-    return UploadTarget(
-        media_type=THUMB_MIME if is_thumb else row.mime_type,
-        inline=is_thumb or bool(row.is_image),
-    )
 
 
 def _background_target(db: Session, relative: str) -> UploadTarget | None:
@@ -118,10 +95,7 @@ def _background_target(db: Session, relative: str) -> UploadTarget | None:
     ).first()
     if row is None:
         return None
-    return UploadTarget(
-        media_type=THUMB_MIME if row.thumb_path == relative else row.mime_type,
-        inline=True,
-    )
+    return UploadTarget(media_type=THUMB_MIME if row.thumb_path == relative else row.mime_type)
 
 
 def mount_static(app: FastAPI, settings: Settings) -> None:
@@ -137,19 +111,20 @@ def mount_static(app: FastAPI, settings: Settings) -> None:
         """Serve one uploaded file, as its own row describes it (Section 4.11).
 
         400 `bad_request` when the path escapes `data/uploads/`, and 404 `not_found` for a path
-        with no row behind it and for a row whose file is missing from disk alike. Two kinds of
-        row own a file, an attachment and a board background, and each carries the media type its
-        bytes were sniffed as, which is the only type the response ever names.
+        with no row behind it and for a row whose file is missing from disk alike. One kind of row
+        owns a file, a board background, and it carries the media type its bytes were sniffed as,
+        which is the only type the response ever names - and it is always an image, so every
+        upload is served inline.
         """
         path = storage.resolve_upload_path(upload_path)
-        target = _upload_target(db, upload_path) or _background_target(db, upload_path)
+        target = _background_target(db, upload_path)
         if target is None or not path.is_file():
             raise NotFound("not_found", "That file does not exist.")
         return FileResponse(
             path,
             media_type=target.media_type,
             filename=path.name,
-            content_disposition_type="inline" if target.inline else "attachment",
+            content_disposition_type="inline",
             headers={**NOSNIFF_HEADERS, "Cache-Control": UPLOAD_CACHE_CONTROL},
         )
 

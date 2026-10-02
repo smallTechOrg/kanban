@@ -48,8 +48,7 @@ export interface CardComposerProps {
  *
  * `#label` and `^top` / `^bottom` / `^N` are parsed by `lib/composerTokens.ts` and
  * previewed as chips under the textarea. A multi-line paste asks whether it should become one
- * card per line and, if so, goes as a single `split_lines` request. A pasted URL is sent exactly
- * as pasted: the server turns it into a link attachment and stores its host as the title.
+ * card per line and, if so, goes as a single `split_lines` request.
  */
 export function CardComposer({ boardId, listId, index, onClose }: CardComposerProps): ReactElement {
   const [text, setText] = useState('');

@@ -1,14 +1,14 @@
 """The single round-trip board document (Sections 4.3, 4.10.1 and 6.7).
 
 `GET /api/boards/{board_id}` is the only read the board page makes, so the whole `BoardPayload`
-is assembled here in exactly **four statements**, whatever the board holds: board + star, labels,
-the active lists, and one cards query whose badge counts and `label_ids` all come from correlated
-sub-selects. Nothing in this module iterates a query, so 30 lists x 100 cards costs the same four
-round trips as an empty board (Section 4.10.1: under 100 ms for that board).
+is assembled here in exactly **five statements**, whatever the board holds: the board, its labels,
+the active lists, one cards query whose `label_ids` come from a correlated sub-select, and every
+item of every one of those cards. Nothing in this module iterates a query, so 30 lists x 100
+cards costs the same five round trips as an empty board (Section 4.10.1: under 100 ms for that
+board).
 
-Raw SQL lives here by design (CLAUDE.md section 2). The cards statement is the one place the
-badge aggregates are written down, and an ORM expression of it would either fan every card out
-across its labels or fall back to a query per card.
+Raw SQL lives here by design (CLAUDE.md section 2). An ORM expression of the cards statement
+would either fan every card out across its labels or fall back to a query per card.
 
 Only *active* rows reach the client: the lists statement filters `is_archived = 0` and the cards
 statement joins `lists` to filter `lists.is_archived = 0 AND cards.is_archived = 0`, so a card
@@ -27,8 +27,8 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from kanban.errors import NotFound
-from kanban.models import Board, BoardStar
-from kanban.services.boards import UPLOADS_URL, board_summary, list_labels
+from kanban.models import Board
+from kanban.services.boards import board_summary, list_labels
 
 #: Statement 3: the board's active lists in `position` order (Section 4.4).
 _LISTS_SQL: Final[str] = """
@@ -39,13 +39,12 @@ SELECT id, board_id, name, position, color, is_archived, created_at, updated_at
  ORDER BY position, id
 """
 
-#: Statement 4: every active card of every active list, with its badges (Section 4.10.1).
+#: Statement 4: every active card of every active list (Section 4.10.1).
 #:
 #: `description` is Markdown and only its emptiness is a badge, so the body never leaves the
-#: database here; the card modal fetches it. The `attachments` LEFT JOIN resolves an
-#: `attachment` cover's thumbnail and dominant colour in the same statement and matches nothing for
-#: the colour covers and the uncovered cards - the same two columns `services.cards._cover` reads
-#: for a single row, which is why a cover mutation's `Mutated[CardSummary]` and this payload agree.
+#: database here; the card modal fetches it. The two item counts are not read here: statement 5
+#: returns the rows they count, so `_card` derives them from the array it is handed and a tile's
+#: item list and its `done/total` cannot disagree.
 _CARDS_SQL: Final[str] = """
 SELECT c.id,
        c.client_id,
@@ -55,36 +54,35 @@ SELECT c.id,
        c.title,
        c.position,
        c.is_archived,
-       c.is_template,
        c.start_at,
        c.due_at,
        c.due_complete,
-       c.cover_type,
-       c.cover_value,
-       c.cover_size,
        c.created_at,
        c.updated_at,
        c.description <> '' AS has_description,
-       (SELECT COUNT(*) FROM attachments a WHERE a.card_id = c.id) AS attachment_count,
-       (SELECT COUNT(*)
-          FROM checklist_items ci
-          JOIN checklists ch ON ch.id = ci.checklist_id
-         WHERE ch.card_id = c.id) AS checklist_total,
-       (SELECT COUNT(*)
-          FROM checklist_items ci
-          JOIN checklists ch ON ch.id = ci.checklist_id
-         WHERE ch.card_id = c.id AND ci.is_checked = 1) AS checklist_done,
-       (SELECT GROUP_CONCAT(cl.label_id) FROM card_labels cl WHERE cl.card_id = c.id) AS label_ids,
-       cover.thumb_path AS cover_thumb_path,
-       cover.dominant_color AS cover_dominant_color
+       (SELECT GROUP_CONCAT(cl.label_id) FROM card_labels cl WHERE cl.card_id = c.id) AS label_ids
   FROM cards c
   JOIN lists l ON l.id = c.list_id
-  LEFT JOIN attachments cover
-         ON c.cover_type = 'attachment' AND cover.id = CAST(c.cover_value AS INTEGER)
  WHERE c.board_id = :board_id
    AND c.is_archived = 0
    AND l.is_archived = 0
  ORDER BY c.position, c.id
+"""
+
+#: Statement 5: the items of every card statement 4 returns, in the order a card reads them.
+#:
+#: Section 2.5.1 puts a card's items on its tile, so the board document carries them: one scan of
+#: `card_items` for the whole board rather than the per-card read a 3,000-card fixture would turn
+#: into 3,000 of. The `WHERE` is statement 4's, so a card absent from the payload brings no items.
+_ITEMS_SQL: Final[str] = """
+SELECT i.id, i.card_id, i.name, i.position, i.is_checked, i.checked_at, i.due_at
+  FROM card_items i
+  JOIN cards c ON c.id = i.card_id
+  JOIN lists l ON l.id = c.list_id
+ WHERE c.board_id = :board_id
+   AND c.is_archived = 0
+   AND l.is_archived = 0
+ ORDER BY i.card_id, i.position, i.id
 """
 
 
@@ -97,7 +95,7 @@ def build(db: Session, *, board_id: int) -> dict[str, Any]:
     row, because the caller records the board view afterwards and that write ends the read
     snapshot these rows were loaded in (Section 4.3).
     """
-    board, is_starred = _board(db, board_id)
+    board = _board(db, board_id)
     labels = list_labels(db, board_id=board_id)
     # `.mappings()` rather than plain rows throughout: a board of 3000 cards reads 24 columns
     # from each of them, and keyed access to a `RowMapping` is several times cheaper than
@@ -108,25 +106,24 @@ def build(db: Session, *, board_id: int) -> dict[str, Any]:
     # client already has: no extra statement, and a stable payload.
     label_order = {label["id"]: index for index, label in enumerate(labels)}
     card_rows = db.execute(text(_CARDS_SQL), {"board_id": board_id}).mappings()
-    cards = [_card(row, label_order=label_order) for row in card_rows]
+    items = _items_by_card(db, board_id)
+    cards = [
+        _card(row, label_order=label_order, items=items.get(row["id"], [])) for row in card_rows
+    ]
     return {
-        "board": board_summary(board, is_starred=is_starred),
+        "board": board_summary(board),
         "labels": labels,
         "lists": lists,
         "cards": cards,
     }
 
 
-def _board(db: Session, board_id: int) -> tuple[Board, bool]:
-    """Statement 1: the board and whether it is starred."""
-    row = db.execute(
-        select(Board, BoardStar.id.label("star_id"))
-        .outerjoin(BoardStar, BoardStar.board_id == Board.id)
-        .where(Board.id == board_id)
-    ).first()
-    if row is None:  # pragma: no cover - board_access resolved this same row a moment ago
+def _board(db: Session, board_id: int) -> Board:
+    """Statement 1: the board row itself."""
+    board = db.execute(select(Board).where(Board.id == board_id)).scalar_one_or_none()
+    if board is None:  # pragma: no cover - board_access resolved this same row a moment ago
         raise NotFound("not_found", "Board not found.")
-    return row.Board, row.star_id is not None
+    return board
 
 
 def _list(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -143,8 +140,35 @@ def _list(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _card(row: Mapping[str, Any], *, label_order: dict[int, int]) -> dict[str, Any]:
-    """The `CardSummary` of Section 4.5, badges and all.
+def _items_by_card(db: Session, board_id: int) -> dict[int, list[dict[str, Any]]]:
+    """Statement 5 grouped by `card_id`, each list already in `(position, id)` order.
+
+    The rows arrive sorted by `card_id`, so this is one pass with no sort of its own; a card
+    with no items is simply absent and `build` hands it the empty list.
+    """
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for row in db.execute(text(_ITEMS_SQL), {"board_id": board_id}).mappings():
+        grouped.setdefault(row["card_id"], []).append(
+            {
+                "id": row["id"],
+                "card_id": row["card_id"],
+                "name": row["name"],
+                "position": row["position"],
+                "is_checked": bool(row["is_checked"]),
+                "checked_at": row["checked_at"],
+                "due_at": row["due_at"],
+            }
+        )
+    return grouped
+
+
+def _card(
+    row: Mapping[str, Any],
+    *,
+    label_order: dict[int, int],
+    items: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """The `CardSummary` of Section 4.5, items and badges and all.
 
     One dict literal rather than a base dict merged with the rest: on the 3,000-card fixture the
     second dict and the `|=` cost 7 ms of the Section 5.11 budget, and JSON objects have no order
@@ -158,17 +182,15 @@ def _card(row: Mapping[str, Any], *, label_order: dict[int, int]) -> dict[str, A
         "title": row["title"],
         "position": row["position"],
         "is_archived": bool(row["is_archived"]),
-        "is_template": bool(row["is_template"]),
         "start_at": row["start_at"],
         "due_at": row["due_at"],
         "due_complete": bool(row["due_complete"]),
-        "cover": _cover(row),
         "label_ids": _ordered_ids(row["label_ids"], label_order),
+        "items": items,
         "badges": {
             "description": bool(row["has_description"]),
-            "attachments": row["attachment_count"],
-            "checklist_done": row["checklist_done"],
-            "checklist_total": row["checklist_total"],
+            "item_done": sum(1 for item in items if item["is_checked"]),
+            "item_total": len(items),
         },
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
@@ -179,27 +201,6 @@ def _card(row: Mapping[str, Any], *, label_order: dict[int, int]) -> dict[str, A
         # a card that was not created optimistically has none and the field is omitted (4.5).
         card["client_id"] = client_id
     return card
-
-
-def _cover(row: Mapping[str, Any]) -> dict[str, Any] | None:
-    """The card's cover, `None` when it has none (Sections 2.5.1 and 4.5).
-
-    A `color` cover carries a palette key; an `attachment` cover carries the attachment id as
-    text plus the 2:1 thumbnail and the dominant colour Pillow computed for it, which the tile
-    shows behind a `contain`-fitted image.
-    """
-    if row["cover_type"] is None:
-        return None
-    cover: dict[str, Any] = {
-        "kind": row["cover_type"],
-        "value": row["cover_value"],
-        "size": row["cover_size"],
-    }
-    if row["cover_thumb_path"] is not None:
-        cover["image_url"] = f"{UPLOADS_URL}/{row['cover_thumb_path']}"
-    if row["cover_dominant_color"] is not None:
-        cover["dominant_color"] = row["cover_dominant_color"]
-    return cover
 
 
 def _ordered_ids(concatenated: str | None, order: dict[int, int]) -> list[int]:

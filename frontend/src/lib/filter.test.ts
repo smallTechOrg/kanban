@@ -24,7 +24,6 @@ function card(overrides: Partial<FilterCard> = {}): FilterCard {
     label_ids: [],
     due_at: null,
     due_complete: false,
-    is_template: false,
     updated_at: at(-DAY_MS),
     ...overrides,
   };
@@ -67,11 +66,11 @@ describe('matchesFilter', () => {
     expect(matches({ label_ids: [32] }, { labelIds: [31] })).toBe(false);
   });
 
-  it('matches the card status, and never matches it for a template', () => {
+  it('matches the card status', () => {
     expect(matches({ due_complete: true }, { status: 'complete' })).toBe(true);
     expect(matches({ due_complete: false }, { status: 'complete' })).toBe(false);
     expect(matches({ due_complete: false }, { status: 'incomplete' })).toBe(true);
-    expect(matches({ due_complete: true, is_template: true }, { status: 'complete' })).toBe(false);
+    expect(matches({ due_complete: true }, { status: 'incomplete' })).toBe(false);
   });
 
   it('matches "No dates", "Overdue" and the three windows', () => {
@@ -90,7 +89,6 @@ describe('matchesFilter', () => {
     expect(matches({ due_at: at(DAY_MS / 2), due_complete: true }, { due: 'day' })).toBe(false);
     expect(matches({ due_at: null }, { due: 'week' })).toBe(false);
     expect(matches({ due_at: 'not a date' }, { due: 'week' })).toBe(false);
-    expect(matches({ due_at: at(DAY_MS / 2), is_template: true }, { due: 'day' })).toBe(false);
   });
 
   it('matches the activity windows from updated_at', () => {

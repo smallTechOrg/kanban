@@ -20,14 +20,12 @@ import {
   listBoards,
   listClosedBoards,
   reopenBoard,
-  starBoard,
-  unstarBoard,
   updateBoard,
   type CreateBoardInput,
   type UpdateBoardInput,
 } from '@/api/boards';
 import type { BoardGroups, BoardSummary, ClosedBoards, Mutated } from '@/api/types';
-import { setBoardStarred, sortBoardsByName } from '@/lib/boardGroups';
+import { sortBoardsByName } from '@/lib/boardGroups';
 import type { BoardState } from '@/lib/boardState';
 import { boardKey } from './useBoardData';
 import { errorMessage } from './mutationErrors';
@@ -157,55 +155,5 @@ export function useDeleteBoard(boardId: number): UseMutationResult<void, Error, 
       void queryClient.invalidateQueries({ queryKey: CLOSED_BOARDS_KEY });
     },
     onError: (error) => show(errorMessage(error, "Couldn't delete the board."), 'error'),
-  });
-}
-
-export interface StarVariables {
-  boardId: number;
-  isStarred: boolean;
-}
-
-interface StarSnapshot {
-  groups: BoardGroups | undefined;
-  board: BoardState | undefined;
-}
-
-/**
- * `PUT` / `DELETE /api/boards/{board_id}/star` — optimistic, because the Starred section
- * re-sorts under the pointer without a reload (Section 2.2). The star is per-user state:
- * no `board_version`, no activity and no event, so nothing is merged back on success, and
- * the server appends a new star last, exactly where `setBoardStarred` put it.
- */
-export function useStarBoard(): UseMutationResult<void, Error, StarVariables, StarSnapshot> {
-  const queryClient = useQueryClient();
-  const { show } = useToast();
-  return useMutation({
-    mutationFn: ({ boardId, isStarred }: StarVariables) =>
-      isStarred ? starBoard(boardId).then(() => undefined) : unstarBoard(boardId),
-    onMutate: async ({ boardId, isStarred }) => {
-      await queryClient.cancelQueries({ queryKey: BOARDS_KEY });
-      const groups = queryClient.getQueryData<BoardGroups>(BOARDS_KEY);
-      const board = queryClient.getQueryData<BoardState>(boardKey(boardId));
-      if (groups !== undefined) {
-        queryClient.setQueryData<BoardGroups>(
-          BOARDS_KEY,
-          setBoardStarred(groups, boardId, isStarred),
-        );
-      }
-      if (board !== undefined) {
-        queryClient.setQueryData<BoardState>(boardKey(boardId), {
-          ...board,
-          board: { ...board.board, is_starred: isStarred },
-        });
-      }
-      return { groups, board };
-    },
-    onError: (error, { boardId }, snapshot) => {
-      if (snapshot?.groups !== undefined) queryClient.setQueryData(BOARDS_KEY, snapshot.groups);
-      if (snapshot?.board !== undefined) {
-        queryClient.setQueryData(boardKey(boardId), snapshot.board);
-      }
-      show(errorMessage(error, "Couldn't update your star. Try again."), 'error');
-    },
   });
 }

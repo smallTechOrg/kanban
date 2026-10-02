@@ -15,10 +15,10 @@
  * "Added this card to To Do" while the board feed keeps "Added Write plan to To Do". Pass
  * `openCardId` for the card feed and leave it out for the board feed.
  *
- * Three types have no sentence and `activitySentence` answers `null` for them, which is how the
- * feed skips a row: `card.reordered`, `checklist.moved` and `checklist.item_moved` are reorders
- * that travel over SSE only. An unknown type — one a newer server writes — is answered the same
- * way rather than with a broken sentence.
+ * Two types have no sentence and `activitySentence` answers `null` for them, which is how the
+ * feed skips a row: `card.reordered` and `item.moved` are reorders that travel over SSE only.
+ * An unknown type — one a newer server writes — is answered the same way rather than with a
+ * broken sentence.
  */
 import { formatDateTime } from './dates';
 
@@ -81,11 +81,6 @@ function labelTarget(data: ActivityData): string {
   return name === '' ? labelPhrase(data) : `label ${name}`;
 }
 
-/** "Draft on Steps" — the shape most `checklist.item_*` sentences name the item with. */
-function itemOn(data: ActivityData): string {
-  return `${text(data, 'item_name')} on ${text(data, 'checklist_name')}`;
-}
-
 /**
  * The Section 3.8 table, one renderer per `activities.type`. A type missing from this map has no
  * sentence, and the feed skips its rows.
@@ -118,6 +113,7 @@ const RENDERERS: Readonly<Record<string, Renderer>> = {
 
   // ---------------------------------------------------------------------------- card
   'card.created': ({ data, card }) => `Added ${card} to ${text(data, 'list_name')}`,
+  // A card has no copy endpoint; this row is written once per card by a *list* copy.
   'card.copied': ({ data, card }) =>
     `Copied ${card} from ${text(data, 'source_card_title')} in list ${text(
       data,
@@ -127,8 +123,6 @@ const RENDERERS: Readonly<Record<string, Renderer>> = {
   'card.description_changed': () => 'Updated the description of this card',
   'card.moved': ({ data }) =>
     `Moved this card from ${text(data, 'from_list_name')} to ${text(data, 'to_list_name')}`,
-  'card.moved_out': ({ data }) => `Moved this card to board ${text(data, 'other_board_name')}`,
-  'card.moved_in': ({ data }) => `Moved this card from board ${text(data, 'other_board_name')}`,
   'card.archived': () => 'Archived this card',
   'card.unarchived': () => 'Sent this card to the board',
   'card.deleted': ({ data }) =>
@@ -144,10 +138,6 @@ const RENDERERS: Readonly<Record<string, Renderer>> = {
   'card.due_removed': () => 'Removed the due date from this card',
   'card.due_completed': () => 'Marked the due date complete',
   'card.due_incompleted': () => 'Marked the due date incomplete',
-  'card.cover_changed': () => 'Updated the cover of this card',
-  'card.cover_removed': () => 'Removed the cover from this card',
-  'card.template_set': () => 'Made this card a template',
-  'card.template_unset': () => 'Converted this card from a template to a normal card',
   'card.label_added': ({ data }) => `Added ${labelPhrase(data)} to this card`,
   'card.label_removed': ({ data }) => `Removed ${labelPhrase(data)} from this card`,
 
@@ -157,31 +147,16 @@ const RENDERERS: Readonly<Record<string, Renderer>> = {
   'label.deleted': ({ data }) =>
     `Deleted ${labelTarget(data)} (removed from ${cardCount(count(data, 'card_count'))})`,
 
-  // ----------------------------------------------------------------------- checklist
-  'checklist.added': ({ data }) => `Added checklist ${text(data, 'checklist_name')} to this card`,
-  'checklist.renamed': ({ data }) =>
-    withFrom(`Renamed checklist ${text(data, 'checklist_name')}`, text(data, 'from')),
-  'checklist.deleted': ({ data }) =>
-    `Removed checklist ${text(data, 'checklist_name')} from this card`,
-  'checklist.item_added': ({ data }) =>
-    `Added ${text(data, 'item_name')} to ${text(data, 'checklist_name')}`,
-  'checklist.item_renamed': ({ data }) => withFrom(`Renamed ${itemOn(data)}`, text(data, 'from')),
-  'checklist.item_deleted': ({ data }) =>
-    `Removed ${text(data, 'item_name')} from ${text(data, 'checklist_name')}`,
-  'checklist.item_checked': ({ data }) => `Completed ${itemOn(data)}`,
-  'checklist.item_unchecked': ({ data }) =>
-    `Marked ${text(data, 'item_name')} incomplete on ${text(data, 'checklist_name')}`,
-  'checklist.item_due_set': ({ data, now }) =>
-    `Set ${itemOn(data)} to be due ${formatDateTime(text(data, 'due_at'), now)}`,
-  'checklist.item_due_removed': ({ data }) => `Removed the due date from ${itemOn(data)}`,
-  'checklist.item_converted': ({ data }) => `Converted ${text(data, 'item_name')} to a card`,
-
-  // ---------------------------------------------------------------------- attachment
-  'attachment.added': ({ data }) => `Attached ${text(data, 'attachment_name')} to this card`,
-  'attachment.renamed': ({ data }) =>
-    withFrom(`Renamed the attachment ${text(data, 'attachment_name')}`, text(data, 'from')),
-  'attachment.deleted': ({ data }) =>
-    `Deleted the ${text(data, 'attachment_name')} attachment from this card`,
+  // ---------------------------------------------------------------------------- item
+  'item.added': ({ data }) => `Added ${text(data, 'item_name')} to this card`,
+  'item.renamed': ({ data }) =>
+    withFrom(`Renamed ${text(data, 'item_name')}`, text(data, 'from')),
+  'item.deleted': ({ data }) => `Removed ${text(data, 'item_name')} from this card`,
+  'item.checked': ({ data }) => `Completed ${text(data, 'item_name')}`,
+  'item.unchecked': ({ data }) => `Marked ${text(data, 'item_name')} incomplete`,
+  'item.due_set': ({ data, now }) =>
+    `Set ${text(data, 'item_name')} to be due ${formatDateTime(text(data, 'due_at'), now)}`,
+  'item.due_removed': ({ data }) => `Removed the due date from ${text(data, 'item_name')}`,
 };
 
 /**

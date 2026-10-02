@@ -1,37 +1,27 @@
 """Upload file handling: the only module that touches `data/uploads/` (Sections 3.11 and 6.9).
 
-The write order of Section 6.9 is split between this module and `services/attachments.py`
-precisely so that no byte of network traffic and no Pillow call ever happens with the write lock
-held:
+A board background (`POST /api/boards/{board_id}/background`) is the one upload the app accepts,
+and the write order of Section 6.9 is split between this module and `services/boards.py` precisely
+so that no byte of network traffic and no Pillow call ever happens with the write lock held:
 
 1. `save_upload()` copies Starlette's already-spooled multipart body into `uploads/tmp/{uuid4}`
    in 1 MiB chunks, hashing `sha256` and counting bytes. No transaction is open.
-2. `prepare_upload()` sniffs the type from the *content* (never the client's header) and, for the
-   four image types, writes the 512x256 (2:1) cover thumbnail beside it as `tmp/{uuid4}.thumb.jpg`
-   and computes `width`, `height` and `dominant_color`. Still no transaction; the caller runs it
-   in a threadpool.
-3. `place_upload()` is the only step inside the short `write_tx`: it `mkdir`s
-   `attachments/{id}/` and `os.replace`s the temp files into it, which is a rename because
-   `tmp/` is a sibling directory on the same filesystem.
+2. `prepare_background()` sniffs the type from the *content* (never the client's header) and
+   writes the 400x240 preview beside it. Still no transaction; the caller runs it in a threadpool.
+   The sniffed type must be one of `BACKGROUND_EXTENSIONS`, so anything else is a 415 rather than
+   a stored file.
+3. `place_background()` is the only step inside the short `write_tx`: it `os.replace`s the temp
+   files onto `backgrounds/{id}.{ext}`, which is a rename because `tmp/` is a sibling directory on
+   the same filesystem. The id names the file itself rather than a directory.
 
-`discard_upload()` and `delete_upload()` are the two undo paths (a rolled-back transaction and a
-deleted row). `resolve_upload_path()` is the single place a client-supplied path becomes a real
-one, and it refuses anything that escapes `data/uploads/`.
-
-A board background (`POST /api/boards/{board_id}/background`) walks the same three steps through
-`prepare_background()` and `place_background()`, sharing `save_upload`, `sniff_mime` and
-`thumbnail` with the attachment path rather than repeating any of them. It differs in exactly the
-two ways Section 6.9's right-hand column names: the sniffed type must be one of
-`BACKGROUND_EXTENSIONS`, so anything else is a 415 instead of a stored file, and the id names the
-file itself (`backgrounds/{id}.{ext}`) rather than a directory.
+`discard_background()` and `delete_background()` are the two undo paths (a rolled-back transaction
+and a deleted row). `resolve_upload_path()` is the single place a client-supplied path becomes a
+real one, and it refuses anything that escapes `data/uploads/`.
 """
 
 import hashlib
 import os
-import shutil
-import unicodedata
 import uuid
-from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -45,22 +35,16 @@ from kanban.errors import BadRequest, TooLarge, UnsupportedMediaType
 #: How much of the received spool is held in memory at a time (Section 6.9).
 CHUNK_BYTES: Final[int] = 1024 * 1024
 
-#: The 2:1 centre crop a card cover is painted from, and its JPEG quality (Sections 2.5 and 6.9).
-THUMB_SIZE: Final[tuple[int, int]] = (512, 256)
-THUMB_QUALITY: Final[int] = 85
-
-#: The preview a board background gets, for the Home tile and the picker (Sections 3.11 and 6.9).
+#: The preview a board background gets, for the Home tile and the picker (Sections 3.11 and 6.9),
+#: and the JPEG quality it is written at.
 BACKGROUND_THUMB_SIZE: Final[tuple[int, int]] = (400, 240)
-
-#: The thumbnail's name inside `attachments/{id}/`; also the last segment of `thumb_path`.
-THUMB_NAME: Final[str] = "thumb.jpg"
+THUMB_QUALITY: Final[int] = 85
 
 #: The suffix of a background's thumbnail: `backgrounds/{id}.thumb.jpg` (Section 3.11).
 BACKGROUND_THUMB_SUFFIX: Final[str] = ".thumb.jpg"
 
-#: `attachments/{id}/...`, `backgrounds/{id}.{ext}` and `tmp/...` relative to
-#: `settings.uploads_dir`; each is also the URL suffix after `/uploads/` (Section 3.11).
-ATTACHMENTS_DIR: Final[str] = "attachments"
+#: `backgrounds/{id}.{ext}` and `tmp/...` relative to `settings.uploads_dir`; each is also the
+#: URL suffix after `/uploads/` (Section 3.11).
 BACKGROUNDS_DIR: Final[str] = "backgrounds"
 TMP_DIR: Final[str] = "tmp"
 
@@ -72,33 +56,6 @@ BACKGROUND_EXTENSIONS: Final[dict[str, str]] = {
     "image/jpeg": "jpg",
     "image/webp": "webp",
 }
-
-#: Section 3.11's `safe_name`: characters outside this set become `_`, and the result is cut to
-#: 120 characters. It is deliberately the URL-safe subset, so `url` needs no further escaping.
-SAFE_CHARACTERS: Final[frozenset[str]] = frozenset(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
-)
-SAFE_NAME_MAX: Final[int] = 120
-
-#: What a name made entirely of separators or dots falls back to, so a stored segment is never
-#: `.` or `..` however the client spells the filename.
-FALLBACK_NAME: Final[str] = "file"
-
-#: Section 4.1's limit for an attachment `name`: the display name is the client's own filename,
-#: which `schemas/attachments.py` also holds the rename to.
-DISPLAY_NAME_MAX: Final[int] = 512
-
-#: Names Windows resolves to a device rather than a file; prefixed with `_` (Section 6.9).
-WINDOWS_RESERVED: Final[frozenset[str]] = frozenset(
-    {"CON", "PRN", "AUX", "NUL"}
-    | {f"COM{digit}" for digit in range(1, 10)}
-    | {f"LPT{digit}" for digit in range(1, 10)}
-)
-
-#: The four types that set `is_image=1`, get a thumbnail and are served inline (Section 6.9).
-IMAGE_MIME_TYPES: Final[frozenset[str]] = frozenset(
-    {"image/png", "image/jpeg", "image/gif", "image/webp"}
-)
 
 #: `Image.open().format` -> MIME, which is how an image's type is decided (Section 6.9).
 PILLOW_FORMATS: Final[dict[str, str]] = {
@@ -126,10 +83,6 @@ MAGIC_NUMBERS: Final[tuple[tuple[int, bytes, str], ...]] = (
 MAGIC_PREFIX_BYTES: Final[int] = 16
 DEFAULT_MIME: Final[str] = "application/octet-stream"
 
-#: How many colours the dominant-colour pass quantises to, and the square it samples first.
-DOMINANT_COLORS: Final[int] = 8
-DOMINANT_SAMPLE: Final[int] = 64
-
 
 @dataclass(frozen=True)
 class ReceivedUpload:
@@ -147,34 +100,16 @@ class PreparedImage:
     tmp_path: Path
     width: int
     height: int
-    dominant_color: str
-
-
-@dataclass(frozen=True)
-class PreparedUpload:
-    """Everything the `attachments` row needs, with both temp files still in `uploads/tmp/`."""
-
-    display_name: str
-    safe_name: str
-    mime_type: str
-    size_bytes: int
-    sha256: str
-    tmp_path: Path
-    image: PreparedImage | None
-
-    @property
-    def is_image(self) -> bool:
-        """Whether this upload sets `is_image=1` and carries a thumbnail (Section 6.9)."""
-        return self.image is not None
 
 
 @dataclass(frozen=True)
 class PreparedBackground:
     """Everything a `board_backgrounds` row needs, with both temp files still in `uploads/tmp/`.
 
-    Its own type rather than a `PreparedUpload`: a background has no display name, no `safe_name`
-    (the id names the file) and no dominant colour, and its thumbnail is never optional - an image
-    Pillow cannot crop is a 415 rather than a row stored without a preview (Section 6.9).
+    Its own type rather than a `PreparedImage`: a background carries the stored row's `mime_type`,
+    `extension` and `size_bytes`, the id names the file so there is no display name, and its
+    thumbnail is never optional - an image Pillow cannot crop is a 415 rather than a row stored
+    without a preview (Section 6.9).
     """
 
     mime_type: str
@@ -187,48 +122,11 @@ class PreparedBackground:
 
 
 @dataclass(frozen=True)
-class StoredPaths:
-    """The `file_path` / `thumb_path` columns after the rename; both are also URL suffixes."""
-
-    file_path: str
-    thumb_path: str | None
-
-
-@dataclass(frozen=True)
 class StoredBackground:
     """The two `board_backgrounds` path columns after the rename; neither is ever null."""
 
     file_path: str
     thumb_path: str
-
-
-def max_upload_bytes() -> int:
-    """`KANBAN_MAX_UPLOAD_MB` in bytes: the cap `save_upload` enforces a second time.
-
-    `BodySizeLimitMiddleware` is the boundary that refuses an oversized body before it is read
-    (Section 6.9); this is the same number, so the belt-and-braces check inside the route can
-    never disagree with it.
-    """
-    return settings.max_upload_mb * 1024 * 1024
-
-
-def safe_name(filename: str | None) -> str:
-    """The on-disk name of Section 3.11: NFC, `[^A-Za-z0-9._-]` -> `_`, 120 characters, no device.
-
-    Every path separator is dropped with the directory part, so a client-supplied
-    `../../etc/passwd` becomes the single segment `passwd`, and a segment that would still read as
-    `.` or `..` falls back to `file`: this function is what makes `attachments/{id}/{safe_name}`
-    a name rather than a path.
-    """
-    raw = unicodedata.normalize("NFC", (filename or "").strip())
-    tail = raw.replace("\\", "/").rsplit("/", 1)[-1]
-    cleaned = "".join(character if character in SAFE_CHARACTERS else "_" for character in tail)
-    if not cleaned.strip("."):
-        cleaned = FALLBACK_NAME
-    stem = cleaned.split(".", 1)[0]
-    if stem.upper() in WINDOWS_RESERVED:
-        cleaned = f"_{cleaned}"
-    return cleaned[:SAFE_NAME_MAX]
 
 
 def _tmp_path() -> Path:
@@ -266,22 +164,6 @@ async def save_upload(file: UploadFile, *, max_bytes: int) -> ReceivedUpload:
     return ReceivedUpload(tmp_path=destination, size_bytes=size, sha256=digest.hexdigest())
 
 
-def dominant_color(image: Image.Image) -> str:
-    """The `#RRGGBB` a cover's letterboxing is painted with (Sections 2.5.1 and 6.9).
-
-    A median-cut quantisation of a 64x64 sample, then the most populous bucket: the average
-    colour of a photo with one bright subject on a dark ground is a muddy grey, while its
-    dominant colour is the ground, which is what the tile needs behind a `contain` image.
-    """
-    sample = _flattened(image).resize((DOMINANT_SAMPLE, DOMINANT_SAMPLE))
-    quantized = sample.quantize(colors=DOMINANT_COLORS, method=Image.Quantize.MEDIANCUT)
-    palette = quantized.getpalette() or []
-    counts = quantized.getcolors() or []
-    index = max(counts)[1] if counts else 0
-    red, green, blue = palette[index * 3 : index * 3 + 3] or (0, 0, 0)
-    return f"#{red:02X}{green:02X}{blue:02X}"
-
-
 def _flattened(image: Image.Image) -> Image.Image:
     """The image as RGB, with any transparency composited onto white.
 
@@ -296,29 +178,25 @@ def _flattened(image: Image.Image) -> Image.Image:
     return background
 
 
-def thumbnail(
-    source: Path, destination: Path, *, size: tuple[int, int] = THUMB_SIZE
-) -> PreparedImage | None:
+def thumbnail(source: Path, destination: Path, *, size: tuple[int, int]) -> PreparedImage | None:
     """Write the centre-crop JPEG of `source` to `destination` (Section 6.9).
 
-    Returns the thumbnail's path with the *original* image's `width` / `height` and its dominant
-    colour, or `None` when Pillow cannot open the file or its format is not one of the four
-    Section 6.9 image types - a `.png` that is really a ZIP therefore gets no thumbnail, because
-    the format is read from the content. `size` is the 512x256 card cover by default and the
-    400x240 `BACKGROUND_THUMB_SIZE` for a board background; the crop rule is the same one.
+    Returns the thumbnail's path with the *original* image's `width` / `height`, or `None` when
+    Pillow cannot open the file or its format is not one of the four Section 6.9 image types - a
+    `.png` that is really a ZIP therefore gets no thumbnail, because the format is read from the
+    content. `size` is the 400x240 `BACKGROUND_THUMB_SIZE` of the one upload that remains.
     """
     try:
         with Image.open(source) as image:
             if PILLOW_FORMATS.get(image.format or "") is None:
                 return None
             width, height = image.size
-            color = dominant_color(image)
             fitted = ImageOps.fit(_flattened(image), size, method=Image.Resampling.LANCZOS)
             fitted.save(destination, format="JPEG", quality=THUMB_QUALITY)
     except (UnidentifiedImageError, OSError, ValueError):
         destination.unlink(missing_ok=True)
         return None
-    return PreparedImage(tmp_path=destination, width=width, height=height, dominant_color=color)
+    return PreparedImage(tmp_path=destination, width=width, height=height)
 
 
 def sniff_mime(path: Path) -> str:
@@ -343,92 +221,14 @@ def sniff_mime(path: Path) -> str:
     return DEFAULT_MIME
 
 
-def prepare_upload(received: ReceivedUpload, *, filename: str | None) -> PreparedUpload:
-    """Sniff the type and build the thumbnail of a received file (Section 6.9 step 3).
-
-    Synchronous and Pillow-bound, so the route runs it in a threadpool; nothing here opens a
-    transaction. An image whose thumbnail cannot be produced keeps its sniffed type but is stored
-    as a plain file, because `is_image` is exactly "has a thumbnail the cover can use".
-    """
-    mime_type = sniff_mime(received.tmp_path)
-    image = (
-        thumbnail(received.tmp_path, Path(f"{received.tmp_path}.thumb.jpg"))
-        if mime_type in IMAGE_MIME_TYPES
-        else None
-    )
-    return PreparedUpload(
-        display_name=(filename or "").strip()[:DISPLAY_NAME_MAX] or FALLBACK_NAME,
-        safe_name=safe_name(filename),
-        mime_type=mime_type,
-        size_bytes=received.size_bytes,
-        sha256=received.sha256,
-        tmp_path=received.tmp_path,
-        image=image,
-    )
-
-
-def place_upload(attachment_id: int, prepared: PreparedUpload) -> StoredPaths:
-    """Rename the temp files into `attachments/{attachment_id}/` (Section 6.9 step 5).
-
-    The only filesystem work inside `write_tx`, and the reason the row is inserted first: the
-    directory is named after the id SQLite assigns in the open transaction. `os.replace` is a
-    rename within one filesystem, so the write lock is held for microseconds here.
-    """
-    directory = settings.uploads_dir / ATTACHMENTS_DIR / str(attachment_id)
-    directory.mkdir(parents=True, exist_ok=True)
-    os.replace(prepared.tmp_path, directory / prepared.safe_name)
-    thumb_path: str | None = None
-    if prepared.image is not None:
-        os.replace(prepared.image.tmp_path, directory / THUMB_NAME)
-        thumb_path = f"{ATTACHMENTS_DIR}/{attachment_id}/{THUMB_NAME}"
-    return StoredPaths(
-        file_path=f"{ATTACHMENTS_DIR}/{attachment_id}/{prepared.safe_name}",
-        thumb_path=thumb_path,
-    )
-
-
-def discard_upload(prepared: PreparedUpload) -> None:
-    """Delete whatever of an upload is still in `uploads/tmp/` (Section 6.9, "any failure").
-
-    Safe after `place_upload` has run: the renames leave nothing behind, so this is a no-op on
-    the success path and the whole cleanup on the rollback path.
-    """
-    prepared.tmp_path.unlink(missing_ok=True)
-    if prepared.image is not None:
-        prepared.image.tmp_path.unlink(missing_ok=True)
-
-
-def delete_upload(attachment_id: int) -> None:
-    """Remove `attachments/{attachment_id}/` with its file and thumbnail (Sections 3.7 and 6.9).
-
-    Called after the delete has committed, never inside the transaction: a file cannot be
-    un-deleted by a rollback, so the row goes first and the bytes follow. Missing files are not
-    an error - `cleanup-orphans` exists precisely because a crash can leave either side behind.
-    """
-    shutil.rmtree(settings.uploads_dir / ATTACHMENTS_DIR / str(attachment_id), ignore_errors=True)
-
-
-def delete_uploads(attachment_ids: Iterable[int]) -> None:
-    """Remove the directory of every id in `attachment_ids` (Sections 3.7 and 3.11).
-
-    The cascade half of `delete_upload`: deleting a card, an archived list or a closed board
-    orphans every file under it, and Section 3.7 removes them all after that one commit. The
-    three services hand in the ids `services/boards.orphaned_upload_ids()` read for them, so the
-    loop - and with it "a file is unlinked after the transaction, never inside it" - is written
-    once rather than three times.
-    """
-    for attachment_id in attachment_ids:
-        delete_upload(attachment_id)
-
-
 def prepare_background(received: ReceivedUpload) -> PreparedBackground:
     """Sniff a received board background and build its 400x240 preview (Section 6.9 step 3).
 
-    The three steps `prepare_upload` takes for an attachment, with the one rule a background adds:
-    the sniffed type must be PNG, JPEG or WebP, so anything else - including a `.png` that is
-    really a ZIP, since `sniff_mime` reads the bytes - raises `UnsupportedMediaType` (415) and
-    takes the temp file with it. Synchronous and Pillow-bound, so the route runs it in a
-    threadpool; nothing here opens a transaction.
+    Sniff, crop, describe - with the one rule a background adds: the sniffed type must be PNG,
+    JPEG or WebP, so anything else - including a `.png` that is really a ZIP, since `sniff_mime`
+    reads the bytes - raises `UnsupportedMediaType` (415) and takes the temp file with it.
+    Synchronous and Pillow-bound, so the route runs it in a threadpool; nothing here opens a
+    transaction.
     """
     mime_type = sniff_mime(received.tmp_path)
     extension = BACKGROUND_EXTENSIONS.get(mime_type)
@@ -457,8 +257,8 @@ def prepare_background(received: ReceivedUpload) -> PreparedBackground:
 def place_background(background_id: int, prepared: PreparedBackground) -> StoredBackground:
     """Rename the temp files to `backgrounds/{id}.{ext}` and `.thumb.jpg` (Section 6.9 step 5).
 
-    The background half of `place_upload`, and the only filesystem work inside `write_tx` for the
-    same reason: the files are named after the id SQLite assigns in the open transaction.
+    The only filesystem work inside `write_tx`, for one reason: the files are named after the id
+    SQLite assigns in the open transaction.
     """
     directory = settings.uploads_dir / BACKGROUNDS_DIR
     directory.mkdir(parents=True, exist_ok=True)
@@ -475,8 +275,7 @@ def place_background(background_id: int, prepared: PreparedBackground) -> Stored
 def discard_background(prepared: PreparedBackground) -> None:
     """Delete whatever of a background upload is still in `uploads/tmp/` (Section 6.9).
 
-    A no-op once `place_background` has renamed both files, and the whole cleanup otherwise -
-    the same success/rollback pair as `discard_upload`.
+    A no-op once `place_background` has renamed both files, and the whole cleanup otherwise.
     """
     prepared.tmp_path.unlink(missing_ok=True)
     prepared.thumb_tmp_path.unlink(missing_ok=True)

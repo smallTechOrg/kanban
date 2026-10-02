@@ -13,16 +13,9 @@
   color: var(--text-muted);
 }
 
-/* The archived card's hard delete (Section 2.6.4), in the row rhythm of the buttons above it. */
+/* The card's hard delete (Section 2.6.4), in the row rhythm of the buttons above it. */
 .delete {
   margin-bottom: 8px;
-}
-
-/* The 1px rule above "Archive" (Section 2.6.4). */
-.divider {
-  height: 1px;
-  margin: 8px 0;
-  background: var(--border);
 }
 
 /* Section 2.6.1: on a phone the sidebar stacks under the main column as a 2-column grid. */
@@ -35,8 +28,7 @@
     padding: 0 16px 16px;
   }
 
-  .heading,
-  .divider {
+  .heading {
     grid-column: 1 / -1;
   }
 }

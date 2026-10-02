@@ -12,18 +12,10 @@ from pydantic.functional_serializers import SerializerFunctionWrapHandler
 #: An instant in the one format Section 4.1 defines for the whole API: ISO-8601 UTC with a `Z`
 #: suffix, which is what `models.utcnow_iso()` writes and what `Date.prototype.toISOString()`
 #: produces. Every body that carries a client-chosen instant - a card's `start_at` / `due_at`,
-#: a checklist item's `due_at` - validates against this one type rather than its own copy, and
+#: a card item's `due_at` - validates against this one type rather than its own copy, and
 #: the value is stored exactly as received (the client converts from browser-local first).
 ISO_UTC_PATTERN = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z$"
 IsoTimestamp = Annotated[str, StringConstraints(pattern=ISO_UTC_PATTERN)]
-
-#: The two halves of `cards.cover_type` / `cards.cover_size` (Section 3.4), spelled once. Three
-#: modules need them: `CardCover` reads them back (`schemas/cards.py`), `CoverIn` validates the
-#: `PUT /api/cards/{card_id}/cover` body (`schemas/attachments.py`), and `CardDetail` embeds
-#: `AttachmentOut`, so declaring them in either of those two would either duplicate the pair or
-#: make the two modules import each other.
-CoverKind = Literal["color", "attachment"]
-CoverSize = Literal["normal", "full"]
 
 
 class ErrorBody(BaseModel):
@@ -94,19 +86,18 @@ class MoveIn(BaseModel):
 
 
 class CardBadges(BaseModel):
-    """The four tile badge counts of Sections 2.5 and 4.10.1.
+    """The three tile badge counts of Sections 2.5 and 4.10.1.
 
     It lives here rather than in `schemas/cards.py` because three domains answer with it: every
-    `CardSummary`, the board payload, and the checklist-item patch of Section 4.6, whose response
-    is `ChecklistItemOut & {badges}` so the tile can be updated from the same round trip. With it
-    beside the other shared shapes, `schemas/cards.py` can embed `ChecklistOut` in `CardDetail`
-    and `schemas/checklists.py` can embed these badges without the two importing each other.
+    `CardSummary`, the board payload, and the item patch of Section 4.6, whose response is
+    `CardItemOut & {badges}` so the tile can be updated from the same round trip. With it beside
+    the other shared shapes, `schemas/cards.py` can embed `CardItemOut` in `CardDetail` and
+    `schemas/items.py` can embed these badges without the two importing each other.
     """
 
     description: bool
-    attachments: int
-    checklist_done: int
-    checklist_total: int
+    item_done: int
+    item_total: int
 
 
 class Health(BaseModel):
@@ -129,12 +120,10 @@ class LabelColorOut(BaseModel):
 
 
 class Meta(BaseModel):
-    """`GET /api/meta`: the palettes and the upload limit the SPA reads at start-up."""
+    """`GET /api/meta`: the palettes the SPA reads at start-up."""
 
     version: str
     label_colors: dict[str, LabelColorOut]
-    cover_colors: dict[str, str]
     board_colors: dict[str, str]
     board_gradients: dict[str, str]
     list_colors: dict[str, str]
-    max_upload_mb: int

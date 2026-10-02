@@ -27,7 +27,7 @@ from typing import Any, Final
 from sqlalchemy import collate, select, text
 from sqlalchemy.orm import Session
 
-from kanban.models import Board, BoardStar, CardLabel, Label
+from kanban.models import Board, CardLabel, Label
 from kanban.services.boards import board_summary
 
 #: `GET /api/search?limit=` (Section 4.7) and the ceiling the router validates against.
@@ -94,11 +94,10 @@ def _boards(db: Session, *, q: str, board_id: int | None, limit: int) -> list[di
     """Statement 1: the open boards whose name contains `q`, alphabetically.
 
     `board_summary()` builds the rows, so the `BoardSummary` of the search response is the same
-    shape (and the same `is_starred`) the home page and the board page read.
+    shape the home page and the board page read.
     """
     statement = (
-        select(Board, BoardStar.id.label("star_id"))
-        .outerjoin(BoardStar, BoardStar.board_id == Board.id)
+        select(Board)
         .where(
             Board.is_closed == 0,
             collate(Board.name, "NOCASE").contains(q, autoescape=True),
@@ -108,10 +107,7 @@ def _boards(db: Session, *, q: str, board_id: int | None, limit: int) -> list[di
     )
     if board_id is not None:
         statement = statement.where(Board.id == board_id)
-    return [
-        board_summary(row.Board, is_starred=row.star_id is not None)
-        for row in db.execute(statement)
-    ]
+    return [board_summary(board) for board in db.execute(statement).scalars()]
 
 
 def _cards(db: Session, *, q: str, board_id: int | None, limit: int) -> list[dict[str, Any]]:

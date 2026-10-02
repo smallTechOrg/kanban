@@ -1,4 +1,4 @@
-# Kan Ban - one image, two stages.
+# My Day - one image, two stages.
 #
 # Stage 1 builds the SPA with Node; stage 2 runs it with Python. Node is a build-time
 # dependency only, exactly as docs/PLANNING.md Section 1.6 requires: no Node process

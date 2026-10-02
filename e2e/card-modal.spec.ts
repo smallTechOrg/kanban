@@ -2,8 +2,8 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /**
  * The M3 checkpoint of Section 7.2: the card detail modal as a route, and the four features whose
- * whole point is that the tile behind the modal changes — a label chip, a description badge, a
- * checklist `done/total` and a coloured due pill.
+ * whole point is that the tile behind the modal changes — a label chip, a description badge, an
+ * item `done/total` and a coloured due pill.
  *
  * One serial test, because every step builds on the card the one before it created.
  */
@@ -22,9 +22,8 @@ const LABEL = 'green';
 
 const DESCRIPTION = '## Plan\n\n- Pick the palette\n- Ship it';
 
-const CHECKLIST = 'Launch tasks';
 
-const ITEMS = ['Wireframe', 'Palette', 'Review'] as const;
+const ITEMS = ['Wireframe', 'Palette'] as const;
 
 /** One column, which `ListColumn` labels with the list's name. */
 function column(page: Page, name: string): Locator {
@@ -74,7 +73,7 @@ function toRgb(hex: string): string {
 
 test.describe.configure({ mode: 'serial' });
 
-test('M3: card modal route, labels, description, checklist, dates, activity', async ({ page }) => {
+test('M3: card modal route, labels, description, items, dates, activity', async ({ page }) => {
   let cardUrl = '';
 
   await test.step('1. create a board and one card', async () => {
@@ -157,15 +156,10 @@ test('M3: card modal route, labels, description, checklist, dates, activity', as
     ).toBeVisible();
   });
 
-  await test.step('6. add a checklist, tick one item, and read the tile badge', async () => {
+  await test.step('6. add items to the card, tick one, and read the tile badge', async () => {
     await page.goto(cardUrl);
-    const popover = await openSidebar(page, 'Checklist', 'Add checklist');
-    // Section 2.6.5: the title input arrives prefilled with "Checklist".
-    await expect(popover.getByLabel('Title')).toHaveValue('Checklist');
-    await popover.getByLabel('Title').fill(CHECKLIST);
-    await popover.getByRole('button', { name: 'Add', exact: true }).click();
-
-    const section = modal(page).getByRole('region', { name: CHECKLIST });
+    // There is no checklist to create first: the section is always on the card.
+    const section = modal(page).getByRole('region', { name: 'Items' });
     await expect(section).toBeVisible();
 
     await section.getByRole('button', { name: 'Add an item' }).click();
@@ -178,12 +172,12 @@ test('M3: card modal route, labels, description, checklist, dates, activity', as
     await composer.press('Escape');
 
     await section.getByRole('checkbox', { name: ITEMS[0] }).check();
-    const bar = section.getByRole('progressbar', { name: CHECKLIST });
+    const bar = section.getByRole('progressbar', { name: 'Items' });
     await expect(bar).toHaveAttribute('aria-valuenow', '1');
-    await expect(section.getByText('33%')).toBeVisible();
+    await expect(section.getByText('50%')).toBeVisible();
 
     await page.keyboard.press('Escape');
-    await expect(tileCard(page, CARD).getByText('1/3')).toBeVisible();
+    await expect(tileCard(page, CARD).getByText('1/2')).toBeVisible();
   });
 
   await test.step('7. set a due date, then complete it from the tile badge', async () => {
@@ -225,7 +219,7 @@ test('M3: card modal route, labels, description, checklist, dates, activity', as
     await expect(activity.getByText(`Added this card to ${FIRST_LIST}`)).toBeVisible();
     await expect(activity.getByText(`Added the ${LABEL} label to this card`)).toBeVisible();
     await expect(activity.getByText('Updated the description of this card')).toBeVisible();
-    await expect(activity.getByText(`Added checklist ${CHECKLIST} to this card`)).toBeVisible();
+    await expect(activity.getByText(`Added ${ITEMS[0]} to this card`)).toBeVisible();
     // Step 7 ticked the tile's own due badge, so the feed carries that write too.
     await expect(activity.getByText('Marked the due date complete')).toBeVisible();
 

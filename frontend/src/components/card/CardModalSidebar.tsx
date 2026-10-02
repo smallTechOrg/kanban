@@ -1,34 +1,12 @@
 import { useRef, useState, type ReactElement } from 'react';
-import {
-  Archive,
-  ArrowRight,
-  CheckSquare,
-  Clock,
-  Copy,
-  CreditCard,
-  Image,
-  Paperclip,
-  Tag,
-  Undo2,
-} from 'lucide-react';
+import { Clock, Tag, Undo2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { CardDetail } from '@/api/types';
 import { Button, ConfirmPopover } from '@/components/ui';
-import {
-  useArchiveOpenCard,
-  useDeleteCard,
-  useUnarchiveOpenCard,
-  useUpdateCardFields,
-} from '@/hooks/useCardMutations';
-import { useToast } from '@/hooks/useToast';
+import { useDeleteCard, useUnarchiveOpenCard } from '@/hooks/useCardMutations';
 import { useUiStore, type OpenPopover, type PopoverKind } from '@/store/uiStore';
-import { AttachmentPopover } from './AttachmentPopover';
-import { ChecklistPopover } from './ChecklistPopover';
-import { CopyCardPopover } from './CopyCardPopover';
-import { CoverPopover } from './CoverPopover';
 import { DatesPopover } from './DatesPopover';
 import { LabelsPopover } from './LabelsPopover';
-import { MoveCardPopover } from './MoveCardPopover';
 import { SidebarButton } from './SidebarButton';
 import styles from './CardModalSidebar.module.css';
 
@@ -46,11 +24,13 @@ export interface CardModalSidebarProps {
  * The card modal's 168px sidebar (Section 2.6.4): the "Add to card" and "Actions" groups, every
  * row a `SidebarButton` that anchors its popover to itself.
  *
- * Every row is live: the panels of Section 2.6.5, "Make template" as one field of the card
- * `PATCH`, and the archive group, which swaps Archive for "Send to board" and a `danger` Delete
- * once the card is archived — the state machine of Section 3.7, where archiving is undoable for
- * five seconds from its toast and deleting is not undoable at all, so it asks first and then
- * navigates back to the board.
+ * A card carries labels and dates and nothing else, so those are the two panels here; delete is
+ * the one action. There is no move, no copy, no template and no cover, and items are added in
+ * the main column rather than from a panel.
+ *
+ * Delete is a hard delete with no undo (Section 3.7), so it confirms first and then navigates
+ * back to the board. A card that was archived in bulk from its list menu also offers "Send to
+ * board" above it, which is the only way back from the archive.
  *
  * Which popover is open lives in `uiStore.openPopover` (Section 5.13), the one field that keeps
  * exactly one popover open across the app and lets the modal's Escape handler close a popover
@@ -67,10 +47,7 @@ export function CardModalSidebar({ card }: CardModalSidebarProps): ReactElement 
   const setOpenPopover = useUiStore((state) => state.setOpenPopover);
   const [confirmAnchor, setConfirmAnchor] = useState<HTMLElement | null>(null);
   const navigate = useNavigate();
-  const { show } = useToast();
 
-  const updateCard = useUpdateCardFields(boardId, cardId);
-  const archiveCard = useArchiveOpenCard(boardId, cardId);
   const unarchiveCard = useUnarchiveOpenCard(boardId, cardId);
   const deleteCard = useDeleteCard(boardId, cardId);
 
@@ -80,12 +57,6 @@ export function CardModalSidebar({ card }: CardModalSidebarProps): ReactElement 
 
   function close(): void {
     setOpenPopover(null);
-  }
-
-  /** Section 3.7: the modal stays open on the banner, and the toast can undo for five seconds. */
-  function archive(): void {
-    archiveCard.mutate();
-    show('Card archived', 'neutral', { label: 'Undo', onClick: () => unarchiveCard.mutate() });
   }
 
   const root = rootRef.current;
@@ -107,77 +78,34 @@ export function CardModalSidebar({ card }: CardModalSidebarProps): ReactElement 
         onClick={opener('labels')}
       />
       <SidebarButton
-        label="Checklist"
-        icon={<CheckSquare aria-hidden="true" />}
-        onClick={opener('checklist')}
-      />
-      <SidebarButton
         label="Dates"
         icon={<Clock aria-hidden="true" />}
         shortcut="dates"
         onClick={opener('dates')}
       />
-      <SidebarButton
-        label="Attachment"
-        icon={<Paperclip aria-hidden="true" />}
-        onClick={opener('attachment')}
-      />
-      <SidebarButton label="Cover" icon={<Image aria-hidden="true" />} onClick={opener('cover')} />
 
       <h3 className={styles.heading}>Actions</h3>
-      <SidebarButton
-        label="Move"
-        icon={<ArrowRight aria-hidden="true" />}
-        onClick={opener('moveCard')}
-      />
-      <SidebarButton label="Copy" icon={<Copy aria-hidden="true" />} onClick={opener('copyCard')} />
-      <SidebarButton
-        label={card.is_template ? 'Convert to card' : 'Make template'}
-        icon={<CreditCard aria-hidden="true" />}
-        onClick={() => updateCard.mutate({ is_template: !card.is_template })}
-      />
-      <div className={styles.divider} />
-
       {card.is_archived ? (
-        <>
-          <SidebarButton
-            label="Send to board"
-            icon={<Undo2 aria-hidden="true" />}
-            onClick={() => unarchiveCard.mutate()}
-          />
-          <Button
-            variant="danger"
-            fullWidth
-            className={styles.delete}
-            onClick={(event) => setConfirmAnchor(event.currentTarget)}
-          >
-            Delete
-          </Button>
-        </>
-      ) : (
-        <SidebarButton label="Archive" icon={<Archive aria-hidden="true" />} onClick={archive} />
-      )}
+        <SidebarButton
+          label="Send to board"
+          icon={<Undo2 aria-hidden="true" />}
+          onClick={() => unarchiveCard.mutate()}
+        />
+      ) : null}
+      <Button
+        variant="danger"
+        fullWidth
+        className={styles.delete}
+        onClick={(event) => setConfirmAnchor(event.currentTarget)}
+      >
+        Delete
+      </Button>
 
       {own === null || own.kind !== 'labels' ? null : (
         <LabelsPopover boardId={boardId} cardId={cardId} anchor={own.anchor} onClose={close} />
       )}
-      {own === null || own.kind !== 'checklist' ? null : (
-        <ChecklistPopover boardId={boardId} cardId={cardId} anchor={own.anchor} onClose={close} />
-      )}
       {own === null || own.kind !== 'dates' ? null : (
         <DatesPopover boardId={boardId} cardId={cardId} anchor={own.anchor} onClose={close} />
-      )}
-      {own === null || own.kind !== 'attachment' ? null : (
-        <AttachmentPopover boardId={boardId} cardId={cardId} anchor={own.anchor} onClose={close} />
-      )}
-      {own === null || own.kind !== 'cover' ? null : (
-        <CoverPopover boardId={boardId} cardId={cardId} anchor={own.anchor} onClose={close} />
-      )}
-      {own === null || own.kind !== 'moveCard' ? null : (
-        <MoveCardPopover boardId={boardId} cardId={cardId} anchor={own.anchor} onClose={close} />
-      )}
-      {own === null || own.kind !== 'copyCard' ? null : (
-        <CopyCardPopover boardId={boardId} cardId={cardId} anchor={own.anchor} onClose={close} />
       )}
 
       {confirmAnchor === null ? null : (
@@ -185,6 +113,7 @@ export function CardModalSidebar({ card }: CardModalSidebarProps): ReactElement 
           anchor={confirmAnchor}
           title="Delete card?"
           body={DELETE_BODY}
+          confirmLabel="Delete card"
           loading={deleteCard.isPending}
           onClose={() => setConfirmAnchor(null)}
           onConfirm={() =>

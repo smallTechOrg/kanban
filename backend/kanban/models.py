@@ -128,38 +128,6 @@ class Board(TimestampMixin, Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
 
 
-class BoardStar(CreatedAtMixin, Base):
-    """The starred boards of Section 2.2, ordered."""
-
-    __tablename__ = "board_stars"
-    __table_args__ = (
-        UniqueConstraint("board_id"),
-        Index("ix_board_stars_position", "position"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    board_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("boards.id", ondelete="CASCADE"), nullable=False
-    )
-    position: Mapped[float] = mapped_column(Float, nullable=False)
-
-
-class BoardView(CreatedAtMixin, Base):
-    """The recently viewed boards of Section 2.2: the top 4 by `viewed_at`."""
-
-    __tablename__ = "board_views"
-    __table_args__ = (
-        UniqueConstraint("board_id"),
-        Index("ix_board_views_viewed", text("viewed_at DESC")),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    board_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("boards.id", ondelete="CASCADE"), nullable=False
-    )
-    viewed_at: Mapped[str] = mapped_column(Text, nullable=False)
-
-
 # =========================================================== lists / cards
 
 
@@ -190,13 +158,7 @@ class Card(TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("length(title) BETWEEN 1 AND 16384", name="ck_cards_title_length"),
         CheckConstraint("due_complete IN (0, 1)", name="ck_cards_due_complete"),
-        CheckConstraint(
-            f"cover_type IS NULL OR {_in_check('cover_type', ('color', 'attachment'))}",
-            name="ck_cards_cover_type",
-        ),
-        CheckConstraint(_in_check("cover_size", ("normal", "full")), name="ck_cards_cover_size"),
         CheckConstraint("is_archived IN (0, 1)", name="ck_cards_is_archived"),
-        CheckConstraint("is_template IN (0, 1)", name="ck_cards_is_template"),
         UniqueConstraint("board_id", "short_id"),
         Index("ix_cards_list_archived_position", "list_id", "is_archived", "position"),
         Index("ix_cards_board_archived", "board_id", "is_archived"),
@@ -223,12 +185,7 @@ class Card(TimestampMixin, Base):
     due_complete: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     #: NULL, 0, 5, 10, 15, 60, 120, 1440 or 2880.
     due_reminder_minutes: Mapped[int | None] = mapped_column(Integer)
-    cover_type: Mapped[str | None] = mapped_column(Text)
-    #: Palette key for 'color'; `attachments.id` as text for 'attachment'.
-    cover_value: Mapped[str | None] = mapped_column(Text)
-    cover_size: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'normal'"))
     is_archived: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
-    is_template: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     #: Optional 'tmp_<32 hex>' echoed back for an optimistic create.
     client_id: Mapped[str | None] = mapped_column(Text)
 
@@ -271,77 +228,33 @@ class CardLabel(CreatedAtMixin, Base):
     )
 
 
-# =========================================================== checklists
+# =========================================================== card items
 
 
-class Checklist(TimestampMixin, Base):
-    __tablename__ = "checklists"
+class CardItem(TimestampMixin, Base):
+    """A card's checkable items.
+
+    They hang off the card itself: there is no named container to create first, so "add an item"
+    is the whole gesture (Section 2.6.3).
+    """
+
+    __tablename__ = "card_items"
     __table_args__ = (
-        Index("ix_checklists_card_position", "card_id", "position"),
+        CheckConstraint("length(name) BETWEEN 1 AND 16384", name="ck_card_items_name_length"),
+        CheckConstraint("is_checked IN (0, 1)", name="ck_card_items_is_checked"),
+        Index("ix_card_items_card_position", "card_id", "position"),
         AUTOINC,
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     card_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False
-    )
-    name: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'Checklist'"))
-    position: Mapped[float] = mapped_column(Float, nullable=False)
-
-
-class ChecklistItem(TimestampMixin, Base):
-    __tablename__ = "checklist_items"
-    __table_args__ = (
-        CheckConstraint("length(name) BETWEEN 1 AND 16384", name="ck_checklist_items_name_length"),
-        CheckConstraint("is_checked IN (0, 1)", name="ck_checklist_items_is_checked"),
-        Index("ix_checklist_items_checklist_position", "checklist_id", "position"),
-        AUTOINC,
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    checklist_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("checklists.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     position: Mapped[float] = mapped_column(Float, nullable=False)
     is_checked: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     checked_at: Mapped[str | None] = mapped_column(Text)
     due_at: Mapped[str | None] = mapped_column(Text)
-
-
-# =========================================================== attachments
-
-
-class Attachment(TimestampMixin, Base):
-    __tablename__ = "attachments"
-    __table_args__ = (
-        CheckConstraint(_in_check("kind", ("upload", "link")), name="ck_attachments_kind"),
-        CheckConstraint("is_image IN (0, 1)", name="ck_attachments_is_image"),
-        Index("ix_attachments_card_created", "card_id", "created_at"),
-        AUTOINC,
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    card_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False
-    )
-    kind: Mapped[str] = mapped_column(Text, nullable=False)
-    #: Original filename or link display text.
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-    #: '/uploads/attachments/{id}/{safe_name}' or the external URL.
-    url: Mapped[str] = mapped_column(Text, nullable=False)
-    #: 'attachments/{id}/{safe_name}' relative to data/uploads/; NULL for links.
-    file_path: Mapped[str | None] = mapped_column(Text)
-    mime_type: Mapped[str | None] = mapped_column(Text)
-    size_bytes: Mapped[int | None] = mapped_column(Integer)
-    sha256: Mapped[str | None] = mapped_column(Text)
-    is_image: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
-    width: Mapped[int | None] = mapped_column(Integer)
-    height: Mapped[int | None] = mapped_column(Integer)
-    #: '#RRGGBB' computed by Pillow, images only.
-    dominant_color: Mapped[str | None] = mapped_column(Text)
-    #: 'attachments/{id}/thumb.jpg', a 512x256 cover crop, images only.
-    thumb_path: Mapped[str | None] = mapped_column(Text)
 
 
 # =========================================================== activity log (immutable)

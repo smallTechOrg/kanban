@@ -52,7 +52,7 @@ describe('BoardPage', () => {
 
     await screen.findByRole('button', { name: 'Rename board Website relaunch' });
 
-    expect(document.title).toBe('Website relaunch | Kan Ban');
+    expect(document.title).toBe('Website relaunch | My Day');
   });
 
   it('renders the board controls of Section 2.3.1', async () => {

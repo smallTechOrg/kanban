@@ -1,28 +1,20 @@
 import { useEffect, type MouseEvent, type ReactElement } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown, LayoutGrid, Plus } from 'lucide-react';
+import { LayoutGrid, Plus } from 'lucide-react';
 import { Button, IconButton, MenuRow, Popover, cx } from '@/components/ui';
 import { SHORTCUT_ANCHOR_ATTR } from '@/hooks/useKeyboardShortcuts';
 import { useUiStore, type PopoverKind } from '@/store/uiStore';
-import { BoardsPopover, type BoardsGroup } from './BoardsPopover';
+import { BoardsPopover } from './BoardsPopover';
 import { CreateMenuPopover } from './CreateMenuPopover';
 import { SearchPopover } from './SearchPopover';
 import styles from './TopNav.module.css';
 
 /**
- * Recent, Starred and the `B` shortcut share one popover; `openPopover.props` says which list to
- * show — one of the two, or both at once for the key (Section 2.8).
- */
-function boardsGroupOf(props: Record<string, unknown> | undefined): BoardsGroup {
-  const group = props?.['group'];
-  if (group === 'starred') return 'starred';
-  if (group === 'both') return 'both';
-  return 'recent';
-}
-
-/**
- * The 44px bar of Section 2.1.1: grid button, wordmark, Boards, Recent and Starred, the
- * Create menu and the search shell.
+ * The 44px bar of Section 2.1.1: grid button, wordmark, Boards, the Create menu and the
+ * search shell.
+ *
+ * There is no Recent or Starred dropdown: one person's boards are one list, so "Boards" goes
+ * home and the `B` shortcut opens `BoardsPopover` on that same button.
  *
  * Which popover is open lives in `uiStore.openPopover`, the single field that keeps exactly
  * one popover open across the whole app (Section 2.1.2).
@@ -56,13 +48,13 @@ export function TopNav(): ReactElement {
           <LayoutGrid aria-hidden="true" />
         </IconButton>
 
-        <Link to="/" className={styles.wordmark} aria-label="Kan Ban">
+        <Link to="/" className={styles.wordmark} aria-label="My Day">
           <span className={styles.mark} aria-hidden="true">
             <span className={styles.bar} />
             <span className={styles.bar} />
             <span className={styles.bar} />
           </span>
-          <span className={styles.wordmarkText}>Kan Ban</span>
+          <span className={styles.wordmarkText}>My Day</span>
         </Link>
 
         <Button
@@ -74,24 +66,6 @@ export function TopNav(): ReactElement {
           onClick={() => navigate('/')}
         >
           Boards
-        </Button>
-
-        <Button
-          variant="transparent-white"
-          className={cx(styles.navButton, styles.wideOnly)}
-          onClick={openFrom('boards', { group: 'recent' })}
-        >
-          Recent
-          <ChevronDown className={styles.chevron} aria-hidden="true" />
-        </Button>
-
-        <Button
-          variant="transparent-white"
-          className={cx(styles.navButton, styles.wideOnly)}
-          onClick={openFrom('boards', { group: 'starred' })}
-        >
-          Starred
-          <ChevronDown className={styles.chevron} aria-hidden="true" />
         </Button>
 
         <Button
@@ -123,11 +97,7 @@ export function TopNav(): ReactElement {
       ) : null}
 
       {popover?.kind === 'boards' ? (
-        <BoardsPopover
-          anchor={popover.anchor}
-          group={boardsGroupOf(popover.props)}
-          onClose={close}
-        />
+        <BoardsPopover anchor={popover.anchor} onClose={close} />
       ) : null}
 
       {popover?.kind === 'createMenu' ? (

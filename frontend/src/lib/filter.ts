@@ -51,7 +51,7 @@ export const EMPTY_FILTER: BoardFilter = {
 /** What the predicate reads off a card; a `CardRow` of the board cache satisfies it. */
 export type FilterCard = Pick<
   CardRow,
-  'title' | 'label_ids' | 'due_at' | 'due_complete' | 'is_template' | 'updated_at'
+  'title' | 'label_ids' | 'due_at' | 'due_complete' | 'updated_at'
 >;
 
 /** A label as the keyword search reads it: `BoardState.labels` satisfies this. */
@@ -119,13 +119,9 @@ function labelsCriterion(card: FilterCard, filter: BoardFilter): Criterion {
   };
 }
 
-/**
- * "Marked as complete" / "Not marked as complete". A template card matches neither: it is a
- * stencil, not work in progress (Section 7.2 M4), and the same holds for the due windows below.
- */
+/** "Marked as complete" / "Not marked as complete". */
 function statusCriterion(card: FilterCard, filter: BoardFilter): Criterion {
   if (filter.status === 'any') return { selected: false, matched: false };
-  if (card.is_template) return { selected: true, matched: false };
   return {
     selected: true,
     matched: filter.status === 'complete' ? card.due_complete : !card.due_complete,
@@ -140,7 +136,6 @@ function statusCriterion(card: FilterCard, filter: BoardFilter): Criterion {
  */
 function dueCriterion(card: FilterCard, filter: BoardFilter, now: Date): Criterion {
   if (filter.due === 'any') return { selected: false, matched: false };
-  if (card.is_template) return { selected: true, matched: false };
   if (filter.due === 'none') return { selected: true, matched: card.due_at === null };
   if (filter.due === 'overdue')
     return { selected: true, matched: dueState(card, now) === 'overdue' };

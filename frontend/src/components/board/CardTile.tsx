@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, type ReactElement } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Pencil } from 'lucide-react';
+import { Pencil, Square, SquareCheckBig } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { IconButton, cx } from '@/components/ui';
@@ -11,7 +11,7 @@ import { SHORTCUT_ANCHOR_ATTR, cardAnchorName } from '@/hooks/useKeyboardShortcu
 import { useMeta } from '@/hooks/useMeta';
 import { cardDragId } from '@/lib/boardDnd';
 import type { LabelRow } from '@/lib/boardState';
-import { coverStyle, type CoverPalette, type LabelPalette } from '@/lib/colors';
+import type { LabelPalette } from '@/lib/colors';
 import { useUiStore } from '@/store/uiStore';
 import { CardBadges } from './CardBadges';
 import { QuickCardEditor } from './QuickCardEditor';
@@ -19,7 +19,6 @@ import styles from './CardTile.module.css';
 
 const NO_LABELS: readonly LabelRow[] = [];
 const NO_PALETTE: LabelPalette = {};
-const NO_COVER_PALETTE: CoverPalette = {};
 
 export interface CardTileProps {
   boardId: number;
@@ -50,6 +49,11 @@ export interface CardTileProps {
  * tile through its `::after`, with those three painted above it: one tab stop per card, the
  * click target of the documented `<a>`, and Section 2.7's keyboard contract intact (Tab
  * focuses, Space lifts, Enter is the native link activation).
+ *
+ * The item list under the title is deliberately *not* a fourth control. Its ticks say what is
+ * done and ticking happens in the card modal, so the rows sit under the anchor's stretched
+ * layer: the card stays one tab stop and one drag handle, and a click on an item opens the card
+ * exactly as a click anywhere else on the tile does.
  */
 function CardTileView({
   boardId,
@@ -61,8 +65,6 @@ function CardTileView({
   const labels = useLabels(boardId).data ?? NO_LABELS;
   const meta = useMeta().data;
   const palette: LabelPalette = meta?.label_colors ?? NO_PALETTE;
-  const coverPalette: CoverPalette = meta?.cover_colors ?? NO_COVER_PALETTE;
-  const coversEnabled = useUiStore((state) => state.cardCoversEnabled);
   const labelTextMode = useUiStore((state) => state.labelTextMode);
   const setLabelTextMode = useUiStore((state) => state.setLabelTextMode);
   const patterned = useUiStore((state) => state.colorBlindLabels);
@@ -101,10 +103,6 @@ function CardTileView({
     .map((labelId) => labels.find((label) => label.id === labelId))
     .filter((label): label is LabelRow => label !== undefined);
 
-  const cover = coversEnabled ? card.cover : null;
-  const isFullCover = cover?.size === 'full';
-  const fill = cover === null ? null : coverStyle(cover, coverPalette);
-
   return (
     <Draggable draggableId={cardDragId(card.id)} index={index}>
       {(provided, snapshot) => (
@@ -113,12 +111,7 @@ function CardTileView({
             provided.innerRef(node);
             tileRef.current = node;
           }}
-          className={cx(
-            styles.tile,
-            isCurrent && styles.current,
-            isFullCover && styles.full,
-            hidden && styles.hidden,
-          )}
+          className={cx(styles.tile, isCurrent && styles.current, hidden && styles.hidden)}
           data-is-dragging={snapshot.isDragging ? 'true' : undefined}
           // The anchor the `L` and `D` keys hang their panel off (Section 5.9).
           {...{ [SHORTCUT_ANCHOR_ATTR]: cardAnchorName(card.id) }}
@@ -126,24 +119,6 @@ function CardTileView({
           onMouseEnter={onEnter}
           onMouseLeave={onLeave}
         >
-          {fill === null ? null : isFullCover ? (
-            <>
-              {/* The cover fills the tile; the runtime colour and image are inline styles. */}
-              <div className={styles.fullCover} style={{ background: fill.background }}>
-                {fill.imageUrl === null ? null : (
-                  <img className={styles.fullImage} src={fill.imageUrl} alt="" />
-                )}
-              </div>
-              <div className={styles.scrim} />
-            </>
-          ) : (
-            <div className={styles.cover} style={{ background: fill.background }}>
-              {fill.imageUrl === null ? null : (
-                <img className={styles.coverImage} src={fill.imageUrl} alt="" />
-              )}
-            </div>
-          )}
-
           {chips.length === 0 ? null : (
             <div className={styles.labels}>
               {chips.map((label) => (
@@ -171,18 +146,36 @@ function CardTileView({
             // The keyboard sensor finds the handle by its data attribute, not by the role.
             role={undefined}
           >
-            {card.is_template ? <span className={styles.template}>Template</span> : null}
             <span className={styles.title}>{card.title}</span>
           </Link>
 
-          {isFullCover ? null : (
-            <div className={styles.badges}>
-              <CardBadges
-                card={card}
-                onToggleDueComplete={(due_complete) => updateCard.mutate({ due_complete })}
-              />
-            </div>
+          {card.items.length === 0 ? null : (
+            <ul className={styles.items}>
+              {card.items.map((item) => (
+                <li
+                  key={item.id}
+                  className={cx(styles.item, item.is_checked && styles.checked)}
+                  // The tick is painted, not announced, and a line through the name is not
+                  // either, so the state is said in the row's own accessible name.
+                  aria-label={item.is_checked ? `${item.name} (done)` : item.name}
+                >
+                  {item.is_checked ? (
+                    <SquareCheckBig aria-hidden="true" />
+                  ) : (
+                    <Square aria-hidden="true" />
+                  )}
+                  <span>{item.name}</span>
+                </li>
+              ))}
+            </ul>
           )}
+
+          <div className={styles.badges}>
+            <CardBadges
+              card={card}
+              onToggleDueComplete={(due_complete) => updateCard.mutate({ due_complete })}
+            />
+          </div>
 
           <div className={styles.pencil}>
             <IconButton

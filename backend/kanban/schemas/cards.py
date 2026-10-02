@@ -16,18 +16,15 @@ from pydantic import (
     model_validator,
 )
 
-from kanban.schemas.attachments import AttachmentOut
-from kanban.schemas.checklists import ChecklistOut
 from kanban.schemas.common import (
     CardBadges,
-    CoverKind,
-    CoverSize,
     IsoTimestamp,
     MoveIn,
     MoveResult,
     Mutated,
     OptionalFieldsOmitted,
 )
+from kanban.schemas.items import CardItemOut
 
 #: Length limit from Section 4.1: a card title is 1-16384 characters.
 CardTitle = Annotated[str, StringConstraints(min_length=1, max_length=16384)]
@@ -51,29 +48,17 @@ RowId = Annotated[int, Field(ge=1)]
 CardIndex = Annotated[int, Field(ge=0)] | Literal["top", "bottom"]
 
 
-class CardCover(OptionalFieldsOmitted):
-    """`cards.cover_type` / `cover_value` / `cover_size` as the tile reads them (Section 4.10.1).
-
-    `image_url` and `dominant_color` are only ever set for an `attachment` cover and come from the
-    `attachments` row `value` names; a `color` cover carries the palette key in `value` and omits
-    both, exactly as the Section 4.10.1 example does.
-    """
-
-    optional_fields = ("image_url", "dominant_color")
-
-    kind: CoverKind
-    value: str
-    size: CoverSize
-    image_url: str | None = None
-    dominant_color: str | None = None
-
-
 class CardSummary(OptionalFieldsOmitted):
     """A card as every card response and the board payload carry it (Section 4.10.1).
 
     `client_id` is echoed for the row's lifetime so `CardTile` can key on `client_id ?? id`
     without remounting on the optimistic id swap (Section 4.4); it is omitted, not `null`, for
     the cards that were never created through a composer.
+
+    `items` is the whole array, not a count: Section 2.5.1 lists a card's items on its tile,
+    with the ticks the modal shows and in the same `position` order, so the two surfaces render
+    one shape. `badges.item_done` / `item_total` stay beside it because the badge row states the
+    progress in a glance; both follow from this array and are built from it.
     """
 
     optional_fields = ("client_id",)
@@ -86,12 +71,11 @@ class CardSummary(OptionalFieldsOmitted):
     title: str
     position: float
     is_archived: bool
-    is_template: bool
     start_at: str | None
     due_at: str | None
     due_complete: bool
-    cover: CardCover | None
     label_ids: list[int]
+    items: list[CardItemOut]
     badges: CardBadges
     created_at: str
     updated_at: str
@@ -110,17 +94,14 @@ class CardDetail(CardSummary):
     (Section 2.6.2); both are the current names, not the denormalised ones of `activities.data`,
     because this is live state rather than history.
 
-    `attachments` is what `AttachmentsSection` renders and what the cover strip reads the original
-    image out of (Sections 2.6.1 and 2.6.4); each row carries its own `is_cover`, so "Make cover" /
-    "Remove cover" is decided from this list rather than by comparing ids in the component.
+    `items` is inherited: `ItemsSection` (Section 2.6.3) and the tile (Section 2.5.1) render the
+    same array, so the modal adds nothing to it.
     """
 
     description: str
     due_reminder_minutes: int | None
     board_name: str
     list_name: str
-    checklists: list[ChecklistOut]
-    attachments: list[AttachmentOut]
 
 
 #: The two wrappers of Sections 4.1 and 4.9, parametrised once for cards.
@@ -159,8 +140,8 @@ class CardUpdateIn(BaseModel):
     An absent field is untouched (`exclude_unset`) and an explicit `null` clears the field, but
     only for the three nullable columns (Section 4.1): the `DatesPopover` "Remove" button sends
     `{"start_at": null, "due_at": null, "due_reminder_minutes": null}` and nothing else may be
-    nulled. Archiving, moving and covers have their own routes, and `PATCH` never accepts
-    `is_archived` (Section 3.7).
+    nulled. Archiving and moving have their own routes, and `PATCH` never accepts `is_archived`
+    (Section 3.7).
     """
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -176,7 +157,6 @@ class CardUpdateIn(BaseModel):
     due_at: IsoTimestamp | None = None
     due_complete: bool | None = None
     due_reminder_minutes: DueReminderMinutes | None = None
-    is_template: bool | None = None
 
     @model_validator(mode="after")
     def _check_body(self) -> "CardUpdateIn":
@@ -190,56 +170,18 @@ class CardUpdateIn(BaseModel):
         return self
 
 
-class CardKeepIn(BaseModel):
-    """The `keep` object of `POST /api/cards/{card_id}/copy` (Section 4.5).
-
-    Every flag defaults to `false`, so a body that names none of them copies the card's own columns
-    and nothing else; `CopyCardPopover` sends all three explicitly with its own defaults of `true`
-    (Section 2.6.5). What each flag actually brings along is `kanban/copy.py`'s `Keep`, which this
-    model is validated into by the router - the field names are the same three, so the two never
-    drift, and a cross-board copy dropping labels stays a rule of that module.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    labels: bool = False
-    checklists: bool = False
-    attachments: bool = False
-
-
-class CardCopyIn(BaseModel):
-    """`POST /api/cards/{card_id}/copy` (Section 4.5).
-
-    `to_list_id` may be a list of another board, which makes it a cross-board copy; an absent
-    `index` appends. `title` is required, because the popover pre-fills it with the source title
-    and lets the reader edit it.
-    """
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    title: CardTitle
-    to_list_id: RowId
-    index: Annotated[int, Field(ge=0)] | None = None
-    keep: CardKeepIn = Field(default_factory=lambda: CardKeepIn())
-    is_template: bool | None = None
-
-
 class CardMoveIn(MoveIn):
     """`POST /api/cards/{card_id}/move` (Sections 4.5 and 4.9).
 
     `MoveIn` carries the required 0-based `index` and the optional neighbour ids that only
-    `onDragEnd` sends; a card adds the destination list and, for `MoveCardPopover`'s board select,
-    the destination board. Neighbours take precedence over `index` exactly as
-    `ordering.place_in_container` implements it.
+    `onDragEnd` sends; a card adds the destination list. Neighbours take precedence over `index`
+    exactly as `ordering.place_in_container` implements it.
 
-    `to_board_id` equal to the card's own board is the ordinary same-board move; a different one is
-    the cross-board hand-over of Section 3.6, which `services.cards.move_card` runs as one
-    transaction over both boards. Whether the caller may write to it is not a shape but a rule, so
-    `services.cards.target_board` decides it (404 for a board that is not there, 409 for one
-    that does not exist, so ids cannot be enumerated).
+    The destination is a list of the board the route already resolved: a card never changes board
+    (only a whole list does, Section 3.6), so there is no `to_board_id` and no body field naming a
+    board the access dependency has not already checked.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     to_list_id: RowId
-    to_board_id: RowId | None = None

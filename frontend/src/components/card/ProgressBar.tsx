@@ -5,14 +5,14 @@ import styles from './ProgressBar.module.css';
 export interface ProgressBarProps {
   /** Items checked. */
   done: number;
-  /** Items in the checklist; a checklist with none reads 0%. */
+  /** Items on the card; a card with none reads 0%. */
   total: number;
   /** Names what the bar measures, e.g. "Launch steps". */
   label: string;
 }
 
 /**
- * The checklist progress row of Section 2.6.3: the percentage in a 32px left cell, then an 8px
+ * The items progress row of Section 2.6.3: the percentage in a 32px left cell, then an 8px
  * track that fills in `--progress` and turns `--success` at 100%.
  *
  * The width is an inline style because it is computed at runtime, which is the one exception

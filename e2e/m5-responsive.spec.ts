@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /**
  * The M5 responsive pass of Section 7.2, driven at the two widths Section 2.9.4 names:
- * 768-1023px (the TopNav drops Recent/Starred and the Home sidebar becomes a strip) and
+ * 768-1023px (the Home grid reflows) and
  * <768px (full-width card modal with a stacked sidebar, popovers as bottom sheets, the
  * search field collapsed to its icon, no horizontal page scroll — only the canvas scrolls).
  *
@@ -126,30 +126,29 @@ test('M5: responsive breakpoints and a touch drag on a phone viewport', async ({
     await expect.poll(() => cardTitles(page, FIRST_LIST)).toEqual([...CARDS]);
   });
 
-  await test.step('3. 768-1023px: the nav drops Recent and Starred', async () => {
+  await test.step('3. 768-1023px: the nav keeps Boards and Create', async () => {
     await expect(header(page).getByRole('button', { name: 'Boards', exact: true })).toBeVisible();
-    await expect(header(page).getByRole('button', { name: 'Recent' })).toBeHidden();
-    await expect(header(page).getByRole('button', { name: 'Starred' })).toBeHidden();
     // The Create menu is a nav control Section 2.9.4 keeps at every width.
     await expect(header(page).getByRole('button', { name: 'Create' })).toBeVisible();
   });
 
-  await test.step('4. 768-1023px: the Home sidebar is a horizontal strip', async () => {
+  await test.step('4. 768-1023px: Home is the greeting over one grid', async () => {
     await header(page).getByRole('button', { name: 'Boards', exact: true }).click();
     await expect(page).toHaveURL('http://127.0.0.1:8020/');
 
-    const nav = await box(page.getByRole('navigation', { name: 'Boards' }));
+    const greeting = await box(page.getByRole('heading', { level: 1 }));
     const grid = await box(page.getByRole('button', { name: 'Create new board' }));
 
-    // A strip, not a column: it spans the content instead of taking 240px beside it, and the
-    // boards start below it rather than to its right (Section 2.9.4).
-    expect(nav.w).toBeGreaterThan(TABLET.width / 2);
-    expect(nav.y + nav.h).toBeLessThanOrEqual(grid.y);
+    // The boards start below the greeting rather than beside a sidebar: the home page is one
+    // column at every width now (Section 2.9.4). The greeting itself therefore sits at the
+    // page gutter, where a 240px sidebar used to push it.
+    expect(greeting.y + greeting.h).toBeLessThanOrEqual(grid.y);
+    expect(greeting.x).toBeLessThanOrEqual(24);
   });
 
   await test.step('5. <768px: 16px gutters and no horizontal page scroll', async () => {
     await page.setViewportSize(PHONE);
-    const heading = await box(page.getByRole('heading', { name: 'Your boards' }));
+    const heading = await box(page.getByRole('heading', { level: 1 }));
     expect(heading.x).toBeGreaterThanOrEqual(16);
     expect(heading.x).toBeLessThanOrEqual(24);
 
@@ -161,7 +160,9 @@ test('M5: responsive breakpoints and a touch drag on a phone viewport', async ({
 
   await test.step('6. <768px: the search field collapses to its icon', async () => {
     const search = page.getByRole('textbox', { name: 'Search' });
-    expect((await box(search.locator('..'))).w).toBeLessThanOrEqual(40);
+    // Polled for the same 0.1s width transition the focus assertion below waits out: the
+    // viewport change in step 5 starts it, and reading the width once can catch it in flight.
+    await expect.poll(async () => (await box(search.locator('..'))).w).toBeLessThanOrEqual(40);
 
     // Focused it expands to the full width of the bar, less its 8px gutters (Section 2.9.4).
     // Polled for the 0.1s width transition of Section 2.1.1, which is still running when

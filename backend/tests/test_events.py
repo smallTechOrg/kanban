@@ -219,16 +219,8 @@ def test_every_entity_and_id_comes_from_its_own_source(
         json={"name": "Urgent", "color": "red"},
         headers=CSRF_HEADERS,
     ).json()["item"]
-    checklist = api.post(
-        f"/api/cards/{card['id']}/checklists", json={"name": "Steps"}, headers=CSRF_HEADERS
-    ).json()["item"]
     item = api.post(
-        f"/api/checklists/{checklist['id']}/items", json={"name": "Draft"}, headers=CSRF_HEADERS
-    ).json()["item"]
-    attachment = api.post(
-        f"/api/cards/{card['id']}/attachments",
-        json={"url": "https://example.com/spec"},
-        headers=CSRF_HEADERS,
+        f"/api/cards/{card['id']}/items", json={"name": "Draft"}, headers=CSRF_HEADERS
     ).json()["item"]
 
     by_type = {event["type"]: event for event in changes(api, board["id"], since)["events"]}
@@ -246,19 +238,11 @@ def test_every_entity_and_id_comes_from_its_own_source(
         "label",
         label["id"],
     )
-    assert (by_type["checklist.added"]["entity"], by_type["checklist.added"]["id"]) == (
-        "checklist",
-        checklist["id"],
-    )
-    assert (by_type["checklist.item_added"]["entity"], by_type["checklist.item_added"]["id"]) == (
+    assert (by_type["item.added"]["entity"], by_type["item.added"]["id"]) == (
         "item",
         item["id"],
     )
-    assert by_type["checklist.item_added"]["card_id"] == card["id"]
-    assert (by_type["attachment.added"]["entity"], by_type["attachment.added"]["id"]) == (
-        "attachment",
-        attachment["id"],
-    )
+    assert by_type["item.added"]["card_id"] == card["id"]
     assert all(set(event) <= EVENT_KEYS for event in by_type.values())
 
 
@@ -276,7 +260,6 @@ def test_a_board_event_names_the_board(api: TestClient, board: dict[str, Any]) -
 def test_a_deleted_card_has_no_id(api: TestClient, board: dict[str, Any]) -> None:
     since = board["version"]
     card = create_card(api, list_ids(board["id"])[0], "Throwaway")["item"]
-    api.post(f"/api/cards/{card['id']}/archive", headers=CSRF_HEADERS)
     assert api.delete(f"/api/cards/{card['id']}", headers=CSRF_HEADERS).status_code == 204
 
     deleted = [
@@ -351,11 +334,12 @@ def test_a_live_move_carries_the_new_position(
 def test_a_rolled_back_mutation_publishes_nothing(
     api: TestClient, board: dict[str, Any], published: list[tuple[int, events.Event]]
 ) -> None:
-    card = create_card(api, list_ids(board["id"])[0], "Still on the board")["item"]
+    create_card(api, list_ids(board["id"])[0], "Still on the board")
     published.clear()
 
-    # 409 `conflict`: a card that is not archived cannot be deleted (Section 4.5).
-    assert api.delete(f"/api/cards/{card['id']}", headers=CSRF_HEADERS).status_code == 409
+    # 409 `conflict`: an open board cannot be deleted, and `write_tx` had already opened when
+    # the service raised, so the rollback is what must leave the queue empty (Section 3.7).
+    assert api.delete(f"/api/boards/{board['id']}", headers=CSRF_HEADERS).status_code == 409
     assert published == []
 
 

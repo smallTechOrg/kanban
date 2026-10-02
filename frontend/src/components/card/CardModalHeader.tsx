@@ -1,8 +1,7 @@
-import { useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { AppWindow } from 'lucide-react';
 import { InlineEditable } from '@/components/ui';
 import { useUpdateCardFields } from '@/hooks/useCardMutations';
-import { MoveCardPopover } from './MoveCardPopover';
 import styles from './CardModalHeader.module.css';
 
 export interface CardModalHeaderProps {
@@ -16,7 +15,10 @@ export interface CardModalHeaderProps {
 
 /**
  * The card modal's header (Section 2.6.2): the 16px window icon, the title as a click-to-edit
- * textarea and the "in list <name>" link that opens `MoveCardPopover`.
+ * textarea and the "in list <name>" sub-line.
+ *
+ * The list name is text rather than a control: a card is moved by dragging it, and there is no
+ * Move panel for it to open.
  *
  * The title's accessible name is "Rename card <title>", not "Card name": `InlineEditable`
  * renders a `<button>` whose visible text is the title, and an `aria-label` on it wins the
@@ -30,7 +32,6 @@ export function CardModalHeader({
   title,
   listName,
 }: CardModalHeaderProps): ReactElement {
-  const [moveAnchor, setMoveAnchor] = useState<HTMLElement | null>(null);
   const update = useUpdateCardFields(boardId, cardId);
 
   return (
@@ -51,26 +52,11 @@ export function CardModalHeader({
           {listName === '' ? null : (
             <>
               {'in list '}
-              <button
-                type="button"
-                className={styles.listName}
-                onClick={(event) => setMoveAnchor(event.currentTarget)}
-              >
-                {listName}
-              </button>
+              <span className={styles.listName}>{listName}</span>
             </>
           )}
         </p>
       </div>
-
-      {moveAnchor === null ? null : (
-        <MoveCardPopover
-          anchor={moveAnchor}
-          boardId={boardId}
-          cardId={cardId}
-          onClose={() => setMoveAnchor(null)}
-        />
-      )}
     </header>
   );
 }

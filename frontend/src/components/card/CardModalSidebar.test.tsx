@@ -26,17 +26,7 @@ const BOARD_ID = 7;
 const CARD_ID = 101;
 
 /** Every row of Section 2.6.4: not one of them may be disabled. */
-const ROWS = [
-  'Labels',
-  'Checklist',
-  'Dates',
-  'Attachment',
-  'Cover',
-  'Move',
-  'Copy',
-  'Make template',
-  'Archive',
-];
+const ROWS = ['Labels', 'Dates', 'Delete'];
 
 /** Every write the sidebar can make, in the order it made them. */
 function recordWrites(): string[] {
@@ -122,55 +112,71 @@ describe('CardModalSidebar', () => {
     }
   });
 
-  it('opens the Move and Copy panels from their own rows', async () => {
+  it('offers no move, copy, template, cover or attachment row', () => {
+    open();
+
+    for (const label of ['Move', 'Copy', 'Make template', 'Cover', 'Attachment', 'Checklist']) {
+      expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
+    }
+  });
+
+  it('opens the Labels and Dates panels from their own rows', async () => {
     const user = userEvent.setup();
     open();
 
     // Each panel traps focus and hides the column behind it, so one is dismissed before the
     // next row is reached — which is also Section 2.6.5's "Esc closes the topmost popover first".
-    await user.click(screen.getByRole('button', { name: 'Move' }));
-    expect(
-      within(await screen.findByRole('dialog')).getByLabelText('Position'),
-    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Labels' }));
+    expect(await screen.findByRole('dialog', { name: 'Labels' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
-    expect(await screen.findByRole('button', { name: 'Create card' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Dates' }));
+    expect(await screen.findByRole('dialog', { name: 'Dates' })).toBeInTheDocument();
   });
 
-  it('archives with the Undo toast that sends the card back', async () => {
+  it('deletes the card behind a confirm, and there is no undo', async () => {
     const user = userEvent.setup();
     const calls = recordWrites();
     open();
 
-    await user.click(screen.getByRole('button', { name: 'Archive' }));
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(screen.getByText(/There is no undo/)).toBeInTheDocument();
+    expect(calls).toEqual([]);
 
-    expect(await screen.findByText('Card archived')).toBeInTheDocument();
-    await waitFor(() => expect(calls).toEqual([`ARCHIVE ${CARD_ID}`]));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete card' }),
+    );
 
-    await user.click(screen.getByRole('button', { name: 'Undo' }));
-
-    await waitFor(() => expect(calls).toEqual([`ARCHIVE ${CARD_ID}`, `UNARCHIVE ${CARD_ID}`]));
+    await waitFor(() => expect(calls).toEqual([`DELETE ${CARD_ID}`]));
+    expect(await screen.findByText('Board')).toBeInTheDocument();
   });
 
-  it('offers "Send to board" and a confirmed Delete once the card is archived', async () => {
+  it('does not require the card to be archived first', async () => {
+    const user = userEvent.setup();
+    const calls = recordWrites();
+    open(card({ is_archived: false }));
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete card' }),
+    );
+
+    await waitFor(() => expect(calls).toEqual([`DELETE ${CARD_ID}`]));
+  });
+
+  it('offers "Send to board" only once the card is archived', async () => {
     const user = userEvent.setup();
     const calls = recordWrites();
     open(card({ is_archived: true }));
 
-    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
-
     await user.click(screen.getByRole('button', { name: 'Send to board' }));
     await waitFor(() => expect(calls).toEqual([`UNARCHIVE ${CARD_ID}`]));
+  });
 
-    await user.click(screen.getByRole('button', { name: 'Delete' }));
-    expect(screen.getByText(/There is no undo/)).toBeInTheDocument();
-    expect(calls).toEqual([`UNARCHIVE ${CARD_ID}`]);
+  it('hides "Send to board" while the card is on the board', () => {
+    open();
 
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
-
-    await waitFor(() => expect(calls).toEqual([`UNARCHIVE ${CARD_ID}`, `DELETE ${CARD_ID}`]));
-    expect(await screen.findByText('Board')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send to board' })).not.toBeInTheDocument();
   });
 });

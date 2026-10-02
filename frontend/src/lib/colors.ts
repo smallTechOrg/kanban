@@ -1,6 +1,6 @@
 /**
  * Colour resolution. Design tokens are referenced by name and resolved by the browser
- * from styles/tokens.css; label, cover and board palettes come from GET /api/meta and are
+ * from styles/tokens.css; label, list and board palettes come from GET /api/meta and are
  * never hard-coded (CLAUDE.md section 3, Section 5.6).
  *
  * The palette shapes are declared structurally here rather than imported from api/types.ts,
@@ -69,46 +69,6 @@ export type ListPalette = Record<string, string>;
 export function listBackground(key: string | null, palette: ListPalette): string {
   if (key === null) return 'var(--list-bg)';
   return palette[key] ?? 'var(--list-bg)';
-}
-
-/** `meta.cover_colors`: the ten card-cover colours keyed `green … gray` (Sections 2.6.5, 4.7). */
-export type CoverPalette = Record<string, string>;
-
-/**
- * A card's `cover`, declared structurally like the palettes above so `lib/` keeps depending on
- * nothing: it is `CardCover` (`api/types.ts`) and `CoverRow` (`boardState.ts`), which are the
- * same five fields.
- */
-export interface CoverInput {
-  kind: 'color' | 'attachment';
-  value: string;
-  image_url?: string;
-  dominant_color?: string;
-}
-
-export interface CoverStyle {
-  /** What fills the band: the palette's hex for a colour cover, the image's dominant colour
-   *  under an image one — which is what `object-fit: contain` leaves showing (Section 2.5.1). */
-  background: string;
-  /** The 2:1 thumbnail of an image cover, or null for a colour cover. */
-  imageUrl: string | null;
-}
-
-/**
- * The fill and the image behind a cover, for the tile's band (Section 2.5.1) and the modal's
- * 160px strip (Section 2.6.1). Both read the same two fields off the same `cover` object, so the
- * rule — a colour cover is a `cover_colors` key, an image cover paints `image_url` over its
- * `dominant_color`, and anything the server did not send falls back to the neutral wash — is
- * written once here rather than in each of them.
- */
-export function coverStyle(cover: CoverInput, palette: CoverPalette): CoverStyle {
-  if (cover.kind === 'color') {
-    return { background: palette[cover.value] ?? tokenVar('hover'), imageUrl: null };
-  }
-  return {
-    background: cover.dominant_color ?? tokenVar('hover'),
-    imageUrl: cover.image_url ?? null,
-  };
 }
 
 /**

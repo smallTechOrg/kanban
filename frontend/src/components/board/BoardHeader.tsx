@@ -1,6 +1,5 @@
 import { useRef, type ReactElement } from 'react';
 import { Filter, MoreHorizontal, X } from 'lucide-react';
-import { StarButton } from '@/components/home/StarButton';
 import { Button, IconButton, InlineEditable } from '@/components/ui';
 import { useBoardMeta } from '@/hooks/useBoardData';
 import { useFilterUrlSync } from '@/hooks/useBoardFilter';
@@ -17,7 +16,7 @@ export interface BoardHeaderProps {
 }
 
 /**
- * The 48px translucent band of Section 2.3.1: the inline-editable board name, the star, the
+ * The 48px translucent band of Section 2.3.1: the inline-editable board name, the
  * Filter control and "Show menu".
  *
  * Filter is a plain button until something is selected, and then the solid white "N filters" pill
@@ -72,7 +71,6 @@ export function BoardHeader({ boardId }: BoardHeaderProps): ReactElement | null 
         />
       </h1>
 
-      <StarButton boardId={board.id} isStarred={board.is_starred} />
 
       <div className={styles.right}>
         <div

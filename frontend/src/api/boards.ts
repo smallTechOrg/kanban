@@ -1,6 +1,6 @@
 /**
  * The boards endpoints of Section 4.3: the home page's three groups, boards CRUD, the
- * close/reopen/delete state machine and stars.
+ * close/reopen/delete state machine.
  */
 import { api } from './client';
 import type {
@@ -13,7 +13,6 @@ import type {
   BoardSummary,
   ClosedBoards,
   Mutated,
-  StarState,
 } from './types';
 
 export interface CreateBoardInput {
@@ -37,7 +36,7 @@ export interface UpdateBoardInput {
   background_image_id?: number;
 }
 
-/** `GET /api/boards` — `{starred, recent, all}` for the home page. */
+/** `GET /api/boards` — `{all}`, the one list of boards the home page renders. */
 export function listBoards(): Promise<BoardGroups> {
   return api.get<BoardGroups>('/boards');
 }
@@ -49,8 +48,7 @@ export function listClosedBoards(): Promise<ClosedBoards> {
 
 /**
  * `GET /api/boards/{board_id}` — the board document, served for a closed board too (the
- * client then renders `ClosedBoardPage`). Also refreshes the board's `board_views` row, which
- * is why it is never called speculatively.
+ * client then renders `ClosedBoardPage`).
  */
 export function getBoard(boardId: number): Promise<Board> {
   return api.get<Board>(`/boards/${boardId}`);
@@ -125,15 +123,3 @@ export function getArchivedLists(
   return api.get<ArchivedLists>(archivedPath(boardId, 'lists', query));
 }
 
-/** `PUT /api/boards/{board_id}/star` — per-user, idempotent, allowed on a closed board. */
-export function starBoard(boardId: number): Promise<StarState> {
-  return api.put<StarState>(`/boards/${boardId}/star`);
-}
-
-/**
- * `DELETE /api/boards/{board_id}/star` — the 200 body is the constant `{is_starred: false}`,
- * and `client.ts`'s `del` discards bodies, so a resolved promise *is* that answer.
- */
-export function unstarBoard(boardId: number): Promise<void> {
-  return api.del(`/boards/${boardId}/star`);
-}

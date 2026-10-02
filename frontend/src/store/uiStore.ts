@@ -24,15 +24,10 @@ export type { RealtimeStatus } from '@/api/events';
 export type { BoardEvent, EventEntity } from '@/api/types';
 
 export type PopoverKind =
-  | 'attachment'
   | 'boardBackground'
   | 'boards'
-  | 'checklist'
   | 'confirm'
-  | 'copyCard'
-  | 'cover'
   | 'createBoard'
-  | 'createFromTemplate'
   | 'createMenu'
   | 'dates'
   | 'emoji'
@@ -40,7 +35,6 @@ export type PopoverKind =
   | 'itemDue'
   | 'labels'
   | 'listMenu'
-  | 'moveCard'
   | 'search'
   | 'switchTo';
 
@@ -77,7 +71,6 @@ export interface UiState {
   theme: Theme;
   colorBlindLabels: boolean;
   labelPalette: LabelPaletteName;
-  cardCoversEnabled: boolean;
   collapsedListIds: number[];
   isDragging: boolean;
   queuedEvents: BoardEvent[];
@@ -100,7 +93,6 @@ export interface UiActions {
   setTheme: (theme: Theme) => void;
   setColorBlindLabels: (enabled: boolean) => void;
   setLabelPalette: (palette: LabelPaletteName) => void;
-  setCardCoversEnabled: (enabled: boolean) => void;
   toggleListCollapsed: (listId: number) => void;
   setDragging: (dragging: boolean) => void;
   queueEvent: (event: BoardEvent) => void;
@@ -115,7 +107,6 @@ type PersistedField =
   | 'theme'
   | 'colorBlindLabels'
   | 'labelPalette'
-  | 'cardCoversEnabled'
   | 'collapsedListIds';
 
 export const PERSISTED: Record<PersistedField, string> = {
@@ -123,7 +114,6 @@ export const PERSISTED: Record<PersistedField, string> = {
   theme: 'kb_theme',
   colorBlindLabels: 'kb_colorBlindLabels',
   labelPalette: 'kb_labelPalette',
-  cardCoversEnabled: 'kb_cardCovers',
   collapsedListIds: 'kb_collapsedLists',
 };
 
@@ -193,7 +183,6 @@ export const useUiStore = create<UiState & UiActions>()((set, get) => ({
     'tritone',
     isOneOf(LABEL_PALETTES),
   ),
-  cardCoversEnabled: readKey(PERSISTED.cardCoversEnabled, true, isBoolean),
   collapsedListIds: readKey<number[]>(PERSISTED.collapsedListIds, [], isNumberArray),
   isDragging: false,
   queuedEvents: [],
@@ -228,10 +217,6 @@ export const useUiStore = create<UiState & UiActions>()((set, get) => ({
   setLabelPalette: (labelPalette) => {
     set({ labelPalette });
     writeKey(PERSISTED.labelPalette, labelPalette);
-  },
-  setCardCoversEnabled: (cardCoversEnabled) => {
-    set({ cardCoversEnabled });
-    writeKey(PERSISTED.cardCoversEnabled, cardCoversEnabled);
   },
   toggleListCollapsed: (listId) => {
     const current = get().collapsedListIds;

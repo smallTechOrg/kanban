@@ -156,12 +156,14 @@ def write_tx(db: Session, board_ids: Iterable[int] = ()) -> Iterator[WriteCtx]:
 
 @contextmanager
 def unversioned_write(db: Session) -> Iterator[None]:
-    """The writes that bypass `write_tx` (Section 4.1).
+    """A write that is not board state (Section 4.1).
 
-    The `board_views` upsert and the star toggle: the same lock discipline (end the read snapshot,
-    BEGIN IMMEDIATE, one statement, COMMIT) with no version bump, no activity row and no event.
-    Neither changes anything the board document renders, so bumping the version would make every
-    open tab refetch for a row nothing displays. Never call it with a `write_tx` open.
+    The same lock discipline as `write_tx` (end the read snapshot, BEGIN IMMEDIATE, the
+    statements, COMMIT) with no version bump, no activity row and no event, for a row no board
+    document renders - bumping the version would make every open tab refetch for nothing. No
+    route uses it: the two that did were the star toggle and the `board_views` upsert, which went
+    with the Home-page groups they fed, and what is left of it serves the fixtures that insert
+    rows directly. Never call it with a `write_tx` open.
     """
     db.rollback()
     with db.begin():

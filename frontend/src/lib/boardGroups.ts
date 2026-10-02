@@ -1,21 +1,18 @@
 /**
- * Pure helpers behind the home page's board groups and tiles (Section 2.2).
+ * Pure helpers behind the home page's board list and tiles (Section 2.2).
  *
  * lib/ depends on no other layer, so the board shapes are declared structurally here
  * instead of imported from api/types.ts (the same arrangement lib/colors.ts uses).
  */
 
-/** The fields a helper needs to place a board in a group. */
+/** The fields a helper needs to identify a board in the cached list. */
 export interface GroupableBoard {
   id: number;
   name: string;
-  is_starred: boolean;
 }
 
-/** The three groups `GET /api/boards` returns, as the home page caches them. */
+/** The one group `GET /api/boards` returns, as the home page caches it. */
 export interface BoardGrouping<T extends GroupableBoard> {
-  starred: T[];
-  recent: T[];
   all: T[];
 }
 
@@ -28,36 +25,6 @@ export function sortBoardsByName<T extends { id: number; name: string }>(boards:
     (left, right) =>
       left.name.localeCompare(right.name, undefined, { sensitivity: 'base' }) || left.id - right.id,
   );
-}
-
-/**
- * Applies a star or unstar to every cached copy of one board: the flag flips wherever the
- * tile appears, and the tile enters or leaves the Starred group. Which boards `recent` and
- * `all` hold never changes — only the flag their `StarButton` reads.
- */
-export function setBoardStarred<T extends GroupableBoard>(
-  groups: BoardGrouping<T>,
-  boardId: number,
-  isStarred: boolean,
-): BoardGrouping<T> {
-  const withFlag = (board: T): T =>
-    board.id === boardId ? { ...board, is_starred: isStarred } : board;
-  const recent = groups.recent.map(withFlag);
-  const all = groups.all.map(withFlag);
-  const starred = isStarred
-    ? appendStarred(groups.starred.map(withFlag), boardId, [...recent, ...all])
-    : groups.starred.filter((board) => board.id !== boardId);
-  return { starred, recent, all };
-}
-
-/**
- * The server inserts a new star at `max(position) + 65536`, so the optimistic tile lands
- * last. A board that is already starred, or that no other group holds, leaves it untouched.
- */
-function appendStarred<T extends GroupableBoard>(starred: T[], boardId: number, known: T[]): T[] {
-  if (starred.some((board) => board.id === boardId)) return starred;
-  const board = known.find((candidate) => candidate.id === boardId);
-  return board === undefined ? starred : [...starred, board];
 }
 
 /** The background fields of a `BoardSummary`, all a tile needs to paint itself. */
@@ -111,9 +78,5 @@ export function boardNameFromGroups<T extends GroupableBoard>(
   groups: BoardGrouping<T> | undefined,
   boardId: number,
 ): string | undefined {
-  if (groups === undefined) return undefined;
-  const found = [...groups.starred, ...groups.recent, ...groups.all].find(
-    (board) => board.id === boardId,
-  );
-  return found?.name;
+  return groups?.all.find((board) => board.id === boardId)?.name;
 }

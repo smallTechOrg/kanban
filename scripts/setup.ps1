@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Kan Ban -- one-time setup (Windows PowerShell).
+  My Day -- one-time setup (Windows PowerShell).
 .DESCRIPTION
   Thin wrapper over `npm run setup`; package.json owns what setup actually does
   (create .venv with uv, install backend[dev] into it, install the frontend
@@ -18,7 +18,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     Write-Error "'uv' is required to create the virtualenv and install the backend. Install it from https://docs.astral.sh/uv/ then re-run this script."
 }
 
-Write-Host "==> Setting up Kan Ban in $Root"
+Write-Host "==> Setting up My Day in $Root"
 npm run setup
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

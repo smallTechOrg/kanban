@@ -77,7 +77,7 @@ def test_an_unaddressed_scope_counts_against_one_shared_key() -> None:
 def test_only_api_paths_are_counted() -> None:
     """The SPA bundle and `/uploads` are served by the static layer, which is not limited."""
     assert ratelimit.limiter_for({"path": "/api/boards"}) is ratelimit.global_limiter
-    assert ratelimit.limiter_for({"path": "/uploads/attachments/1/photo.png"}) is None
+    assert ratelimit.limiter_for({"path": "/uploads/backgrounds/1.jpg"}) is None
     assert ratelimit.limiter_for({"path": "/b/1"}) is None
 
 

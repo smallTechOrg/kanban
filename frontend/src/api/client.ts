@@ -151,7 +151,7 @@ export interface UploadOptions {
  * The one multipart transport (Section 5.8). `fetch` cannot report upload progress, so an
  * upload goes out over `XMLHttpRequest` with the same `X-Requested-With` CSRF header and the
  * same error envelope as every JSON call above — which is why it lives here and not in
- * `api/attachments.ts`: turning a failed response into an `ApiError` is one rule.
+ * `api/backgrounds.ts`: turning a failed response into an `ApiError` is one rule.
  *
  * `Content-Type` is deliberately not set: the browser has to add the multipart boundary.
  */

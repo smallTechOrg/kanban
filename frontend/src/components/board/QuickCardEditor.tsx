@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { Archive, ArrowRight, Clock, Copy, CreditCard, Image, Tag } from 'lucide-react';
+import { Archive, Clock, CreditCard, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Textarea } from '@/components/ui';
-import { CopyCardPopover } from '@/components/card/CopyCardPopover';
-import { CoverPopover } from '@/components/card/CoverPopover';
 import { DatesPopover } from '@/components/card/DatesPopover';
 import { LabelsPopover } from '@/components/card/LabelsPopover';
-import { MoveCardPopover } from '@/components/card/MoveCardPopover';
 import { useArchiveCard, useUnarchiveCard, useUpdateCard } from '@/hooks/useBoardMutations';
 import { useToast } from '@/hooks/useToast';
 import type { CardRow } from '@/lib/boardState';
@@ -40,7 +37,7 @@ interface SideAction {
  * sit in a stack beside it.
  *
  * Five of the seven actions open the very popovers the card modal's sidebar opens (Section 2.6.5),
- * anchored to their own button — labels, cover, move, copy and dates — while the title
+ * anchored to their own button — labels and dates — while the title
  * edit, "Open card" and "Archive" with its five-second Undo toast need no popover at all
  * (Sections 2.5.5 and 3.7). Nothing here is a second implementation of those panels: they take a
  * board and a card id and read what they need themselves, which is why the quick editor can show
@@ -120,9 +117,6 @@ export function QuickCardEditor({
       },
     },
     { label: 'Edit labels', icon: <Tag aria-hidden="true" />, onClick: opener('labels') },
-    { label: 'Change cover', icon: <Image aria-hidden="true" />, onClick: opener('cover') },
-    { label: 'Move', icon: <ArrowRight aria-hidden="true" />, onClick: opener('moveCard') },
-    { label: 'Copy', icon: <Copy aria-hidden="true" />, onClick: opener('copyCard') },
     { label: 'Edit dates', icon: <Clock aria-hidden="true" />, onClick: opener('dates') },
     { label: 'Archive', icon: <Archive aria-hidden="true" />, onClick: archive },
   ];
@@ -188,30 +182,6 @@ export function QuickCardEditor({
       )}
       {own === null || own.kind !== 'dates' ? null : (
         <DatesPopover
-          boardId={boardId}
-          cardId={card.id}
-          anchor={own.anchor}
-          onClose={() => setOpenPopover(null)}
-        />
-      )}
-      {own === null || own.kind !== 'cover' ? null : (
-        <CoverPopover
-          boardId={boardId}
-          cardId={card.id}
-          anchor={own.anchor}
-          onClose={() => setOpenPopover(null)}
-        />
-      )}
-      {own === null || own.kind !== 'moveCard' ? null : (
-        <MoveCardPopover
-          boardId={boardId}
-          cardId={card.id}
-          anchor={own.anchor}
-          onClose={() => setOpenPopover(null)}
-        />
-      )}
-      {own === null || own.kind !== 'copyCard' ? null : (
-        <CopyCardPopover
           boardId={boardId}
           cardId={card.id}
           anchor={own.anchor}

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Kan Ban -- run the repo virtualenv's own interpreter.
+ * My Day -- run the repo virtualenv's own interpreter.
  *
  * The single source of truth for "where is the venv Python" (CLAUDE.md section 3): the root
  * npm scripts all go through here instead of repeating an interpreter path each.

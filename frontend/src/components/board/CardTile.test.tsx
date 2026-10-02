@@ -38,13 +38,6 @@ vi.mock('@/hooks/useBoardData', async (importOriginal) => {
   };
 });
 
-/**
- * `metaFixture` publishes no cover colours, and a tile resolves a colour cover through that
- * palette, so the one key these tests use is supplied as the server would — as a token, because
- * the fixture stands in for the server's answer rather than for a second palette.
- */
-const COVER_META: Meta = { ...metaFixture, cover_colors: { green: 'var(--success)' } };
-
 const BOARD_ID = 7;
 const LIST_ID = 11;
 const FIRST = 101;
@@ -108,7 +101,6 @@ afterEach(() => {
   act(() => {
     useUiStore.getState().setQuickEditCardId(null);
     useUiStore.getState().setLabelTextMode(false);
-    useUiStore.getState().setCardCoversEnabled(true);
   });
 });
 
@@ -120,9 +112,8 @@ describe('CardTile', () => {
       due_at: '2020-01-15T12:00:00.000Z',
       badges: {
         description: true,
-        attachments: 1,
-        checklist_done: 1,
-        checklist_total: 3,
+        item_done: 1,
+        item_total: 3,
       },
     });
     renderBoard(<CardTile boardId={BOARD_ID} cardId={FIRST} index={0} />, seed([card]));
@@ -135,12 +126,52 @@ describe('CardTile', () => {
     expect(screen.getByLabelText('Label Bug fix')).toBeInTheDocument();
     expect(screen.getByTitle('Overdue')).toHaveTextContent('Jan 15, 2020');
     expect(screen.getByLabelText('This card has a description.')).toBeInTheDocument();
-    expect(screen.getByTitle('Attachments')).toHaveTextContent('1');
-    expect(screen.getByTitle('Checklist items')).toHaveTextContent('1/3');
+    expect(screen.getByTitle('Items')).toHaveTextContent('1/3');
 
     // Section 2.5.2: clicking a chip switches every tile to the label-text mode.
     await userEvent.click(screen.getByLabelText('Label Bug fix'));
     expect(screen.getByLabelText('Label Bug fix')).toHaveTextContent('Bug fix');
+  });
+
+  it('lists the card items under the title, ticked ones included, as text', () => {
+    const card = makeCardSummary({
+      id: FIRST,
+      badges: { description: false, item_done: 1, item_total: 2 },
+      items: [
+        {
+          id: 51,
+          card_id: FIRST,
+          name: 'Book the venue',
+          position: 65536,
+          is_checked: true,
+          checked_at: '2026-09-24T09:00:00.000Z',
+          due_at: null,
+        },
+        {
+          id: 52,
+          card_id: FIRST,
+          name: 'Send the invite',
+          position: 131072,
+          is_checked: false,
+          checked_at: null,
+          due_at: null,
+        },
+      ],
+    });
+    renderBoard(<CardTile boardId={BOARD_ID} cardId={FIRST} index={0} />, seed([card]));
+
+    // Section 2.5.1: both rows are on the tile, in the card's own order, and a done one says so
+    // in its accessible name because neither the tick nor the line through it is announced.
+    expect(screen.getAllByRole('listitem').map((row) => row.textContent)).toEqual([
+      'Book the venue',
+      'Send the invite',
+    ]);
+    expect(screen.getByLabelText('Book the venue (done)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Send the invite')).toBeInTheDocument();
+
+    // They are not controls: the card has exactly one tab stop and ticking happens in the modal.
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Items')).toHaveTextContent('1/2');
   });
 
   it('omits every block the card has no data for', () => {
@@ -150,10 +181,11 @@ describe('CardTile', () => {
     );
 
     expect(screen.getByText('Bare card')).toBeInTheDocument();
-    expect(screen.queryByTitle('Attachments')).not.toBeInTheDocument();
-    expect(screen.queryByTitle('Checklist items')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Items')).not.toBeInTheDocument();
     expect(screen.queryByText('0')).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^Label /)).not.toBeInTheDocument();
+    // A card with no items renders no list at all, not an empty one.
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 
   it('re-renders one tile when one card changes, and none when a parent repaints', async () => {
@@ -203,46 +235,5 @@ describe('CardTile', () => {
 
     expect(await screen.findByRole('button', { name: 'Open card' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
-  });
-
-  it('paints a full cover over the whole tile, with the title on it and no badges', () => {
-    renderBoard(
-      <CardTile boardId={BOARD_ID} cardId={FIRST} index={0} />,
-      seed(
-        [
-          makeCardSummary({
-            id: FIRST,
-            title: 'Covered card',
-            due_at: '2020-01-15T12:00:00.000Z',
-            cover: { kind: 'color', value: 'green', size: 'full' },
-          }),
-        ],
-        COVER_META,
-      ),
-    );
-
-    // The title is still the card's link, so the cover never costs the tile its click target.
-    expect(screen.getByRole('link', { name: /Covered card/ })).toBeInTheDocument();
-    // Section 2.5.1: a full cover hides the badges, which are left out rather than painted over.
-    expect(screen.queryByTitle('Overdue')).not.toBeInTheDocument();
-  });
-
-  it('keeps the badges beside a normal cover, and drops the cover when covers are off', () => {
-    const card = makeCardSummary({
-      id: FIRST,
-      title: 'Covered card',
-      due_at: '2020-01-15T12:00:00.000Z',
-      cover: { kind: 'color', value: 'green', size: 'normal' },
-    });
-    renderBoard(<CardTile boardId={BOARD_ID} cardId={FIRST} index={0} />, seed([card], COVER_META));
-
-    expect(screen.getByTitle('Overdue')).toBeInTheDocument();
-
-    // Section 2.3.4's "Card covers enabled" switch hides the band, badges and all intact.
-    act(() => {
-      useUiStore.getState().setCardCoversEnabled(false);
-    });
-    expect(screen.getByTitle('Overdue')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Covered card/ })).toBeInTheDocument();
   });
 });

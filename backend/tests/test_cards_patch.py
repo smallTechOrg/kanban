@@ -96,9 +96,8 @@ def test_the_detail_carries_every_documented_field(
 ) -> None:
     item = detail(api, card["id"])
 
-    # `CardSummary` plus the four fields and two child arrays only the modal needs (Section 4.5).
+    # `CardSummary` plus the four fields and the one child array only the modal needs (4.5).
     assert set(item) == {
-        "attachments",
         "id",
         "board_id",
         "list_id",
@@ -106,7 +105,6 @@ def test_the_detail_carries_every_documented_field(
         "title",
         "position",
         "is_archived",
-        "is_template",
         "start_at",
         "due_at",
         "due_complete",
@@ -114,8 +112,7 @@ def test_the_detail_carries_every_documented_field(
         "description",
         "board_name",
         "list_name",
-        "checklists",
-        "cover",
+        "items",
         "label_ids",
         "badges",
         "created_at",
@@ -125,7 +122,7 @@ def test_the_detail_carries_every_documented_field(
     assert item["due_reminder_minutes"] is None
     assert item["board_name"] == board["name"]
     assert item["list_name"] == "To Do"
-    assert item["checklists"] == []
+    assert item["items"] == []
 
 
 def test_the_detail_follows_the_card_to_another_list(
@@ -247,15 +244,6 @@ def test_due_complete_toggles_between_its_two_types(api: TestClient, card: dict[
     ]
 
 
-def test_is_template_toggles_between_its_two_types(api: TestClient, card: dict[str, Any]) -> None:
-    assert patch(api, card["id"], is_template=True)["item"]["is_template"] is True
-    assert activity_types(api, card)[0] == "card.template_set"
-    assert newest_activity(api, card)["data"] == {"card_title": "Design home page"}
-
-    assert patch(api, card["id"], is_template=False)["item"]["is_template"] is False
-    assert activity_types(api, card)[0] == "card.template_unset"
-
-
 def test_two_fields_in_one_body_record_two_rows_in_one_transaction(
     api: TestClient, board: dict[str, Any], card: dict[str, Any]
 ) -> None:
@@ -281,7 +269,6 @@ def test_two_fields_in_one_body_record_two_rows_in_one_transaction(
         {"title": None},
         {"description": None},
         {"due_complete": None},
-        {"is_template": None},
         {"is_archived": True},
         {"position": 1.5},
         {"due_at": "2026-09-30 15:00:00"},
@@ -316,22 +303,18 @@ def test_the_description_badge_lights_up_on_the_tile(
     assert tile(api, board["id"], card["id"])["badges"]["description"] is False
 
 
-def test_checklist_items_count_towards_the_same_badges_on_both_readers(
+def test_items_count_towards_the_same_badges_on_both_readers(
     api: TestClient, board: dict[str, Any], card: dict[str, Any]
 ) -> None:
-    created = api.post(
-        f"/api/cards/{card['id']}/checklists", json={"name": "Steps"}, headers=CSRF_HEADERS
-    )
-    assert created.status_code == 201, created.text
-    checklist_id = created.json()["item"]["id"]
+    """The tile and the modal read the same two numbers, from the same two tables."""
     for name in ("Wireframe", "Palette"):
         added = api.post(
-            f"/api/checklists/{checklist_id}/items", json={"name": name}, headers=CSRF_HEADERS
+            f"/api/cards/{card['id']}/items", json={"name": name}, headers=CSRF_HEADERS
         )
         assert added.status_code == 201, added.text
-    items = detail(api, card["id"])["checklists"][0]["items"]
+    items = detail(api, card["id"])["items"]
     ticked = api.patch(
-        f"/api/checklist-items/{items[0]['id']}", json={"is_checked": True}, headers=CSRF_HEADERS
+        f"/api/card-items/{items[0]['id']}", json={"is_checked": True}, headers=CSRF_HEADERS
     )
     assert ticked.status_code == 200, ticked.text
 
@@ -341,40 +324,26 @@ def test_checklist_items_count_towards_the_same_badges_on_both_readers(
     }
 
     for source, counts in badges.items():
-        assert counts == {
-            "description": False,
-            "attachments": 0,
-            "checklist_done": 1,
-            "checklist_total": 2,
-        }, source
+        assert counts == {"description": False, "item_done": 1, "item_total": 2}, source
 
 
-def test_the_detail_embeds_the_cards_checklists_with_their_items(
+def test_the_detail_embeds_the_cards_items_in_position_order(
     api: TestClient, card: dict[str, Any]
 ) -> None:
-    created = api.post(
-        f"/api/cards/{card['id']}/checklists", json={"name": "Steps"}, headers=CSRF_HEADERS
-    )
-    assert created.status_code == 201, created.text
-    checklist_id = created.json()["item"]["id"]
     for name in ("Wireframe", "Palette"):
         added = api.post(
-            f"/api/checklists/{checklist_id}/items", json={"name": name}, headers=CSRF_HEADERS
+            f"/api/cards/{card['id']}/items", json={"name": name}, headers=CSRF_HEADERS
         )
         assert added.status_code == 201, added.text
 
-    checklists = detail(api, card["id"])["checklists"]
+    items = detail(api, card["id"])["items"]
 
-    assert len(checklists) == 1
-    assert checklists[0]["name"] == "Steps"
-    assert checklists[0]["card_id"] == card["id"]
-    assert [item["name"] for item in checklists[0]["items"]] == ["Wireframe", "Palette"]
-    assert [item["position"] for item in checklists[0]["items"]] == sorted(
-        item["position"] for item in checklists[0]["items"]
-    )
-    assert set(checklists[0]["items"][0]) == {
+    assert [item["name"] for item in items] == ["Wireframe", "Palette"]
+    assert [item["card_id"] for item in items] == [card["id"], card["id"]]
+    assert [item["position"] for item in items] == sorted(item["position"] for item in items)
+    assert set(items[0]) == {
         "id",
-        "checklist_id",
+        "card_id",
         "name",
         "position",
         "is_checked",

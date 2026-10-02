@@ -4,8 +4,7 @@
 Everything runs through the public API (CLAUDE.md section 6). The disk is inspected only where a
 test is *about* it - that an upload really lands in `data/uploads/backgrounds/` under the id, and
 that the preview really is the documented 400x240 - which is the one thing no response can show.
-The PNG builder comes from `test_attachments.py`, which documents it; the board-background cap is
-the 10 MB of Section 6.9, not `KANBAN_MAX_UPLOAD_MB`.
+The board-background cap is the 10 MB of Section 6.9; every other body is capped at 1 MB.
 """
 
 import io
@@ -23,7 +22,6 @@ from kanban.config import settings
 from kanban.constants import BOARD_COLORS, BOARD_GRADIENTS
 from kanban.storage import BACKGROUND_THUMB_SIZE
 from tests.conftest import CSRF_HEADERS
-from tests.test_attachments import PDF_BYTES, png_bytes
 
 BoardFactory = Callable[..., dict[str, Any]]
 
@@ -32,6 +30,19 @@ OVER_CAP_BYTES = BACKGROUND_MAX_BYTES + 1
 
 
 # --------------------------------------------------------------------------- helpers
+
+
+#: A file whose magic number says `application/pdf`: the one type a background may never be.
+PDF_BYTES = b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\ntrailer\n"
+
+
+def png_bytes(
+    size: tuple[int, int] = (320, 200), color: tuple[int, int, int] = (9, 120, 200)
+) -> bytes:
+    """A real PNG, so Pillow's own `Image.open().format` is what decides the type."""
+    buffer = io.BytesIO()
+    Image.new("RGB", size, color).save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 def webp_bytes(size: tuple[int, int] = (640, 400)) -> bytes:

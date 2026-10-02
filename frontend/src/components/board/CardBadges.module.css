@@ -94,7 +94,7 @@
   background: var(--danger);
 }
 
-/* A complete due date and a fully checked checklist wear the same green (Section 2.5.3). */
+/* A complete due date and a fully ticked item list wear the same green (Section 2.5.3). */
 .complete {
   padding: 2px 4px;
   color: var(--text-inverse);

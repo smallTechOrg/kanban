@@ -2,54 +2,43 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { Calendar, MoreHorizontal, X } from 'lucide-react';
 import { Button, IconButton, MenuRow, Popover, Textarea, cx } from '@/components/ui';
-import {
-  useConvertChecklistItem,
-  useDeleteChecklistItem,
-  useUpdateChecklistItem,
-} from '@/hooks/useCardMutations';
-import type { ChecklistItem } from '@/api/types';
+import { useDeleteItem, useUpdateItem } from '@/hooks/useCardMutations';
+import type { CardItem } from '@/api/types';
 import { isTempId } from '@/lib/boardState';
 import { itemDragId } from '@/lib/cardDnd';
 import { formatDate, formatDateTime } from '@/lib/dates';
 import { ItemDuePopover } from './ItemDuePopover';
-import styles from './ChecklistItemRow.module.css';
+import styles from './ItemRow.module.css';
 
-export interface ChecklistItemRowProps {
+export interface ItemRowProps {
   boardId: number;
   cardId: number;
-  item: ChecklistItem;
-  /** The row's slot in the checklist's rendered order, which is the `Draggable` index. */
+  item: CardItem;
+  /** The row's slot in the card's rendered item order, which is the `Draggable` index. */
   index: number;
 }
 
 /**
- * One checklist row (Section 2.6.3): the 16px checkbox, the item text and its due badge, and on
- * hover the calendar icon plus the three-dots menu with "Convert to card" and "Delete". Clicking
- * the text opens the inline editor — a `Textarea`, a `primary` "Save" and a close X.
+ * One item row (Section 2.6.3): the 16px checkbox, the item text and its due badge, and on
+ * hover the calendar icon plus the three-dots menu with "Delete". Clicking the text opens the
+ * inline editor — a `Textarea`, a `primary` "Save" and a close X.
  *
- * The row is a `<Draggable>` of its checklist's `CHECKLIST_ITEM` droppable, so an item can be
- * reordered inside its checklist or dragged into another one on the same card; the drop itself
- * is decided by `lib/cardDnd.ts` in `CardDetailModal`.
+ * The row is a `<Draggable>` of the card's `ITEM` droppable, so an item can be reordered within
+ * its card; the drop itself is decided by `lib/cardDnd.ts` in `CardDetailModal`.
  *
  * A row whose id is still negative is an optimistic insert the server has not confirmed: it
  * cannot be dragged, and its menu stays shut, because every one of those endpoints addresses the
  * item by an id that does not exist yet.
  */
-export function ChecklistItemRow({
-  boardId,
-  cardId,
-  item,
-  index,
-}: ChecklistItemRowProps): ReactElement {
+export function ItemRow({ boardId, cardId, item, index }: ItemRowProps): ReactElement {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.name);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [duePanel, setDuePanel] = useState<HTMLElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const update = useUpdateChecklistItem(boardId, cardId);
-  const remove = useDeleteChecklistItem(boardId, cardId);
-  const convert = useConvertChecklistItem(boardId, cardId);
+  const update = useUpdateItem(boardId, cardId);
+  const remove = useDeleteItem(boardId, cardId);
 
   const locked = isTempId(item.id);
 
@@ -180,14 +169,6 @@ export function ChecklistItemRow({
 
           {menu === null ? null : (
             <Popover anchor={menu} title="Item actions" onClose={() => setMenu(null)}>
-              <MenuRow
-                onClick={() => {
-                  setMenu(null);
-                  convert.mutate({ itemId: item.id });
-                }}
-              >
-                Convert to card
-              </MenuRow>
               <MenuRow
                 onClick={() => {
                   setMenu(null);

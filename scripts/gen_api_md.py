@@ -19,9 +19,9 @@ for path, item in doc["paths"].items():
 total = sum(len(v) for v in groups.values())
 
 out = [
-    "# Kan Ban API reference",
+    "# My Day API reference",
     "",
-    f"Generated from `GET /api/openapi.json` of Kan Ban {doc['info']['version']}. "
+    f"Generated from `GET /api/openapi.json` of My Day {doc['info']['version']}. "
     "Do not edit by hand: regenerate it with the command in the Regenerating section below.",
     "",
     f"**{total} operations across {len(doc['paths'])} paths.** Every endpoint lives under `/api`.",
@@ -30,7 +30,7 @@ out = [
     "",
     "- Request and response bodies are JSON with `snake_case` field names that match the database columns.",
     "- Timestamps are ISO-8601 UTC strings ending in `Z`.",
-    "- There is no authentication: Kan Ban is a single-person install and every endpoint is open to whoever",
+    "- There is no authentication: My Day is a single-person install and every endpoint is open to whoever",
     "  can reach the port. Bind it to loopback or a trusted LAN.",
     "- Every request that is not a `GET` must send the header `X-Requested-With: fetch`, or it is rejected with",
     "  403 `csrf_header_missing`. That is what stops another site's page from writing to a local install in the",

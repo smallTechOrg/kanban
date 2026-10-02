@@ -1,39 +1,30 @@
-"""Card copy, cross-board move and the archived-items listing (Sections 4.5, 3.6, 3.7 and 4.3).
+"""The list copy, the cross-board list move and the archived listing (Sections 4.4, 3.6 and 4.3).
 
 Three things are asserted here that no other module can assert:
 
-* what a *copy* is - every `keep` flag on its own, rows of its own rather than shared ones, its own
-  `short_id`, and the cover remapped onto the copied attachment;
-* that a cross-board move is **one transaction spanning both boards** (Section 3.6): a fresh
-  `short_id` on the target, labels dropped, `card.moved_out` / `card.moved_in` written with each
-  board's own version, both versions bumped in the same COMMIT - and, when anything inside the
-  transaction fails, *nothing* moved, so the card can never vanish from the source without
-  appearing on the target;
+* what a *copy* is - `kanban/copy.py` duplicating a column: rows of its own rather than shared
+  ones, its own `short_id` sequence, and each card arriving whole, with its labels and its items;
+* that a cross-board list move is **one transaction spanning both boards** (Section 3.6): every
+  card gets a fresh `short_id` on the target, labels are dropped, `list.moved_out` /
+  `list.moved_in` are written with each board's own version, and both versions are bumped in the
+  same COMMIT;
 * that `GET /api/boards/{board_id}/archived` lists the archived rows and only those.
 
-Every fixture is built through the real API (CLAUDE.md section 6), and the last section drives each
-of the four routes this milestone added or extended - `POST /api/cards/{card_id}/copy`, the
-`to_board_id` of the card and list move bodies, and `CardDetail.attachments` - end to end. The
-`keep`-flag matrix and the atomicity case above it call `services.cards` / `services.lists`
-directly, the way `test_ordering.py` calls `ordering.py`: they assert stored columns, per-board
-activity rows and a rollback injected mid-transaction, none of which a response body shows.
+A card has no copy endpoint and never changes board on its own, so the only cross-board write left
+is the list one. Every fixture is built through the real API (CLAUDE.md section 6); the move cases
+call `services.lists` directly, the way `test_ordering.py` calls `ordering.py`, because they assert
+stored columns and per-board activity rows that no response body shows.
 """
 
-import io
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
 from sqlalchemy import select
 
-from kanban.config import settings
-from kanban.copy import EVERYTHING, Keep
-from kanban.errors import BadRequest, Conflict, NotFound
-from kanban.models import Activity, Attachment, Board, Card, Checklist
-from kanban.services import cards as cards_service
+from kanban.errors import NotFound
+from kanban.models import Activity, Board, Card, CardItem
 from kanban.services import lists as lists_service
 from tests.conftest import CSRF_HEADERS
 from tests.test_cards import create_card, list_ids, session
@@ -59,9 +50,6 @@ def card_of(card_id: int) -> Any:
                 Card.title,
                 Card.description,
                 Card.position,
-                Card.cover_type,
-                Card.cover_value,
-                Card.is_template,
             ).where(Card.id == card_id)
         ).one()
     raise AssertionError("unreachable")  # pragma: no cover
@@ -74,58 +62,22 @@ def version_of(board_id: int) -> int:
     raise AssertionError("unreachable")  # pragma: no cover
 
 
-def activities_of(board_id: int) -> list[Any]:
-    """Every activity row of a board, newest last, with the columns the two feeds read."""
-    for db in session():
-        return list(
-            db.execute(
-                select(
-                    Activity.type,
-                    Activity.board_id,
-                    Activity.card_id,
-                    Activity.list_id,
-                    Activity.board_version,
-                    Activity.data,
-                )
-                .where(Activity.board_id == board_id)
-                .order_by(Activity.id)
-            ).all()
-        )
-    raise AssertionError("unreachable")  # pragma: no cover
-
-
 def types_of(board_id: int) -> list[str]:
     """The activity types recorded on a board, in order."""
-    return [row.type for row in activities_of(board_id)]
-
-
-def attachments_of(card_id: int) -> list[Any]:
-    """The card's attachment rows with the three columns a file copy has to retarget."""
     for db in session():
-        return list(
-            db.execute(
-                select(
-                    Attachment.id,
-                    Attachment.name,
-                    Attachment.kind,
-                    Attachment.url,
-                    Attachment.file_path,
-                    Attachment.thumb_path,
-                    Attachment.dominant_color,
-                )
-                .where(Attachment.card_id == card_id)
-                .order_by(Attachment.id)
+        return [
+            row.type
+            for row in db.execute(
+                select(Activity.type).where(Activity.board_id == board_id).order_by(Activity.id)
             ).all()
-        )
+        ]
     raise AssertionError("unreachable")  # pragma: no cover
 
 
-def checklist_ids_of(card_id: int) -> list[int]:
-    """The card's checklist ids, so a copy can be shown not to share rows with its source."""
+def item_ids_of(card_id: int) -> list[int]:
+    """A card's item ids, so a copy can be shown not to share rows with its source."""
     for db in session():
-        return sorted(
-            db.execute(select(Checklist.id).where(Checklist.card_id == card_id)).scalars()
-        )
+        return sorted(db.execute(select(CardItem.id).where(CardItem.card_id == card_id)).scalars())
     raise AssertionError("unreachable")  # pragma: no cover
 
 
@@ -146,59 +98,25 @@ def label_ids(api: TestClient, board_id: int) -> list[int]:
     return [label["id"] for label in response.json()["items"]]
 
 
-def add_checklist(api: TestClient, card_id: int, name: str, items: list[str]) -> int:
-    """A checklist with `items`, the first of them ticked, through the M3 endpoints."""
-    response = api.post(
-        f"/api/cards/{card_id}/checklists", json={"name": name}, headers=CSRF_HEADERS
-    )
-    assert response.status_code == 201, response.text
-    checklist_id = response.json()["item"]["id"]
-    for offset, item in enumerate(items):
-        created = api.post(
-            f"/api/checklists/{checklist_id}/items", json={"name": item}, headers=CSRF_HEADERS
-        )
+def add_items(api: TestClient, card_id: int, names: list[str]) -> None:
+    """Items on a card, the first of them ticked, through the item endpoints."""
+    for offset, name in enumerate(names):
+        created = api.post(f"/api/cards/{card_id}/items", json={"name": name}, headers=CSRF_HEADERS)
         assert created.status_code == 201, created.text
         if offset == 0:
             ticked = api.patch(
-                f"/api/checklist-items/{created.json()['item']['id']}",
+                f"/api/card-items/{created.json()['item']['id']}",
                 json={"is_checked": True},
                 headers=CSRF_HEADERS,
             )
             assert ticked.status_code == 200, ticked.text
-    return int(checklist_id)
 
 
-def png_bytes(color: tuple[int, int, int] = (12, 140, 233)) -> bytes:
-    """A real one-colour PNG, so the upload route stores a file and a thumbnail of its own."""
-    buffer = io.BytesIO()
-    Image.new("RGB", (24, 12), color).save(buffer, format="PNG")
-    return buffer.getvalue()
-
-
-def add_upload_attachment(api: TestClient, card_id: int, name: str = "photo.png") -> int:
-    """`POST /api/cards/{card_id}/attachments` with a real PNG (Sections 4.6 and 6.9).
-
-    The copy contract of Section 4.5 says "attachment files are copied on disk", so the source
-    needs a row *and* the two files the upload route writes beside it; this goes through that route
-    rather than inserting the row, as CLAUDE.md section 6 requires.
-    """
-    response = api.post(
-        f"/api/cards/{card_id}/attachments",
-        files={"file": (name, png_bytes(), "image/png")},
-        headers=CSRF_HEADERS,
-    )
-    assert response.status_code == 201, response.text
-    return int(response.json()["item"]["id"])
-
-
-def set_attachment_cover(api: TestClient, card_id: int, attachment_id: int) -> None:
-    """`PUT /api/cards/{card_id}/cover` with one of the card's image attachments (Section 4.5)."""
-    response = api.put(
-        f"/api/cards/{card_id}/cover",
-        json={"kind": "attachment", "value": attachment_id},
-        headers=CSRF_HEADERS,
-    )
+def cards_in(api: TestClient, board_id: int, list_id: int) -> list[dict[str, Any]]:
+    """The board payload's active cards of one list, in `position` order (Section 4.10.1)."""
+    response = api.get(f"/api/boards/{board_id}")
     assert response.status_code == 200, response.text
+    return [card for card in response.json()["cards"] if card["list_id"] == list_id]
 
 
 @pytest.fixture
@@ -209,494 +127,69 @@ def lists(board: dict[str, Any]) -> list[int]:
 
 @pytest.fixture
 def other_board(board_factory: BoardFactory) -> dict[str, Any]:
-    """A second board, for the cross-board move and copy."""
+    """A second board, for the cross-board list move."""
     return board_factory("Ops")
 
 
-@pytest.fixture
-def rich_card(api: TestClient, board: dict[str, Any], lists: list[int]) -> dict[str, Any]:
-    """A card carrying one of everything a `keep` flag can bring along."""
-    card = create_card(api, lists[0], "Write plan", label_ids=label_ids(api, board["id"])[:2])[
+# --------------------------------------------------------------------------- the list copy
+
+
+def copy_list(api: TestClient, list_id: int, **body: Any) -> dict[str, Any]:
+    """`POST /api/lists/{list_id}/copy`, asserting the documented 201."""
+    response = api.post(f"/api/lists/{list_id}/copy", json=body, headers=CSRF_HEADERS)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_a_copied_list_brings_every_active_card_whole(
+    api: TestClient, board: dict[str, Any], lists: list[int]
+) -> None:
+    """Duplicating a column copies each card with its labels and its items (Section 4.4)."""
+    source = create_card(api, lists[0], "Write plan", label_ids=label_ids(api, board["id"])[:2])[
         "item"
     ]
-    patched = api.patch(
-        f"/api/cards/{card['id']}",
-        json={"description": "the original description", "due_at": "2026-09-30T15:00:00.000Z"},
-        headers=CSRF_HEADERS,
-    )
-    assert patched.status_code == 200, patched.text
-    add_checklist(api, card["id"], "Steps", ["Draft", "Review"])
-    add_upload_attachment(api, card["id"], "plan.png")
-    return dict(card)
+    add_items(api, source["id"], ["Pick the date", "Draft it"])
 
+    body = copy_list(api, lists[0], name="To Do copy")
 
-def copy_of(
-    db: Any, card_id: int, to_list_id: int, *, board_id: int, **kwargs: Any
-) -> dict[str, Any]:
-    """`services.cards.copy_card`, returning the `CardSummary` it answers with."""
-    return cards_service.copy_card(
-        db, board_id=board_id, card_id=card_id, to_list_id=to_list_id, **kwargs
-    ).item
-
-
-# --------------------------------------------------------------------------- copy: the keep flags
-
-
-def test_a_copy_with_no_keep_flags_carries_the_card_and_nothing_else(
-    api: TestClient, db: Any, board: dict[str, Any], lists: list[int], rich_card: dict[str, Any]
-) -> None:
-    item = copy_of(db, rich_card["id"], lists[1], board_id=board["id"], title="Write plan copy")
-
-    copy = detail(api, item["id"])
-    assert copy["title"] == "Write plan copy"
-    assert copy["description"] == "the original description"  # the card itself always comes along
-    assert copy["due_at"] == "2026-09-30T15:00:00.000Z"
-    assert copy["list_id"] == lists[1]
-    assert (copy["label_ids"], copy["checklists"], copy["attachments"]) == ([], [], [])
-    assert copy["badges"]["checklist_total"] == 0
-    assert copy["badges"]["attachments"] == 0
-
-
-@pytest.mark.parametrize(
-    ("flag", "field", "expected"),
-    [
-        ("labels", "label_ids", 2),
-        ("checklists", "checklist_total", 2),
-        ("attachments", "attachments", 1),
-    ],
-)
-def test_each_keep_flag_brings_exactly_its_own_children(
-    api: TestClient,
-    db: Any,
-    board: dict[str, Any],
-    lists: list[int],
-    rich_card: dict[str, Any],
-    flag: str,
-    field: str,
-    expected: int,
-) -> None:
-    item = copy_of(
-        db,
-        rich_card["id"],
-        lists[1],
-        board_id=board["id"],
-        title=f"Keeping {flag}",
-        keep=Keep(**{flag: True}),
-    )
-
-    copy = detail(api, item["id"])
-    counts = {
-        "label_ids": len(copy["label_ids"]),
-        "checklist_total": copy["badges"]["checklist_total"],
-        "attachments": copy["badges"]["attachments"],
-    }
-    assert counts[field] == expected
-    assert sum(counts.values()) == expected  # nothing else came with it
-
-
-def test_keeping_everything_brings_every_child_including_the_checked_state(
-    api: TestClient, db: Any, board: dict[str, Any], lists: list[int], rich_card: dict[str, Any]
-) -> None:
-    item = copy_of(
-        db, rich_card["id"], lists[1], board_id=board["id"], title="Everything", keep=EVERYTHING
-    )
-
-    copy = detail(api, item["id"])
+    copied_list = body["item"]["id"]
+    (copy,) = cards_in(api, board["id"], copied_list)
+    assert copy["title"] == "Write plan"
+    assert copy["id"] != source["id"]
+    assert copy["short_id"] != source["short_id"]  # its own slot in the board's sequence
     assert len(copy["label_ids"]) == 2
-    assert copy["badges"] == {
-        "description": True,
-        "attachments": 1,
-        "checklist_done": 1,
-        "checklist_total": 2,
-    }
-    items = copy["checklists"][0]["items"]
-    assert [item["name"] for item in items] == ["Draft", "Review"]
-    assert [item["is_checked"] for item in items] == [True, False]
+    # A half-done card copies as half done: a column copy reproduces the card as it stands.
+    assert copy["badges"] == {"description": False, "item_done": 1, "item_total": 2}
 
 
-def test_a_copy_does_not_share_checklist_rows_with_its_source(
-    api: TestClient, db: Any, board: dict[str, Any], lists: list[int], rich_card: dict[str, Any]
+def test_a_copied_card_does_not_share_item_rows_with_its_source(
+    api: TestClient, board: dict[str, Any], lists: list[int]
 ) -> None:
-    item = copy_of(
-        db,
-        rich_card["id"],
-        lists[1],
-        board_id=board["id"],
-        title="Own rows",
-        keep=Keep(checklists=True),
-    )
+    """The copy owns its rows: ticking one must never move the other's badge."""
+    source = create_card(api, lists[0], "Write plan")["item"]
+    add_items(api, source["id"], ["Pick the date", "Draft it"])
 
-    source_ids = checklist_ids_of(rich_card["id"])
-    copy_ids = checklist_ids_of(item["id"])
-    assert set(source_ids).isdisjoint(copy_ids)
-    ticked = api.patch(
-        f"/api/checklist-items/{detail(api, item['id'])['checklists'][0]['items'][1]['id']}",
-        json={"is_checked": True},
-        headers=CSRF_HEADERS,
-    )
-    assert ticked.status_code == 200, ticked.text
-    assert detail(api, item["id"])["badges"]["checklist_done"] == 2
-    assert detail(api, rich_card["id"])["badges"]["checklist_done"] == 1  # untouched
+    body = copy_list(api, lists[0], name="Copy")
+    (copy,) = cards_in(api, board["id"], body["item"]["id"])
+
+    source_items = item_ids_of(source["id"])
+    copy_items = item_ids_of(copy["id"])
+    assert len(source_items) == len(copy_items) == 2
+    assert set(source_items).isdisjoint(copy_items)
 
 
-def test_a_copy_gets_its_own_short_id_and_lands_at_the_requested_index(
-    api: TestClient, db: Any, board: dict[str, Any], lists: list[int]
+def test_a_copied_list_leaves_archived_cards_behind(
+    api: TestClient, board: dict[str, Any], lists: list[int]
 ) -> None:
-    first = create_card(api, lists[1], "First")["item"]
-    second = create_card(api, lists[1], "Second")["item"]
-    source = create_card(api, lists[0], "Source")["item"]
+    """Only the *active* cards travel, so an archived one is not silently resurrected."""
+    create_card(api, lists[0], "Active")
+    archived = create_card(api, lists[0], "Archived")["item"]
+    assert api.post(f"/api/cards/{archived['id']}/archive", headers=CSRF_HEADERS).status_code == 200
 
-    item = copy_of(db, source["id"], lists[1], board_id=board["id"], title="Copy", index=1)
+    body = copy_list(api, lists[0], name="Copy")
 
-    assert item["short_id"] == source["short_id"] + 1 == 4
-    assert first["position"] < item["position"] < second["position"]
-
-
-def test_a_copy_records_one_card_copied_row_naming_both_ends(
-    api: TestClient, db: Any, board: dict[str, Any], lists: list[int], rich_card: dict[str, Any]
-) -> None:
-    item = copy_of(
-        db,
-        rich_card["id"],
-        lists[1],
-        board_id=board["id"],
-        title="Copy with checklists",
-        keep=Keep(checklists=True),
-    )
-
-    feed = api.get(f"/api/boards/{board['id']}/activity", params={"card_id": item["id"]})
-    assert feed.status_code == 200, feed.text
-    rows = feed.json()["items"]
-    assert [row["type"] for row in rows] == ["card.copied"]
-    copied = rows[0]
-    assert copied["data"]["source_card_id"] == rich_card["id"]
-    assert copied["data"]["source_list_name"] == "To Do"
-    assert copied["data"]["list_name"] == "Doing"
-
-
-def test_is_template_overrides_the_sources_flag_for_create_from_template(
-    api: TestClient, db: Any, board: dict[str, Any], lists: list[int]
-) -> None:
-    source = create_card(api, lists[0], "Template")["item"]
-    made = api.patch(f"/api/cards/{source['id']}", json={"is_template": True}, headers=CSRF_HEADERS)
-    assert made.status_code == 200, made.text
-
-    inherited = copy_of(db, source["id"], lists[0], board_id=board["id"], title="Another")
-    plain = copy_of(
-        db, source["id"], lists[0], board_id=board["id"], title="Real", is_template=False
-    )
-
-    assert inherited["is_template"] is True
-    assert plain["is_template"] is False
-
-
-# --------------------------------------------------------------------------- copy: attachments
-
-
-def test_keeping_attachments_copies_the_row_the_files_and_the_cover(
-    api: TestClient, db: Any, board: dict[str, Any], lists: list[int]
-) -> None:
-    source = create_card(api=api, list_id=lists[0], title="With an image")["item"]
-    attachment_id = add_upload_attachment(api, source["id"])
-    set_attachment_cover(api, source["id"], attachment_id)
-
-    item = copy_of(
-        db,
-        source["id"],
-        lists[1],
-        board_id=board["id"],
-        title="Copy with the image",
-        keep=Keep(attachments=True),
-    )
-
-    copied = attachments_of(item["id"])
-    assert len(copied) == 1
-    row = copied[0]
-    assert row.id != attachment_id
-    assert row.file_path == f"attachments/{row.id}/photo.png"
-    assert row.url == f"/uploads/attachments/{row.id}/photo.png"
-    assert row.thumb_path == f"attachments/{row.id}/thumb.jpg"
-    source_directory: Path = settings.uploads_dir / "attachments" / str(attachment_id)
-    directory: Path = settings.uploads_dir / "attachments" / str(row.id)
-    for file_name in ("photo.png", "thumb.jpg"):
-        assert (directory / file_name).read_bytes() == (source_directory / file_name).read_bytes()
-    # The cover followed the copied attachment rather than pointing at the source's row, and
-    # carries that row's own thumbnail (`services.cards._cover` resolves it, Section 4.5).
-    assert item["cover"] == {
-        "kind": "attachment",
-        "value": str(row.id),
-        "size": "normal",
-        "image_url": f"/uploads/attachments/{row.id}/thumb.jpg",
-        "dominant_color": row.dominant_color,
-    }
-    assert row.dominant_color is not None
-
-
-def test_a_copy_without_the_attachments_has_no_attachment_cover(
-    api: TestClient, db: Any, board: dict[str, Any], lists: list[int]
-) -> None:
-    source = create_card(api, lists[0], "Covered")["item"]
-    set_attachment_cover(api, source["id"], add_upload_attachment(api, source["id"], "shot.png"))
-
-    item = copy_of(db, source["id"], lists[1], board_id=board["id"], title="Uncovered")
-
-    assert item["cover"] is None
-    assert attachments_of(item["id"]) == []
-    assert card_of(source["id"]).cover_type == "attachment"  # the source keeps its own
-
-
-# --------------------------------------------------------------------------- copy: across boards
-
-
-def test_a_cross_board_copy_drops_labels_and_renumbers(
-    api: TestClient,
-    db: Any,
-    board: dict[str, Any],
-    lists: list[int],
-    other_board: dict[str, Any],
-    rich_card: dict[str, Any],
-) -> None:
-    target_list = list_ids(other_board["id"])[0]
-    before = version_of(board["id"])
-
-    item = copy_of(
-        db,
-        rich_card["id"],
-        target_list,
-        board_id=board["id"],
-        title="Copied across",
-        keep=EVERYTHING,
-    )
-
-    copy = detail(api, item["id"])
-    assert copy["board_id"] == other_board["id"]
-    assert copy["label_ids"] == []  # labels are per board
-    assert copy["badges"]["checklist_total"] == 2  # checklists still travel
-    assert copy["badges"]["attachments"] == 1  # and so do the attachments and their files
-    assert copy["short_id"] == 1  # the target board's own sequence
-    assert version_of(board["id"]) == before  # a copy changes nothing on the source board
-    assert types_of(other_board["id"])[-1] == "card.copied"
-
-
-def test_a_copy_into_a_closed_board_is_409(
-    api: TestClient,
-    db: Any,
-    board: dict[str, Any],
-    lists: list[int],
-    other_board: dict[str, Any],
-) -> None:
-    card = create_card(api, lists[0], "Too late")["item"]
-    closed = api.post(f"/api/boards/{other_board['id']}/close", headers=CSRF_HEADERS)
-    assert closed.status_code == 200, closed.text
-
-    with pytest.raises(Conflict):
-        copy_of(
-            db,
-            card["id"],
-            list_ids(other_board["id"])[0],
-            board_id=board["id"],
-            title="Into a closed board",
-        )
-
-
-def test_a_copy_into_a_list_that_does_not_exist_is_400(
-    api: TestClient, db: Any, board: dict[str, Any], lists: list[int]
-) -> None:
-    """A copy names its destination by list, so an unknown board is an unknown list (4.5)."""
-    card = create_card(api, lists[0], "Nowhere")["item"]
-
-    with pytest.raises(BadRequest):
-        copy_of(db, card["id"], NO_SUCH_BOARD, board_id=board["id"], title="Nowhere")
-
-
-# --------------------------------------------------------------------------- the cross-board move
-
-
-def moved_across(
-    db: Any,
-    card_id: int,
-    *,
-    board_id: int,
-    to_board_id: int,
-    to_list_id: int,
-    index: int = 0,
-) -> Any:
-    """`services.cards.move_card` with the `to_board_id` of Sections 4.5 and 3.6."""
-    return cards_service.move_card(
-        db,
-        board_id=board_id,
-        card_id=card_id,
-        to_list_id=to_list_id,
-        index=index,
-        to_board_id=to_board_id,
-    )
-
-
-def test_a_cross_board_move_strips_labels_and_renumbers(
-    api: TestClient,
-    db: Any,
-    board: dict[str, Any],
-    lists: list[int],
-    other_board: dict[str, Any],
-) -> None:
-    card = create_card(api, lists[0], "Travelling", label_ids=label_ids(api, board["id"])[:1])[
-        "item"
-    ]
-    create_card(api, list_ids(other_board["id"])[0], "Already there")  # takes short_id 1
-    target_list = list_ids(other_board["id"])[0]
-    source_version, target_version = version_of(board["id"]), version_of(other_board["id"])
-
-    result = moved_across(
-        db,
-        card["id"],
-        board_id=board["id"],
-        to_board_id=other_board["id"],
-        to_list_id=target_list,
-    )
-
-    stored = card_of(card["id"])
-    assert (stored.board_id, stored.list_id) == (other_board["id"], target_list)
-    assert stored.short_id == 2  # MAX(short_id) + 1 of the *target* board
-    assert result.item["label_ids"] == []  # labels are per board
-    # Both versions were bumped by the one COMMIT, and the response carries the target's.
-    assert version_of(board["id"]) == source_version + 1
-    assert version_of(other_board["id"]) == target_version + 1
-    assert result.board_version == target_version + 1
-
-
-def test_a_cross_board_move_writes_one_activity_row_on_each_board(
-    api: TestClient,
-    db: Any,
-    board: dict[str, Any],
-    lists: list[int],
-    other_board: dict[str, Any],
-) -> None:
-    card = create_card(api, lists[0], "Two rows")["item"]
-    target_list = list_ids(other_board["id"])[1]
-
-    moved_across(
-        db,
-        card["id"],
-        board_id=board["id"],
-        to_board_id=other_board["id"],
-        to_list_id=target_list,
-    )
-
-    out = activities_of(board["id"])[-1]
-    into = activities_of(other_board["id"])[-1]
-    assert (out.type, into.type) == ("card.moved_out", "card.moved_in")
-    assert out.board_version == version_of(board["id"])
-    assert into.board_version == version_of(other_board["id"])
-    assert out.card_id == into.card_id == card["id"]
-    assert out.list_id == lists[0] and into.list_id == target_list
-    assert f'"other_board_id":{other_board["id"]}' in out.data
-    assert f'"other_board_id":{board["id"]}' in into.data
-    assert "Ops" in out.data and "Sprint 42" in into.data
-
-
-def test_a_cross_board_move_is_atomic_when_the_transaction_fails(
-    api: TestClient,
-    db: Any,
-    board: dict[str, Any],
-    lists: list[int],
-    other_board: dict[str, Any],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The card can never vanish from the source without appearing on the target (Section 3.6).
-
-    The failure is injected on the *second* of the two activity rows, i.e. after the card row has
-    already been handed to the target board inside the transaction: one `write_tx` spanning both
-    boards means that write is rolled back with everything else.
-    """
-    card = create_card(api, lists[0], "Stays put", label_ids=label_ids(api, board["id"])[:1])[
-        "item"
-    ]
-    target_list = list_ids(other_board["id"])[0]
-    before = card_of(card["id"])
-    versions = (version_of(board["id"]), version_of(other_board["id"]))
-    real_record = cards_service.activity.record
-
-    def failing_record(ctx: Any, type: str, *args: Any, **kwargs: Any) -> Any:
-        if type == "card.moved_in":
-            raise RuntimeError("the target write fails")
-        return real_record(ctx, type, *args, **kwargs)
-
-    monkeypatch.setattr(cards_service.activity, "record", failing_record)
-
-    with pytest.raises(RuntimeError):
-        moved_across(
-            db,
-            card["id"],
-            board_id=board["id"],
-            to_board_id=other_board["id"],
-            to_list_id=target_list,
-        )
-
-    monkeypatch.undo()
-    after = card_of(card["id"])
-    assert (after.board_id, after.list_id, after.short_id) == (
-        before.board_id,
-        before.list_id,
-        before.short_id,
-    )
-    assert detail(api, card["id"])["label_ids"] != []  # the label deletion rolled back too
-    assert (version_of(board["id"]), version_of(other_board["id"])) == versions
-    assert "card.moved_out" not in types_of(board["id"])
-    assert "card.moved_in" not in types_of(other_board["id"])
-
-
-def test_a_move_to_a_board_that_does_not_exist_is_404(
-    api: TestClient, db: Any, board: dict[str, Any], lists: list[int]
-) -> None:
-    """`target_board` applies exactly what `board_access` would, before `write_tx` opens (3.6)."""
-    card = create_card(api, lists[0], "Not going there")["item"]
-
-    with pytest.raises(NotFound):
-        moved_across(
-            db,
-            card["id"],
-            board_id=board["id"],
-            to_board_id=NO_SUCH_BOARD,
-            to_list_id=lists[1],
-        )
-
-    assert card_of(card["id"]).board_id == board["id"]
-
-
-def test_a_move_whose_target_list_is_not_on_the_target_board_is_400(
-    api: TestClient,
-    db: Any,
-    board: dict[str, Any],
-    lists: list[int],
-    other_board: dict[str, Any],
-) -> None:
-    card = create_card(api, lists[0], "Mismatched")["item"]
-
-    with pytest.raises(BadRequest):
-        moved_across(
-            db,
-            card["id"],
-            board_id=board["id"],
-            to_board_id=other_board["id"],
-            to_list_id=lists[1],  # a list of the *source* board
-        )
-
-
-def test_a_move_naming_the_cards_own_board_stays_an_ordinary_move(
-    api: TestClient, db: Any, board: dict[str, Any], lists: list[int]
-) -> None:
-    card = create_card(api, lists[0], "Same board")["item"]
-
-    result = moved_across(
-        db,
-        card["id"],
-        board_id=board["id"],
-        to_board_id=board["id"],
-        to_list_id=lists[1],
-    )
-
-    assert result.item["short_id"] == card["short_id"]  # no renumbering
-    assert types_of(board["id"])[-1] == "card.moved"
+    titles = [card["title"] for card in cards_in(api, board["id"], body["item"]["id"])]
+    assert titles == ["Active"]
 
 
 # --------------------------------------------------------------------------- the list move
@@ -761,6 +254,23 @@ def test_a_list_move_naming_its_own_board_still_reorders(
     assert types_of(board["id"])[-1] == "list.moved"
 
 
+def test_the_list_move_route_carries_a_column_and_its_cards_across_boards(
+    api: TestClient, board: dict[str, Any], lists: list[int], other_board: dict[str, Any]
+) -> None:
+    """The same move over HTTP, which is what `MoveListForm` sends (Section 2.4.3)."""
+    card = create_card(api, lists[1], "Travels")["item"]
+
+    response = api.post(
+        f"/api/lists/{lists[1]}/move",
+        json={"index": 0, "to_board_id": other_board["id"]},
+        headers=CSRF_HEADERS,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["item"]["board_id"] == other_board["id"]
+    assert card_of(card["id"]).board_id == other_board["id"]
+
+
 # --------------------------------------------------------------------------- the archived listing
 
 
@@ -788,7 +298,7 @@ def test_the_archived_listing_returns_archived_cards_and_excludes_active_ones(
     # A card inside an archived list is not archived itself: it comes back with the list (3.7).
     assert in_archived_list["id"] not in ids
     assert page["items"][0]["is_archived"] is True
-    assert page["items"][0]["badges"]["attachments"] == 0  # a full CardSummary
+    assert page["items"][0]["badges"]["item_total"] == 0  # a full CardSummary
     assert page["next_before"] is None
 
 
@@ -832,154 +342,27 @@ def test_the_archived_listing_needs_a_board_that_exists_and_a_known_type(
     assert unknown.status_code == 422
 
 
-# --------------------------------------------------------------- over HTTP: the routes themselves
+# --------------------------------------------------------------------------- what is gone
 
 
-def test_the_copy_route_answers_201_with_the_new_card_and_honours_keep(
-    api: TestClient, board: dict[str, Any], rich_card: dict[str, Any], lists: list[int]
-) -> None:
-    source = detail(api, rich_card["id"])
-    version = version_of(board["id"])
-
-    response = api.post(
-        f"/api/cards/{rich_card['id']}/copy",
-        json={
-            "title": "Copied over HTTP",
-            "to_list_id": lists[1],
-            "index": 0,
-            "keep": {"checklists": True, "labels": True},
-        },
-        headers=CSRF_HEADERS,
-    )
-
-    assert response.status_code == 201, response.text
-    body = response.json()
-    item = body["item"]
-    assert item["id"] != rich_card["id"]
-    assert item["title"] == "Copied over HTTP"
-    assert item["list_id"] == lists[1]
-    assert item["short_id"] == source["short_id"] + 1
-    assert item["label_ids"] == source["label_ids"]  # kept
-    assert item["badges"]["checklist_total"] == source["badges"]["checklist_total"] > 0
-    assert item["badges"]["attachments"] == 0  # the flag was not sent, so it defaults to false
-    assert body["board_version"] == version + 1
-    assert checklist_ids_of(item["id"]) and checklist_ids_of(item["id"]) != checklist_ids_of(
-        rich_card["id"]
-    )
-
-
-def test_the_copy_route_defaults_every_keep_flag_to_false(
-    api: TestClient, rich_card: dict[str, Any], lists: list[int]
-) -> None:
-    response = api.post(
-        f"/api/cards/{rich_card['id']}/copy",
-        json={"title": "Bare copy", "to_list_id": lists[0]},
-        headers=CSRF_HEADERS,
-    )
-
-    assert response.status_code == 201, response.text
-    item = response.json()["item"]
-    assert item["label_ids"] == []
-    assert item["badges"] == {
-        "description": True,  # the card's own columns always travel
-        "attachments": 0,
-        "checklist_done": 0,
-        "checklist_total": 0,
-    }
-
-
-def test_the_copy_route_refuses_a_closed_destination_board(
+def test_a_card_has_no_copy_route_and_never_names_a_destination_board(
     api: TestClient, lists: list[int], other_board: dict[str, Any]
 ) -> None:
-    source = create_card(api, lists[0], "Not going anywhere")["item"]
-    closed = api.post(f"/api/boards/{other_board['id']}/close", headers=CSRF_HEADERS)
-    assert closed.status_code == 200, closed.text
+    """A card is copied by nothing and moved only within its board (Sections 4.5 and 3.6)."""
+    card = create_card(api, lists[0], "Stays put")["item"]
 
-    response = api.post(
-        f"/api/cards/{source['id']}/copy",
-        json={"title": "Nope", "to_list_id": list_ids(other_board["id"])[0]},
+    copy = api.post(
+        f"/api/cards/{card['id']}/copy",
+        json={"title": "Copy", "to_list_id": lists[1], "index": 0},
         headers=CSRF_HEADERS,
     )
-
-    assert response.status_code == 409
-    assert response.json()["error"]["message"] == "Board is closed"
-
-
-def test_the_move_route_carries_a_card_across_boards(
-    api: TestClient, board: dict[str, Any], lists: list[int], other_board: dict[str, Any]
-) -> None:
-    card = create_card(api, lists[0], "Going to Ops", label_ids=label_ids(api, board["id"])[:1])[
-        "item"
-    ]
-    target_list = list_ids(other_board["id"])[0]
-    source_version, target_version = version_of(board["id"]), version_of(other_board["id"])
-
-    response = api.post(
+    crossing = api.post(
         f"/api/cards/{card['id']}/move",
-        json={"to_list_id": target_list, "to_board_id": other_board["id"], "index": 0},
+        json={"to_list_id": list_ids(other_board["id"])[0], "index": 0},
         headers=CSRF_HEADERS,
     )
 
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["item"]["board_id"] == other_board["id"]
-    assert body["item"]["list_id"] == target_list
-    assert body["item"]["label_ids"] == []  # labels are per board
-    assert body["board_version"] == target_version + 1  # the *destination* board's version
-    assert version_of(board["id"]) == source_version + 1  # bumped by the same COMMIT
-    assert types_of(other_board["id"])[-1] == "card.moved_in"
-    assert types_of(board["id"])[-1] == "card.moved_out"
-
-
-def test_the_move_route_refuses_a_destination_board_that_does_not_exist(
-    api: TestClient, board: dict[str, Any], lists: list[int]
-) -> None:
-    card = create_card(api, lists[0], "Staying put")["item"]
-
-    response = api.post(
-        f"/api/cards/{card['id']}/move",
-        json={"to_list_id": lists[1], "to_board_id": NO_SUCH_BOARD, "index": 0},
-        headers=CSRF_HEADERS,
-    )
-
-    assert response.status_code == 404
-    assert response.json()["error"]["code"] == "not_found"
-    assert card_of(card["id"]).board_id == board["id"]
-
-
-def test_the_list_move_route_carries_a_column_and_its_cards_across_boards(
-    api: TestClient, board: dict[str, Any], lists: list[int], other_board: dict[str, Any]
-) -> None:
-    card = create_card(api, lists[0], "Travelling with the column")["item"]
-    target_version = version_of(other_board["id"])
-
-    response = api.post(
-        f"/api/lists/{lists[0]}/move",
-        json={"to_board_id": other_board["id"], "index": 0},
-        headers=CSRF_HEADERS,
-    )
-
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["item"]["board_id"] == other_board["id"]
-    assert body["board_version"] == target_version + 1
-    assert card_of(card["id"]).board_id == other_board["id"]
-    assert types_of(other_board["id"])[-1] == "list.moved_in"
-    assert types_of(board["id"])[-1] == "list.moved_out"
-
-
-def test_the_card_detail_lists_its_attachments_newest_first(
-    api: TestClient, lists: list[int]
-) -> None:
-    card = create_card(api, lists[0], "With two files")["item"]
-    first = add_upload_attachment(api, card["id"], "one.png")
-    second = add_upload_attachment(api, card["id"], "two.png")
-    set_attachment_cover(api, card["id"], second)
-
-    attachments = detail(api, card["id"])["attachments"]
-
-    assert [row["id"] for row in attachments] == [second, first]
-    assert [row["is_cover"] for row in attachments] == [True, False]
-    assert attachments[0]["url"] == f"/uploads/attachments/{second}/two.png"
-    assert attachments[0]["thumb_url"] == f"/uploads/attachments/{second}/thumb.jpg"
-    assert attachments[1]["kind"] == "upload"
+    assert copy.status_code == 405  # the route does not exist at all
+    # `to_list_id` is validated against the board the route resolved, so another board's list is
+    # a 400 rather than a cross-board hand-over.
+    assert crossing.status_code == 400, crossing.text

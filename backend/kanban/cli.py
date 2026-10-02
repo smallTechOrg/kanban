@@ -22,7 +22,7 @@ from kanban import __version__, seed
 from kanban.config import settings
 from kanban.db import SessionLocal, engine, upgrade_to_head
 from kanban.logging_conf import configure_logging
-from kanban.models import Attachment, BoardBackground
+from kanban.models import BoardBackground
 from kanban.static import require_frontend_build
 
 #: Every subcommand name, used to recognise a bare invocation as `run`.
@@ -49,7 +49,7 @@ def _with_default_command(argv: Sequence[str] | None) -> list[str]:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="kanban", description="Kan Ban server and maintenance.")
+    parser = argparse.ArgumentParser(prog="kanban", description="My Day server and maintenance.")
     parser.add_argument("--version", action="version", version=f"kanban {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -62,7 +62,7 @@ def _build_parser() -> argparse.ArgumentParser:
     migrate.set_defaults(handler=_migrate)
 
     seed = subparsers.add_parser("seed", help="create one of the demo fixtures")
-    seed.add_argument("--demo", action="store_true", help='the "Welcome to Kan Ban" fixture')
+    seed.add_argument("--demo", action="store_true", help="the four example boards")
     seed.add_argument("--big", action="store_true", help="30 lists x 100 cards for perf checks")
     seed.set_defaults(handler=_seed)
 
@@ -82,7 +82,7 @@ def _run(args: argparse.Namespace) -> int:
     require_frontend_build(settings)
     host = args.host or settings.host
     port = args.port or settings.port
-    print(f"Kan Ban {__version__} listening on http://{host}:{port}")
+    print(f"My Day {__version__} listening on http://{host}:{port}")
     uvicorn.run(
         "kanban.main:app",
         host=host,
@@ -139,10 +139,11 @@ def _seed(args: argparse.Namespace) -> int:
                 )
         elif args.demo:
             created = seed.seed_demo(db)
+            names = ", ".join(seed.DEMO_BOARD_NAMES)
             print(
-                f'Demo board "{seed.DEMO_BOARD_NAME}" created.'
+                f"Example boards created: {created} of {len(seed.DEMO_BOARD_NAMES)} ({names})."
                 if created
-                else f'Demo board "{seed.DEMO_BOARD_NAME}" is already present; nothing to do.'
+                else f"Example boards are already present ({names}); nothing to do."
             )
         else:
             print("Nothing to seed: pass --demo or --big.")
@@ -152,30 +153,20 @@ def _seed(args: argparse.Namespace) -> int:
 def _cleanup_orphans(args: argparse.Namespace) -> int:
     """Reconcile `data/uploads/` with the rows that reference it (Sections 3.11 and 6.9).
 
-    Deletes attachment directories and background images with no row, and `tmp/` leftovers older
-    than an hour; lists rows whose file has gone missing.
+    Deletes background images with no row, and `tmp/` leftovers older than an hour; lists rows
+    whose file has gone missing.
     """
     settings.ensure_directories()
     uploads = settings.uploads_dir
     with _session() as db:
-        attachment_ids = set(db.execute(select(Attachment.id)).scalars())
         background_ids = set(db.execute(select(BoardBackground.id)).scalars())
         missing = [
-            path
-            for path in db.execute(select(Attachment.file_path)).scalars()
-            if path and not (uploads / path).is_file()
-        ] + [
             path
             for path in db.execute(select(BoardBackground.file_path)).scalars()
             if not (uploads / path).is_file()
         ]
 
     orphans: list[Path] = [
-        directory
-        for directory in sorted((uploads / "attachments").iterdir())
-        if directory.is_dir() and _row_id(directory.name) not in attachment_ids
-    ]
-    orphans += [
         path
         for path in sorted((uploads / "backgrounds").iterdir())
         if path.is_file() and _row_id(path.name.split(".", 1)[0]) not in background_ids

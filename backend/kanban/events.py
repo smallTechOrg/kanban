@@ -56,24 +56,20 @@ MAX_REPLAY: Final[int] = 500
 HELLO: Final[str] = "hello"
 RESYNC: Final[str] = "resync"
 
-#: `activities.type` prefix -> `EventOut.entity`. `checklist.item_*` is the one type whose entity
-#: is not its prefix (it is `item`), and is handled by `entity_of()`.
+#: `activities.type` prefix -> `EventOut.entity`. Every type's entity is its prefix.
 ENTITY_BY_PREFIX: Final[dict[str, str]] = {
     "board": "board",
     "list": "list",
     "card": "card",
     "label": "label",
-    "checklist": "checklist",
-    "attachment": "attachment",
+    "item": "item",
 }
 
 #: For the entities whose id is not a column of `activities`, the `data` key that carries it
 #: (Section 4.8). `card`, `list` and `board` read their own column instead.
 ID_DATA_KEY: Final[dict[str, str]] = {
     "label": "label_id",
-    "checklist": "checklist_id",
     "item": "item_id",
-    "attachment": "attachment_id",
 }
 
 #: The three live events that carry the moved row's new `position` (Section 4.8): the model to
@@ -145,15 +141,13 @@ bus = BoardBus()
 
 
 def entity_of(activity_type: str) -> str:
-    """The `EventOut.entity` of an activity type: its prefix, except `checklist.item_*` -> `item`.
+    """The `EventOut.entity` of an activity type: the prefix before its dot.
 
     A type whose prefix is not in `ENTITY_BY_PREFIX` is reported as a board-level change, which
     the client answers with one board refetch, so a type added to `ACTIVITY_TYPES` later can
     never break a live stream.
     """
-    prefix, _, rest = activity_type.partition(".")
-    if prefix == "checklist" and rest.startswith("item_"):
-        return "item"
+    prefix, _, _rest = activity_type.partition(".")
     return ENTITY_BY_PREFIX.get(prefix, "board")
 
 

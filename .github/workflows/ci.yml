@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Kan Ban CI. The commands here mirror the root npm scripts (package.json) but
+# My Day CI. The commands here mirror the root npm scripts (package.json) but
 # are spelled out with the runner's own interpreter, because CI installs into
 # the job's Python rather than the repo's .venv.
 # ---------------------------------------------------------------------------

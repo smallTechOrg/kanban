@@ -1,8 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /**
- * The M1 golden path of Section 7.2: land on Home, create a board with a chosen background,
- * star it, and create a second board with a different background.
+ * The M1 golden path of Section 7.2: land on Home, create a board with a chosen background, and
+ * create a second board with a different background.
  *
  * One serial test, because every step builds on the board the one before it created.
  */
@@ -23,32 +23,14 @@ const suffix = `${Date.now()}`.slice(-9);
 const FIRST_BOARD = `Sprint 42 ${suffix}`;
 const SECOND_BOARD = `Design system ${suffix}`;
 
-/** The `BoardsSection` whose heading is `title`, so a tile can be asserted inside it. */
-function section(page: Page, title: string): Locator {
-  return page.locator('section').filter({ has: page.getByRole('heading', { name: title }) });
-}
-
 /**
- * The section that owns the create tile: its grid holds every board (Section 2.2).
+ * The 96px tile for `name`: the link's parent paints the background.
  *
- * Found by that tile rather than by its heading, because "Starred boards" and "Recently viewed"
- * are the two groups whose names the plan pins; this one is the whole collection and its
- * eyebrow is copy.
+ * The home page is one flat grid of every board (Section 2.2), so a name appears exactly once
+ * and no section has to be named to find it.
  */
-function allBoards(page: Page): Locator {
-  return page
-    .locator('section')
-    .filter({ has: page.getByRole('button', { name: 'Create new board' }) });
-}
-
-/**
- * The 96px tile for `name` inside one section: the link's parent paints the background.
- *
- * The section matters, because a starred board that has been opened appears in three grids
- * at once (Starred boards, Recently viewed and the collection below them).
- */
-function tile(scope: Locator, name: string): Locator {
-  return scope.getByRole('link', { name, exact: true }).locator('..');
+function tile(page: Page, name: string): Locator {
+  return page.getByRole('link', { name, exact: true }).locator('..');
 }
 
 async function createBoard(page: Page, name: string, swatch: string): Promise<void> {
@@ -82,28 +64,31 @@ async function goHome(page: Page): Promise<void> {
 
 test.describe.configure({ mode: 'serial' });
 
-test('M1: home page, create boards, star', async ({ page }) => {
-  await test.step('1. / is the home page: the nav, the sidebar and the grid', async () => {
+test('M1: home page and creating boards', async ({ page }) => {
+  await test.step('1. / is the home page: the nav, the greeting and the grid', async () => {
     await page.goto('/');
     await expect(page).toHaveURL('http://127.0.0.1:8020/');
 
-    // The nav of Section 2.1.1 and the sidebar of Section 2.2 render on every width.
-    await expect(page.locator('header').getByRole('link', { name: 'Kan Ban' })).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Boards' })).toBeVisible();
+    // The nav of Section 2.1.1 renders on every width, and it is "Boards" and "Create": there
+    // is no Recent or Starred dropdown, because one person's boards are one list.
+    await expect(page.locator('header').getByRole('link', { name: 'My Day' })).toBeVisible();
+    await expect(page.locator('header').getByRole('button', { name: 'Recent' })).toHaveCount(0);
+    await expect(page.locator('header').getByRole('button', { name: 'Starred' })).toHaveCount(0);
+
+    // Section 2.2: the page greets the reader instead of heading the one list on it.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      /^Good (morning|afternoon|evening)$/,
+    );
+    for (const heading of ['Starred boards', 'Recently viewed', 'Your boards']) {
+      await expect(page.getByRole('heading', { name: heading })).toHaveCount(0);
+    }
     await expect(page.getByRole('button', { name: 'Create new board' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'View all closed boards' })).toBeVisible();
 
     // Section 2.2: the page is the 1128px centred column (the 1280px viewport is wider), and
-    // `BoardsGrid` is `repeat(auto-fill, minmax(194px, 1fr))`, which fits four tiles beside
-    // the 240px sidebar. Both break at once if the page shrink-wraps its content instead.
+    // `BoardsGrid` is `repeat(auto-fill, minmax(194px, 1fr))`. Both break at once if the page
+    // shrink-wraps its content instead.
     expect((await page.locator('main').boundingBox())?.width).toBe(1128);
-    const columns = await page
-      .getByRole('button', { name: 'Create new board' })
-      .evaluate(
-        (node) =>
-          getComputedStyle(node.parentElement as HTMLElement).gridTemplateColumns.split(' ').length,
-      );
-    expect(columns).toBe(4);
   });
 
   await test.step('2. create "Sprint 42" on the green background', async () => {
@@ -112,48 +97,41 @@ test('M1: home page, create boards, star', async ({ page }) => {
 
   await test.step('3. the tile appears in the grid with that background', async () => {
     await goHome(page);
-    const sprint = tile(allBoards(page), FIRST_BOARD);
+    const sprint = tile(page, FIRST_BOARD);
     await expect(sprint).toBeVisible();
     await expect(sprint).toHaveCSS('background-color', GREEN);
+    // One flat list: the board is on the page exactly once, with no star to toggle.
+    await expect(page.getByRole('link', { name: FIRST_BOARD, exact: true })).toHaveCount(1);
+    await expect(sprint.getByRole('button')).toHaveCount(0);
   });
 
-  await test.step('4. star it: it moves to Starred boards and survives a reload', async () => {
-    const sprint = tile(allBoards(page), FIRST_BOARD);
-    await sprint.hover();
-    await sprint.getByRole('button', { name: 'Star board' }).click();
-
-    const starred = tile(section(page, 'Starred boards'), FIRST_BOARD);
-    await expect(starred).toBeVisible();
-    await expect(starred).toHaveCSS('background-color', GREEN);
-    await expect(starred.getByRole('button', { name: 'Unstar board' })).toBeVisible();
-
+  await test.step('4. the tile survives a reload', async () => {
     await page.reload();
-    const afterReload = tile(section(page, 'Starred boards'), FIRST_BOARD);
-    await expect(afterReload).toBeVisible();
-    await expect(afterReload.getByRole('button', { name: 'Unstar board' })).toBeVisible();
-    await expect(afterReload).toHaveCSS('background-color', GREEN);
+    const sprint = tile(page, FIRST_BOARD);
+    await expect(sprint).toBeVisible();
+    await expect(sprint).toHaveCSS('background-color', GREEN);
   });
 
   await test.step('5. create a second board with a different background', async () => {
     await createBoard(page, SECOND_BOARD, 'Purple background');
     await goHome(page);
 
-    const design = tile(allBoards(page), SECOND_BOARD);
+    const design = tile(page, SECOND_BOARD);
     await expect(design).toBeVisible();
     await expect(design).toHaveCSS('background-color', PURPLE);
-
-    // Both boards have now been opened, so all three sections of Section 2.2 render, and both
-    // of this run's boards are in "Recently viewed" — asserted by name rather than by counting
-    // the grid, which also holds whatever the specs before this one opened.
-    await expect(page.getByRole('heading', { name: 'Starred boards' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Recently viewed' })).toBeVisible();
-    const recent = section(page, 'Recently viewed');
-    await expect(recent.getByRole('link', { name: FIRST_BOARD, exact: true })).toBeVisible();
-    await expect(recent.getByRole('link', { name: SECOND_BOARD, exact: true })).toBeVisible();
+    // Both of this run's boards sit in the one grid, asserted by name rather than by counting
+    // it, which also holds whatever the specs before this one created.
+    await expect(page.getByRole('link', { name: FIRST_BOARD, exact: true })).toBeVisible();
   });
 
   await test.step('6. screenshot the home page', async () => {
     await page.mouse.move(0, 0);
+    // Section 2.2: the tiles rise into place over 0.32s plus their stagger. A release
+    // screenshot taken mid-entrance shows half-faded tiles, which reads as a rendering fault
+    // rather than as the animation it is, so the shot waits for the last of them to land.
+    await page.waitForFunction(() =>
+      document.getAnimations().every((animation) => animation.playState === 'finished'),
+    );
     await page.screenshot({ path: 'docs/audit/screens/m1-home.png', fullPage: true });
   });
 });

@@ -18,15 +18,7 @@ from sqlalchemy import event, insert
 from sqlalchemy.orm import Session
 
 from kanban import db as db_module
-from kanban.models import (
-    Attachment,
-    Card,
-    CardLabel,
-    Checklist,
-    ChecklistItem,
-    Label,
-    List,
-)
+from kanban.models import Card, CardItem, CardLabel, Label, List
 from kanban.ordering import STEP
 from kanban.schemas.boards import BoardOut
 from tests.conftest import CSRF_HEADERS
@@ -57,22 +49,18 @@ CARD_KEYS = {
     "title",
     "position",
     "is_archived",
-    "is_template",
     "start_at",
     "due_at",
     "due_complete",
-    "cover",
     "label_ids",
+    "items",
     "badges",
     "created_at",
     "updated_at",
 }
 
 #: `CardSummary.badges` (Section 4.5).
-BADGE_KEYS = {"description", "attachments", "checklist_done", "checklist_total"}
-
-#: The dominant colour Pillow stores for an image attachment (Section 2.5.1).
-DOMINANT_COLOR = "#3B6EA5"
+BADGE_KEYS = {"description", "item_done", "item_total"}
 
 
 @contextmanager
@@ -182,24 +170,18 @@ def test_a_bare_card_carries_the_cardsummary_shape_with_empty_badges(
     assert card["short_id"] == 1
     assert card["position"] == STEP
     assert card["is_archived"] is False
-    assert card["is_template"] is False
     assert card["due_complete"] is False
     assert card["start_at"] is None
     assert card["due_at"] is None
-    assert card["cover"] is None
     assert card["label_ids"] == []
-    assert card["badges"] == {
-        "description": False,
-        "attachments": 0,
-        "checklist_done": 0,
-        "checklist_total": 0,
-    }
+    assert card["items"] == []
+    assert card["badges"] == {"description": False, "item_done": 0, "item_total": 0}
 
 
-def test_badges_labels_and_cover_come_from_the_real_tables(
+def test_items_badges_and_labels_come_from_the_real_tables(
     api: TestClient, board_factory: BoardFactory
 ) -> None:
-    """Every aggregate of Section 4.10.1, counted from the tables the one statement joins."""
+    """Every aggregate of Section 4.10.1, read from the tables the statements join."""
     created = board_factory("Fully dressed", default_lists=False)
     labels = _read(api, created["id"])["labels"]
 
@@ -215,7 +197,6 @@ def test_badges_labels_and_cover_come_from_the_real_tables(
             start_at="2026-09-20T09:00:00.000Z",
             due_at="2026-09-26T15:00:00.000Z",
             due_complete=1,
-            is_template=1,
             client_id="tmp_deadbeef",
         )
         # The newest label sits first in `position` order, so an id-ordered `label_ids` would
@@ -223,35 +204,13 @@ def test_badges_labels_and_cover_come_from_the_real_tables(
         urgent = Label(
             board_id=created["id"], name="Urgent", color="red", tone="bold", position=STEP / 2
         )
-        checklist = Checklist(card_id=card.id, name="Steps", position=STEP)
-        cover = Attachment(
-            card_id=card.id,
-            kind="upload",
-            name="hero.jpg",
-            url="/uploads/attachments/hero.jpg",
-            is_image=1,
-            dominant_color=DOMINANT_COLOR,
-        )
-        session.add_all(
-            [
-                urgent,
-                checklist,
-                cover,
-                Attachment(
-                    card_id=card.id,
-                    kind="link",
-                    name="spec",
-                    url="https://example.test/spec",
-                ),
-                CardLabel(card_id=card.id, label_id=labels[3]["id"]),
-            ]
-        )
+        session.add_all([urgent, CardLabel(card_id=card.id, label_id=labels[3]["id"])])
         session.flush()
         session.add(CardLabel(card_id=card.id, label_id=urgent.id))
         session.add_all(
             [
-                ChecklistItem(
-                    checklist_id=checklist.id,
+                CardItem(
+                    card_id=card.id,
                     name=f"Step {index}",
                     position=STEP * index,
                     is_checked=int(index <= 2),
@@ -259,11 +218,6 @@ def test_badges_labels_and_cover_come_from_the_real_tables(
                 for index in range(1, 6)
             ]
         )
-        cover.thumb_path = f"attachments/{cover.id}/thumb.jpg"
-        card.cover_type = "attachment"
-        card.cover_value = str(cover.id)
-        card.cover_size = "full"
-        cover_id = cover.id
         urgent_id = urgent.id
 
     (summary,) = _read(api, created["id"])["cards"]
@@ -272,22 +226,27 @@ def test_badges_labels_and_cover_come_from_the_real_tables(
     assert summary["board_id"] == created["id"]
     assert summary["short_id"] == 7
     assert summary["start_at"] == "2026-09-20T09:00:00.000Z"
-    assert summary["is_template"] is True
     assert summary["due_complete"] is True
     assert summary["due_at"] == "2026-09-26T15:00:00.000Z"
-    assert summary["badges"] == {
-        "description": True,
-        "attachments": 2,
-        "checklist_done": 2,
-        "checklist_total": 5,
-    }
+    assert summary["badges"] == {"description": True, "item_done": 2, "item_total": 5}
     assert summary["label_ids"] == [urgent_id, labels[3]["id"]]  # board label order
-    assert summary["cover"] == {
-        "kind": "attachment",
-        "value": str(cover_id),
-        "size": "full",
-        "image_url": f"/uploads/attachments/{cover_id}/thumb.jpg",
-        "dominant_color": DOMINANT_COLOR,
+    # The tile lists the same rows the two counts are derived from, in `(position, id)`
+    # order and carrying their ticks (Section 2.5.1).
+    assert [(item["name"], item["is_checked"]) for item in summary["items"]] == [
+        ("Step 1", True),
+        ("Step 2", True),
+        ("Step 3", False),
+        ("Step 4", False),
+        ("Step 5", False),
+    ]
+    assert {key for item in summary["items"] for key in item} == {
+        "id",
+        "card_id",
+        "name",
+        "position",
+        "is_checked",
+        "checked_at",
+        "due_at",
     }
 
 
@@ -309,25 +268,6 @@ def test_a_card_with_one_label_returns_a_one_element_array(
     assert summary["label_ids"] == [labels[2]["id"]]
 
 
-def test_a_colour_cover_carries_no_image(api: TestClient, board_factory: BoardFactory) -> None:
-    created = board_factory("Colour cover", default_lists=False)
-    with _writer() as session:
-        list_id = _add_list(session, board_id=created["id"], name="To Do", position=STEP)
-        _add_card(
-            session,
-            board_id=created["id"],
-            list_id=list_id,
-            short_id=1,
-            title="Sky",
-            cover_type="color",
-            cover_value="sky",
-        )
-
-    (card,) = _read(api, created["id"])["cards"]
-
-    assert card["cover"] == {"kind": "color", "value": "sky", "size": "normal"}
-
-
 def test_the_rendered_body_is_exactly_what_boardout_would_have_serialised(
     api: TestClient, board_factory: BoardFactory
 ) -> None:
@@ -337,12 +277,11 @@ def test_the_rendered_body_is_exactly_what_boardout_would_have_serialised(
     rather than on every request, because validating and re-serialising 3,000 `CardSummary`
     models cost 169 ms of the Section 5.11 budget. The round trip catches every way the two
     could drift: a missing or mistyped field fails validation, an extra key or a renamed one
-    survives validation but not the comparison, and an optional field serialised as `null`
-    rather than left out (`client_id`, `image_url`, `dominant_color`) differs from the body.
+    survives validation but not the comparison, and the one optional field serialised as
+    `null` rather than left out (`client_id`) differs from the body.
 
-    The board is shaped to carry all three optional fields on one side or the other: one card
-    was created optimistically and has a `client_id`, one wears a colour cover and so has
-    neither image field, and one has no cover at all.
+    The board is shaped to carry that field on one side and not the other: one card was
+    created optimistically and has a `client_id`, the others never had one.
     """
     created = board_factory("Schema contract", default_lists=True)
     with _writer() as session:
@@ -364,23 +303,13 @@ def test_the_rendered_body_is_exactly_what_boardout_would_have_serialised(
             board_id=created["id"],
             list_id=list_id,
             short_id=2,
-            title="Colour cover",
-            position=2 * STEP,
-            cover_type="color",
-            cover_value="sky",
-        )
-        _add_card(
-            session,
-            board_id=created["id"],
-            list_id=list_id,
-            short_id=3,
             title="Nothing optional",
-            position=3 * STEP,
+            position=2 * STEP,
         )
 
     body = _read(api, created["id"])
 
-    assert len(body["cards"]) == 3
+    assert len(body["cards"]) == 2
     assert json.loads(BoardOut.model_validate(body).model_dump_json()) == body
 
 
@@ -396,7 +325,7 @@ def test_badge_counts_and_id_arrays_are_typed_as_section_4_5_declares(
 
     assert set(card["badges"]) == BADGE_KEYS
     assert isinstance(card["badges"]["description"], bool)
-    for count in ("attachments", "checklist_done", "checklist_total"):
+    for count in ("item_done", "item_total"):
         assert isinstance(card["badges"][count], int)
         assert not isinstance(card["badges"][count], bool)
     assert isinstance(card["label_ids"], list)
@@ -520,7 +449,7 @@ def test_the_statement_count_does_not_grow_with_the_number_of_cards(
     """Section 4.10.1: four statements, whatever the board holds - the N+1 regression guard."""
     counts: list[int] = []
     for board_id, expected in zip(cards_boards, (3, 300), strict=True):
-        _read(api, board_id)  # warm up: the first `board_views` insert happens only once
+        _read(api, board_id)  # warm up: the first read pays for SQLite's page cache
         with _counted_statements() as statements:
             payload = _read(api, board_id)
         assert len(payload["cards"]) == expected

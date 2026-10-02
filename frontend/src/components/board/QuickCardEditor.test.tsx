@@ -160,28 +160,14 @@ describe('QuickCardEditor', () => {
   it('renders every action of Section 2.5.4 live', () => {
     renderEditor();
 
-    for (const label of [
-      'Open card',
-      'Edit labels',
-      'Change cover',
-      'Move',
-      'Copy',
-      'Edit dates',
-      'Archive',
-    ]) {
+    for (const label of ['Open card', 'Edit labels', 'Edit dates', 'Archive']) {
       expect(screen.getByRole('button', { name: label })).toBeEnabled();
     }
-  });
 
-  it('opens the Move popover, the same one the card modal opens', async () => {
-    const user = userEvent.setup();
-    renderEditor();
-
-    await user.click(screen.getByRole('button', { name: 'Move' }));
-
-    // The three selects of Section 2.6.5, on the card this editor was opened from.
-    expect(await screen.findByLabelText('Position')).toBeInTheDocument();
-    expect(screen.getByLabelText('List')).toHaveValue('11');
+    // Move, Copy and Change cover went with the panels they opened.
+    for (const label of ['Move', 'Copy', 'Change cover']) {
+      expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
+    }
   });
 
   it('opens the Labels popover, which Escape closes before the editor', async () => {

@@ -4,51 +4,40 @@ import { http, HttpResponse } from 'msw';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import type { UpdateItemInput } from '@/api/checklists';
+import type { UpdateItemInput } from '@/api/items';
 import { useCardDetail } from '@/hooks/useCard';
-import { CHECKLIST_ITEM_DRAG_TYPE, checklistDropId } from '@/lib/cardDnd';
+import { ITEM_DRAG_TYPE, itemsDropId } from '@/lib/cardDnd';
 import { formatDate } from '@/lib/dates';
-import { makeCardDetail, makeChecklistItem } from '@/test/handlers';
+import { makeCardDetail, makeCardItem } from '@/test/handlers';
 import { renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
-import { ChecklistItemRow } from './ChecklistItemRow';
+import { ItemRow } from './ItemRow';
 
 const BOARD_ID = 7;
 const CARD_ID = 101;
-const CHECKLIST_ID = 51;
 const ITEM_ID = 502;
 
 /** A due date stored as the ISO-8601 UTC instant the API keeps (Section 4.1). */
 const DUE_AT = '2026-10-01T15:00:00.000Z';
 
 /**
- * Serves one card whose single checklist holds one item, and collects every item `PATCH` body.
- * The row reads that item out of the `['card', 101]` cache the way `ChecklistSection` feeds it,
- * so every click travels the real optimistic path.
+ * Serves one card holding one item, and collects every item `PATCH` body. The row reads that
+ * item out of the `['card', 101]` cache the way `ItemsSection` feeds it, so every click travels
+ * the real optimistic path.
  */
-function mount(item: ReturnType<typeof makeChecklistItem>): UpdateItemInput[] {
+function mount(item: ReturnType<typeof makeCardItem>): UpdateItemInput[] {
   const patches: UpdateItemInput[] = [];
-  const detail = makeCardDetail({
-    id: CARD_ID,
-    checklists: [
-      { id: CHECKLIST_ID, card_id: CARD_ID, name: 'Launch steps', position: 65536, items: [item] },
-    ],
-  });
+  const detail = makeCardDetail({ id: CARD_ID, items: [item] });
   server.use(
     http.get('/api/cards/:cardId', () => HttpResponse.json(detail)),
-    http.patch('/api/checklist-items/:itemId', async ({ request }) => {
+    http.patch('/api/card-items/:itemId', async ({ request }) => {
       const patch = (await request.json()) as UpdateItemInput;
       patches.push(patch);
       return HttpResponse.json({
         item: {
           ...item,
           ...patch,
-          badges: {
-            description: false,
-            attachments: 0,
-            checklist_done: 0,
-            checklist_total: 1,
-          },
+          badges: { description: false, item_done: 0, item_total: 1 },
         },
         board_version: 2,
       });
@@ -60,15 +49,15 @@ function mount(item: ReturnType<typeof makeChecklistItem>): UpdateItemInput[] {
 
 function Host(): ReactElement {
   const card = useCardDetail(CARD_ID).data;
-  const item = card?.checklists[0]?.items[0];
+  const item = card?.items[0];
   if (item === undefined) return <p>Loading</p>;
 
   return (
     <DragDropContext onDragEnd={() => undefined}>
-      <Droppable droppableId={checklistDropId(CHECKLIST_ID)} type={CHECKLIST_ITEM_DRAG_TYPE}>
+      <Droppable droppableId={itemsDropId(CARD_ID)} type={ITEM_DRAG_TYPE}>
         {(provided) => (
           <div ref={provided.innerRef} {...provided.droppableProps}>
-            <ChecklistItemRow boardId={BOARD_ID} cardId={CARD_ID} item={item} index={0} />
+            <ItemRow boardId={BOARD_ID} cardId={CARD_ID} item={item} index={0} />
             {provided.placeholder}
           </div>
         )}
@@ -77,14 +66,14 @@ function Host(): ReactElement {
   );
 }
 
-const PLAIN = makeChecklistItem({
+const PLAIN = makeCardItem({
   id: ITEM_ID,
   name: 'Palette',
   is_checked: false,
   checked_at: null,
 });
 
-describe('ChecklistItemRow', () => {
+describe('ItemRow', () => {
   it('saves the due date the popover was seeded with and shows the badge', async () => {
     const user = userEvent.setup();
     const patches = mount({ ...PLAIN, due_at: DUE_AT });
@@ -122,5 +111,16 @@ describe('ChecklistItemRow', () => {
 
     await waitFor(() => expect(patches).toHaveLength(1));
     expect(patches[0]).toEqual({ name: 'Colour palette' });
+  });
+
+  it('offers Delete and nothing else in its actions menu', async () => {
+    const user = userEvent.setup();
+    mount(PLAIN);
+
+    await user.click(await screen.findByRole('button', { name: 'Item actions for Palette' }));
+
+    expect(await screen.findByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    // "Convert to card" went with the checklist container it belonged to.
+    expect(screen.queryByRole('button', { name: 'Convert to card' })).not.toBeInTheDocument();
   });
 });

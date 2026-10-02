@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react';
-import type { ChecklistItem } from '@/api/types';
+import type { CardItem } from '@/api/types';
 import { Button, DatePicker, Popover, TextInput } from '@/components/ui';
-import { useUpdateChecklistItem } from '@/hooks/useCardMutations';
+import { useUpdateItem } from '@/hooks/useCardMutations';
 import { dateInputValue, timeInputValue, toUtcIso, tomorrowNoon } from '@/lib/dates';
 import styles from './ItemDuePopover.module.css';
 
@@ -16,7 +16,7 @@ function defaultTime(): string {
 export interface ItemDuePopoverProps {
   boardId: number;
   cardId: number;
-  item: ChecklistItem;
+  item: CardItem;
   /** The row's calendar `IconButton`. */
   anchor: HTMLElement | DOMRect;
   onClose: () => void;
@@ -24,7 +24,7 @@ export interface ItemDuePopoverProps {
 
 /**
  * "Change due date" (Section 2.6.5): the single-day calendar, a time input, "Save" and "Remove",
- * saved as one `PATCH /api/checklist-items/{item_id}` `{due_at}`.
+ * saved as one `PATCH /api/card-items/{item_id}` `{due_at}`.
  *
  * The pair is read as browser-local wall time and converted to the UTC instant the API stores by
  * `lib/dates.ts`, the one place that conversion lives; "Remove" sends `null`. The form seeds
@@ -44,7 +44,7 @@ export function ItemDuePopover({
   const [time, setTime] = useState(
     item.due_at === null ? defaultTime() : timeInputValue(item.due_at),
   );
-  const update = useUpdateChecklistItem(boardId, cardId);
+  const update = useUpdateItem(boardId, cardId);
 
   const selected = date === '' ? undefined : new Date(`${date}T00:00`);
 

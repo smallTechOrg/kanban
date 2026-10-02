@@ -1,79 +1,25 @@
-"""Boards, their stars and their background library (Sections 4.3, 6.7 and 3.10).
+"""Boards and their background library (Sections 4.3, 6.7 and 3.10).
 
 Every mutation here opens exactly one `write_tx()` and records its activity rows through
-`activity.record()`. The three writes that are not board state - star, unstar and the
-`board_views` upsert - run inside `unversioned_write()` instead: no version bump, no activity row
-and no event (Section 4.1). They describe how the reader navigates rather than what the board
-contains, so a refetch must not open a version gap for the tab next to it.
+`activity.record()`.
 
 The board's existence is not re-checked here; `access.board_access()` has already resolved it by
 the time a router calls in (CLAUDE.md section 3).
 """
 
-from typing import Any, Final, NamedTuple
+from typing import Any, Final
 
-from sqlalchemy import collate, delete, func, select
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy import collate, select
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import ColumnElement
 
 from kanban import activity, seed, storage
 from kanban.constants import BOARD_COLORS, BOARD_GRADIENTS
-from kanban.db import WriteCtx, unversioned_write, write_tx
+from kanban.db import WriteCtx, write_tx
 from kanban.errors import Conflict, NotFound
-from kanban.models import (
-    Attachment,
-    Board,
-    BoardBackground,
-    BoardStar,
-    BoardView,
-    Card,
-    Label,
-    utcnow_iso,
-)
-from kanban.ordering import between
-
-#: "Recently viewed" shows the four most recent `board_views` rows (Sections 2.2 and 4.3).
-RECENT_LIMIT: Final[int] = 4
+from kanban.models import Board, BoardBackground, Label
 
 #: Where `StaticFiles` serves `data/uploads/` from (Section 4.11).
 UPLOADS_URL: Final[str] = "/uploads"
-
-
-#: `attachments.kind` for a row that owns a directory under `data/uploads/attachments/`; a
-#: `link` row has no file, so no cascade ever has to unlink anything for it (Section 3.11).
-UPLOAD_KIND: Final[str] = "upload"
-
-
-def orphaned_upload_ids(db: Session, card_filter: ColumnElement[bool]) -> list[int]:
-    """Every uploaded attachment under the cards `card_filter` selects (Section 3.7).
-
-    The three hard deletes of Section 3.7 - a card, an archived list, a closed board - each
-    orphan the `attachments/{id}/` directories below them, and each has to read those ids
-    *before* its transaction removes the rows. This is that read, written once; the caller hands
-    the result to `storage.delete_uploads()` after its commit, because a rollback can un-delete a
-    row but never a file.
-
-    It lives here rather than in `services/attachments.py` or `services/cards.py` for the reason
-    `UPLOADS_URL` does: this module is the root of the service graph - `services/cards.py`
-    imports it and `services/lists.py` imports that - so it is the only one all three callers can
-    reach without a cycle (CLAUDE.md section 8).
-    """
-    return list(
-        db.execute(
-            select(Attachment.id)
-            .join(Card, Card.id == Attachment.card_id)
-            .where(Attachment.kind == UPLOAD_KIND, card_filter)
-        ).scalars()
-    )
-
-
-class _BoardRow(NamedTuple):
-    """One row of the home-page query: the summary plus the two grouping keys."""
-
-    item: dict[str, Any]
-    star_position: float | None
-    viewed_at: str | None
 
 
 def _background_thumb_url(background_type: str, background_image_id: int | None) -> str | None:
@@ -84,8 +30,8 @@ def _background_thumb_url(background_type: str, background_image_id: int | None)
     return f"{UPLOADS_URL}/{thumb_path}"
 
 
-def board_summary(board: Board, *, is_starred: bool) -> dict[str, Any]:
-    """Build the `BoardSummary` of Section 4.3 from a board row and its star.
+def board_summary(board: Board) -> dict[str, Any]:
+    """Build the `BoardSummary` of Section 4.3 from a board row.
 
     The one place a `boards` row becomes that shape: `board_payload.py` builds the `board` key of
     the board document with it too, so the summary is written down once (CLAUDE.md section 3).
@@ -101,7 +47,6 @@ def board_summary(board: Board, *, is_starred: bool) -> dict[str, Any]:
         ),
         "is_closed": bool(board.is_closed),
         "version": board.version,
-        "is_starred": is_starred,
         "created_at": board.created_at,
         "updated_at": board.updated_at,
     }
@@ -119,12 +64,6 @@ def _label(label: Label) -> dict[str, Any]:
     }
 
 
-def _is_starred(db: Session, board_id: int) -> bool:
-    return (
-        db.execute(select(BoardStar.id).where(BoardStar.board_id == board_id)).first() is not None
-    )
-
-
 def _load_summary(db: Session, board_id: int) -> dict[str, Any]:
     """Re-read a board after a write so `version` and `updated_at` are the committed ones.
 
@@ -134,7 +73,7 @@ def _load_summary(db: Session, board_id: int) -> dict[str, Any]:
     board = db.get(Board, board_id, populate_existing=True)
     if board is None:  # pragma: no cover - the caller holds the write lock or board_access
         raise NotFound("not_found", "That board does not exist.")
-    return board_summary(board, is_starred=_is_starred(db, board_id))
+    return board_summary(board)
 
 
 def create_board(
@@ -171,42 +110,22 @@ def create_board(
 
 
 def list_boards(db: Session, *, closed: bool) -> dict[str, list[dict[str, Any]]]:
-    """Every board, grouped for the home page (Sections 2.2 and 4.3).
+    """Every board for the home page, one flat alphabetical list (Sections 2.2 and 4.3).
 
-    One query outer-joins the star and view rows; `closed=1` returns the single `closed` group
-    instead of `starred` / `recent` / `all`.
+    `closed=1` returns the single `closed` group that `ClosedBoardsModal` reads instead of `all`.
+    There is no starred or recently-viewed group: the home page is one list of boards.
     """
-    rows = db.execute(
-        select(Board, BoardStar.position, BoardView.viewed_at)
-        .outerjoin(BoardStar, BoardStar.board_id == Board.id)
-        .outerjoin(BoardView, BoardView.board_id == Board.id)
-        .where(Board.is_closed == int(closed))
-        .order_by(collate(Board.name, "NOCASE"), Board.id)
-    ).all()
-    entries = [
-        _BoardRow(
-            item=board_summary(row.Board, is_starred=row.position is not None),
-            star_position=row.position,
-            viewed_at=row.viewed_at,
+    boards = (
+        db.execute(
+            select(Board)
+            .where(Board.is_closed == int(closed))
+            .order_by(collate(Board.name, "NOCASE"), Board.id)
         )
-        for row in rows
-    ]
-    if closed:
-        return {"closed": [entry.item for entry in entries]}
-    starred = sorted(
-        (entry for entry in entries if entry.star_position is not None),
-        key=lambda entry: entry.star_position or 0.0,
+        .scalars()
+        .all()
     )
-    recent = sorted(
-        (entry for entry in entries if entry.viewed_at is not None),
-        key=lambda entry: entry.viewed_at or "",
-        reverse=True,
-    )[:RECENT_LIMIT]
-    return {
-        "starred": [entry.item for entry in starred],
-        "recent": [entry.item for entry in recent],
-        "all": [entry.item for entry in entries],
-    }
+    items = [board_summary(board) for board in boards]
+    return {"closed": items} if closed else {"all": items}
 
 
 def list_labels(db: Session, *, board_id: int) -> list[dict[str, Any]]:
@@ -219,22 +138,6 @@ def list_labels(db: Session, *, board_id: int) -> list[dict[str, Any]]:
         .all()
     )
     return [_label(label) for label in labels]
-
-
-def record_board_view(db: Session, *, board_id: int) -> None:
-    """Upsert the board's `board_views` row, which drives "Recently viewed" (Section 4.3).
-
-    One of the writes that bypass `write_tx` (Section 4.1): a single statement inside
-    `unversioned_write()`, no version bump, no activity row and no event, so opening a board never
-    opens a version gap on the tab beside it.
-    """
-    statement = sqlite_insert(BoardView).values(board_id=board_id, viewed_at=utcnow_iso())
-    statement = statement.on_conflict_do_update(
-        index_elements=[BoardView.board_id],
-        set_={"viewed_at": statement.excluded.viewed_at},
-    )
-    with unversioned_write(db):
-        db.execute(statement)
 
 
 def _background(db: Session, *, background_id: int) -> BoardBackground:
@@ -343,8 +246,7 @@ def delete_board(db: Session, *, board_id: int) -> None:
     Raises `Conflict` unless the board is closed, which is the whole state machine:
     close first, then delete. No activity row is recorded because the log itself cascades away
     with the board, and the `boards.version` bump `write_tx` writes on the way out updates a row
-    that no longer exists, which SQLite treats as the no-op it is. Every attachment directory
-    below the board is removed after the commit (Section 3.7).
+    that no longer exists, which SQLite treats as the no-op it is.
     """
     with write_tx(db, [board_id]):
         board = db.get(Board, board_id, populate_existing=True)
@@ -354,31 +256,7 @@ def delete_board(db: Session, *, board_id: int) -> None:
             raise Conflict(
                 "conflict", "Close the board before deleting it.", {"board_id": board_id}
             )
-        doomed = orphaned_upload_ids(db, Card.board_id == board_id)
         db.delete(board)
-    storage.delete_uploads(doomed)
-
-
-def star_board(db: Session, *, board_id: int) -> bool:
-    """Star a board, appended at `max(position) + STEP` (Section 4.3).
-
-    Not board state: it is allowed on a closed board, it runs in `unversioned_write()` and it
-    bumps no version, records no activity and publishes no event. Repeating it is idempotent.
-    """
-    with unversioned_write(db):
-        highest = db.execute(select(func.max(BoardStar.position))).scalar()
-        statement = sqlite_insert(BoardStar).values(
-            board_id=board_id, position=between(highest, None)
-        )
-        db.execute(statement.on_conflict_do_nothing(index_elements=[BoardStar.board_id]))
-    return True
-
-
-def unstar_board(db: Session, *, board_id: int) -> bool:
-    """Unstar a board; idempotent, and the same write as `star_board`."""
-    with unversioned_write(db):
-        db.execute(delete(BoardStar).where(BoardStar.board_id == board_id))
-    return False
 
 
 def upload_background(

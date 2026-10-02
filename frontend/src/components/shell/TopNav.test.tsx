@@ -41,14 +41,12 @@ describe('TopNav', () => {
     expect(screen.getByRole('button', { name: /Create card/ })).toBeInTheDocument();
   });
 
-  it('lists the recent boards behind the Recent button', async () => {
-    const user = userEvent.setup();
+  it('offers no Recent or Starred dropdown', () => {
     renderTopNav();
 
-    await user.click(screen.getByRole('button', { name: 'Recent' }));
-
-    expect(useUiStore.getState().openPopover?.kind).toBe('boards');
-    expect(await screen.findByRole('button', { name: 'Roadmap' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Unstar Roadmap' })).toBeInTheDocument();
+    // One person's boards are one list, so "Boards" goes home and that is the whole nav.
+    expect(screen.queryByRole('button', { name: 'Recent' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Starred' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Boards' })).toBeInTheDocument();
   });
 });

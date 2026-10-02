@@ -175,7 +175,6 @@ def test_a_matching_board_comes_back_as_a_board_summary(
     assert hit.keys() == board.keys()  # the `BoardSummary` of Section 4.3, not a narrower shape
     assert hit["id"] == board["id"]
     assert hit["name"] == board["name"]
-    assert hit["is_starred"] is False
     assert hit["is_closed"] is False
     assert results["cards"] == []
 

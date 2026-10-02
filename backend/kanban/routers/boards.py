@@ -1,4 +1,4 @@
-"""Boards, their stars and their background library (Section 4.3).
+"""Boards and their background library (Section 4.3).
 
 Thin by contract (Section 6.4): every handler resolves `board_access` (which owns the board lookup
 and the closed-board check), calls one function of `services.boards` - or, for the board document,
@@ -7,8 +7,7 @@ returned row, because `BoardSummary.version` *is* the board version the mutation
 
 `POST /boards/{board_id}/background` is the one handler here that is not a single service call:
 Section 6.9 puts the receive-and-thumbnail steps in the route precisely so they happen with no
-transaction open, exactly as `routers/attachments.py` does it, and the file work itself is
-`kanban/storage.py`'s.
+transaction open, and the file work itself is `kanban/storage.py`'s.
 """
 
 from typing import Annotated, Literal
@@ -32,7 +31,6 @@ from kanban.schemas.boards import (
     BoardSummary,
     BoardUpdateIn,
     ClosedBoardGroup,
-    StarOut,
 )
 from kanban.services import boards as service
 from kanban.services import cards as cards_service
@@ -75,15 +73,12 @@ def create_board(body: BoardCreateIn, db: Db) -> BoardSummary:
 
 @router.get("/boards/{board_id}", response_model=BoardOut)
 def read_board(access: BoardAccess, db: Db) -> JSONResponse:
-    """The board document (Section 4.10.1) and the caller's `board_views` upsert.
+    """The board document of Section 4.10.1.
 
     `board_payload.build` is the whole read: board, labels, the active lists and the
     active cards of those lists with their badges, in four statements (Section 6.7). It is served
     **even while the board is closed**: the client
     renders `ClosedBoardPage` from `board.is_closed` (Section 2.3.5).
-
-    The view is recorded afterwards because that per-user upsert opens a short write and so ends
-    the read snapshot the payload was read in (Sections 4.1 and 4.3).
 
     The payload is returned as a rendered `JSONResponse` rather than a `BoardOut`; `BoardOut`
     stays the declared `response_model`, so OpenAPI and `api/types.ts` are unchanged. Section
@@ -94,9 +89,7 @@ def read_board(access: BoardAccess, db: Db) -> JSONResponse:
     asserts the body validates against `BoardOut` and re-serialises byte for byte, so the schema
     is still the contract - it is checked once per test run instead of once per card per request.
     """
-    payload = board_payload.build(db, board_id=access.board.id)
-    service.record_board_view(db, board_id=access.board.id)
-    return JSONResponse(payload)
+    return JSONResponse(board_payload.build(db, board_id=access.board.id))
 
 
 @router.patch("/boards/{board_id}", response_model=Mutated[BoardSummary])
@@ -130,18 +123,6 @@ def delete_board(access: ClosedBoardAccess, db: Db) -> None:
     service.delete_board(db, board_id=access.board.id)
 
 
-@router.put("/boards/{board_id}/star", response_model=StarOut)
-def star_board(access: ClosedBoardAccess, db: Db) -> StarOut:
-    """Star a board for the caller. Per-user state: no version bump, no activity, no event."""
-    return StarOut(is_starred=service.star_board(db, board_id=access.board.id))
-
-
-@router.delete("/boards/{board_id}/star", response_model=StarOut)
-def unstar_board(access: ClosedBoardAccess, db: Db) -> StarOut:
-    """Unstar a board for the caller; the same per-user write as `star_board`."""
-    return StarOut(is_starred=service.unstar_board(db, board_id=access.board.id))
-
-
 @router.post("/boards/{board_id}/background", response_model=Mutated[BoardSummary])
 async def upload_background(
     file: Annotated[UploadFile, File(description="image/png, image/jpeg or image/webp")],
@@ -150,8 +131,8 @@ async def upload_background(
 ) -> Mutated[BoardSummary]:
     """Upload a custom board background (Sections 4.3 and 6.9).
 
-    `async def` for the reason `POST /api/cards/{card_id}/attachments` is: it awaits the received
-    multipart spool, and everything after that - Pillow, and the short `write_tx` - runs in
+    `async def` because it awaits the received multipart spool, after which everything - Pillow,
+    and the short `write_tx` - runs in
     `run_in_threadpool`, so the event loop is never blocked and the write lock is never held
     while bytes or thumbnails are in flight. `Content-Length` is required and the 10 MB cap
     enforced by `BodySizeLimitMiddleware` before the body is read (411 / 413), so this handler

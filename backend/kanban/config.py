@@ -37,7 +37,6 @@ class Settings(BaseSettings):
     port: int = 8000
     data_dir: Path = Path("./data")
     db_path: Path | None = None
-    max_upload_mb: int = 25
     frontend_dist: Path = Path("./frontend/dist")
     log_level: str = "info"
     log_format: Literal["text", "json"] = "text"
@@ -79,7 +78,6 @@ class Settings(BaseSettings):
         for directory in (
             self.data_dir,
             self.uploads_dir,
-            self.uploads_dir / "attachments",
             self.uploads_dir / "backgrounds",
             self.uploads_dir / "tmp",
         ):

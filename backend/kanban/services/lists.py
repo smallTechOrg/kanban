@@ -14,12 +14,11 @@ from typing import Any, Final
 from sqlalchemy import case, collate, func, select, update
 from sqlalchemy.orm import Session
 
-from kanban import activity, copy, storage
+from kanban import activity, copy
 from kanban.db import write_tx
 from kanban.errors import BadRequest, Conflict, NotFound
 from kanban.models import Card, List
 from kanban.ordering import check_neighbours, place_in_container, renumber
-from kanban.services.boards import orphaned_upload_ids
 from kanban.services.cards import (
     ARCHIVED_PAGE_LIMIT,
     board_name,
@@ -295,8 +294,7 @@ def copy_list(
     """Copy a list and its non-archived cards (Section 4.4).
 
     An absent `index` puts the copy directly after the source. What a copied card *is* - its
-    columns, its labels, its checklists with their items and its attachments with their files -
-    belongs to `kanban/copy.py`, which the card copy of Section 4.5 shares (CLAUDE.md section 3);
+    columns, its labels and its items - belongs to `kanban/copy.py` (CLAUDE.md section 3);
     this function owns the request: the destination slot, the first of the consecutive `short_id`s
     the copies take and the activity rows. Which cards travel is the rule here: the active ones, so
     an archived card is not silently resurrected as a copy.
@@ -383,16 +381,14 @@ def delete_list(db: Session, *, list_id: int, board_id: int) -> None:
     Raises `Conflict` (409) unless the list is archived, which is the whole state machine:
     archive first, then delete. No activity row is recorded - Section 3.8 has no `list.deleted`
     type, and the rows that reference the list keep their history through
-    `activities.list_id ON DELETE SET NULL`. Every attachment directory of the cards this cascade
+    `activities.list_id ON DELETE SET NULL`. Every card and item below the list cascades
     removes is deleted after the commit (Section 3.7). Raises `Busy` (503).
     """
     with write_tx(db, [board_id]):
         row = _locked_list(db, list_id=list_id, board_id=board_id)
         if not row.is_archived:
             raise Conflict("conflict", "Archive the list before deleting it.", {"list_id": list_id})
-        doomed = orphaned_upload_ids(db, Card.list_id == list_id)
         db.delete(row)
-    storage.delete_uploads(doomed)
 
 
 def move_all_cards(

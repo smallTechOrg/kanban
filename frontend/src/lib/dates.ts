@@ -28,7 +28,7 @@ export function formatDate(value: DateInput, now: Date = new Date()): string {
   return format(date, date.getFullYear() === now.getFullYear() ? DAY : DAY_WITH_YEAR);
 }
 
-/** "Sep 24 at 3:00 PM" — the absolute form used in tooltips and attachment meta lines. */
+/** "Sep 24 at 3:00 PM" — the absolute form used in tooltips and the activity feed. */
 export function formatDateTime(value: DateInput, now: Date = new Date()): string {
   const date = toDate(value);
   if (date === null) return '';
@@ -88,4 +88,26 @@ export function toUtcIso(date: string, time: string): string | null {
 /** Tomorrow at 12:00 PM local — the date the first "Due date" tick offers (Section 2.6.5). */
 export function tomorrowNoon(now: Date = new Date()): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, NOON, 0);
+}
+
+/** The three windows the home page's greeting uses (Section 2.2). */
+const MORNING_UNTIL = 12;
+const AFTERNOON_UNTIL = 18;
+
+/**
+ * "Good morning" / "Good afternoon" / "Good evening" for the hour `now` falls in (Section 2.2).
+ *
+ * The home page greets rather than labels: it is one person's own board list, so the heading is
+ * addressed to them instead of naming the section the way a shared tool would.
+ */
+export function greeting(now: Date = new Date()): string {
+  const hour = now.getHours();
+  if (hour < MORNING_UNTIL) return 'Good morning';
+  return hour < AFTERNOON_UNTIL ? 'Good afternoon' : 'Good evening';
+}
+
+/** "Thursday, 1 October" — the home page's sub-line under the greeting (Section 2.2). */
+export function formatLongDate(value: DateInput = new Date()): string {
+  const date = toDate(value);
+  return date === null ? '' : format(date, 'EEEE, d MMMM');
 }

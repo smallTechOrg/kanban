@@ -90,20 +90,6 @@ LABEL_COLORS: Final[dict[str, dict[str, str]]] = {
     },
 }
 
-#: Card cover colours (Section 2.9.2): the `normal` label tone, with `gray` replacing `black`.
-COVER_COLORS: Final[dict[str, str]] = {
-    "green": "#4BCE97",
-    "yellow": "#F5CD47",
-    "orange": "#FEA362",
-    "red": "#F87168",
-    "purple": "#9F8FEF",
-    "blue": "#579DFF",
-    "sky": "#6CC3E0",
-    "lime": "#94C748",
-    "pink": "#E774BB",
-    "gray": "#8590A2",
-}
-
 #: List header/background colours (Section 2.4): the `subtle` label tone, `gray` for `black`.
 LIST_COLORS: Final[dict[str, str]] = {
     "green": "#BAF3DB",
@@ -167,8 +153,6 @@ ACTIVITY_TYPES: Final[frozenset[str]] = frozenset(
         "card.description_changed",
         "card.moved",
         "card.reordered",
-        "card.moved_out",
-        "card.moved_in",
         "card.archived",
         "card.unarchived",
         "card.deleted",
@@ -176,30 +160,18 @@ ACTIVITY_TYPES: Final[frozenset[str]] = frozenset(
         "card.due_removed",
         "card.due_completed",
         "card.due_incompleted",
-        "card.cover_changed",
-        "card.cover_removed",
-        "card.template_set",
-        "card.template_unset",
         "card.label_added",
         "card.label_removed",
         "label.created",
         "label.updated",
         "label.deleted",
-        "checklist.added",
-        "checklist.renamed",
-        "checklist.deleted",
-        "checklist.moved",
-        "checklist.item_added",
-        "checklist.item_renamed",
-        "checklist.item_deleted",
-        "checklist.item_checked",
-        "checklist.item_unchecked",
-        "checklist.item_due_set",
-        "checklist.item_due_removed",
-        "checklist.item_converted",
-        "checklist.item_moved",
-        "attachment.added",
-        "attachment.renamed",
-        "attachment.deleted",
+        "item.added",
+        "item.renamed",
+        "item.deleted",
+        "item.checked",
+        "item.unchecked",
+        "item.due_set",
+        "item.due_removed",
+        "item.moved",
     }
 )

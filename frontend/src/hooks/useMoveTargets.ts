@@ -22,7 +22,7 @@ function boardListsKey(boardId: number): readonly ['lists', number] {
   return ['lists', boardId] as const;
 }
 
-/** The select is re-read whenever a Move or Copy popover opens, like the checklist sources. */
+/** The select is re-read whenever the Move list sub-view opens, never while it is open. */
 const LISTS_STALE_MS = 10_000;
 
 /** One row of the List select: everything the List and Position selects need, nothing else. */

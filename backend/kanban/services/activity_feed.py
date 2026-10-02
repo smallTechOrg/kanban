@@ -92,7 +92,7 @@ def board_activity(
     """One page of activity, newest first, cursored on `activities.id` (Section 4.2).
 
     Every row of the board is returned, including the reorder rows Section 3.8 marks "not shown in
-    feed" (`card.reordered`, `checklist.moved`, `checklist.item_moved`): which sentences a reader
+    feed" (`card.reordered`, `item.moved`): which sentences a reader
     sees is `lib/activity.ts`'s decision, and filtering them here would make the same rule live in
     two places and leave the client unable to page reliably. `card_id` narrows the feed to one
     card's rows, which is what the card modal's feed is (Section 4.2). Raises nothing: a

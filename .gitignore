@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Kan Ban -- repository ignore rules.
+# My Day -- repository ignore rules.
 # Runtime state, build output and installed dependencies are never committed.
 # ---------------------------------------------------------------------------
 

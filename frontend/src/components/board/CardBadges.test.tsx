@@ -49,9 +49,8 @@ describe('CardBadges', () => {
           due_at: NEXT_WEEK,
           badges: {
             description: true,
-            attachments: 0,
-            checklist_done: 1,
-            checklist_total: 3,
+            item_done: 1,
+            item_total: 3,
           },
         })}
         now={NOW}
@@ -60,9 +59,7 @@ describe('CardBadges', () => {
 
     expect(screen.getByTitle('Due date')).toHaveTextContent('Oct 1');
     expect(screen.getByLabelText('This card has a description.')).toBeInTheDocument();
-    expect(screen.getByTitle('Checklist items')).toHaveTextContent('1/3');
-    // A zero count is an absent badge, not a "0" (Section 2.5.3).
-    expect(screen.queryByTitle('Attachments')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Items')).toHaveTextContent('1/3');
   });
 
   it('shows the start badge in the due slot when there is no due date', () => {
@@ -72,16 +69,15 @@ describe('CardBadges', () => {
     expect(screen.queryByTitle('Due date')).not.toBeInTheDocument();
   });
 
-  it('turns the checklist badge green once every item is checked', () => {
+  it('turns the items badge green once every item is checked', () => {
     const complete = {
       description: false,
-      attachments: 0,
-      checklist_done: 3,
-      checklist_total: 3,
+      item_done: 3,
+      item_total: 3,
     };
     render(<CardBadges card={row({ badges: complete })} now={NOW} />);
 
-    expect(screen.getByTitle('Checklist items')).toHaveClass(cls('complete'));
+    expect(screen.getByTitle('Items')).toHaveClass(cls('complete'));
   });
 
   it.each([

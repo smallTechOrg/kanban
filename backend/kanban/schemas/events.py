@@ -12,8 +12,8 @@ from pydantic import BaseModel
 
 from kanban.schemas.common import OptionalFieldsOmitted
 
-#: The seven entities an event can name (Section 4.8); `item` is a checklist item.
-EventEntity = Literal["board", "list", "card", "label", "checklist", "item", "attachment"]
+#: The five entities an event can name (Section 4.8); `item` is a card item.
+EventEntity = Literal["board", "list", "card", "label", "item"]
 
 
 class EventOut(OptionalFieldsOmitted):

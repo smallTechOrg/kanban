@@ -1,34 +1,24 @@
 import { http, HttpResponse } from 'msw';
-import type { CoverInput, LinkAttachmentInput } from '@/api/attachments';
 import type { CreateBoardInput, UpdateBoardInput } from '@/api/boards';
-import type { CopyCardInput, CreateCardInput, MoveCardInput, UpdateCardInput } from '@/api/cards';
-import type {
-  CreateChecklistInput,
-  CreateItemInput,
-  MoveItemInput,
-  UpdateItemInput,
-} from '@/api/checklists';
+import type { CreateCardInput, MoveCardInput, UpdateCardInput } from '@/api/cards';
+import type { CreateItemInput, UpdateItemInput } from '@/api/items';
 import type { CreateLabelInput, UpdateLabelInput } from '@/api/labels';
 import type { CopyListInput, CreateListInput, MoveInput, UpdateListInput } from '@/api/lists';
 import type {
   Activity,
   ArchiveAllCardsResult,
-  Attachment,
   Badges,
   Board,
   BoardBackgrounds,
-  BoardChecklist,
   BoardGroups,
   BoardSummary,
-  CardCover,
   CardDetail,
+  CardItem,
+  CardItemPatched,
   CardLabels,
   CardSummary,
   CardsCreated,
   Changes,
-  Checklist,
-  ChecklistItem,
-  ChecklistItemPatched,
   ItemsCreated,
   Label,
   ListOut,
@@ -67,11 +57,9 @@ export const metaFixture: Meta = {
       text_bold: 'var(--text)',
     },
   },
-  cover_colors: {},
   board_colors: { blue: 'var(--primary)' },
   board_gradients: { 'gradient-ocean': 'linear-gradient(135deg, var(--primary), var(--logo))' },
   list_colors: {},
-  max_upload_mb: 25,
 };
 
 const BOARD_TEMPLATE: BoardSummary = {
@@ -83,7 +71,6 @@ const BOARD_TEMPLATE: BoardSummary = {
   background_thumb_url: null,
   is_closed: false,
   version: 1,
-  is_starred: false,
   created_at: '2026-09-01T09:12:00.000Z',
   updated_at: '2026-09-24T17:58:41.120Z',
 };
@@ -93,15 +80,13 @@ export function makeBoardSummary(overrides: Partial<BoardSummary> = {}): BoardSu
   return { ...BOARD_TEMPLATE, ...overrides };
 }
 
-export const starredBoardFixture = makeBoardSummary({ id: 5, name: 'Roadmap', is_starred: true });
+export const secondBoardFixture = makeBoardSummary({ id: 5, name: 'Roadmap' });
 export const boardFixture = makeBoardSummary();
 export const closedBoardFixture = makeBoardSummary({ id: 9, name: 'Trip 2027', is_closed: true });
 
-/** `GET /api/boards`: one starred board, the same board under Recent, three under all. */
+/** `GET /api/boards`: the one flat list the home page renders. */
 export const boardGroupsFixture: BoardGroups = {
-  starred: [starredBoardFixture],
-  recent: [boardFixture, starredBoardFixture],
-  all: [makeBoardSummary({ id: 3, name: 'Personal' }), starredBoardFixture, boardFixture],
+  all: [makeBoardSummary({ id: 3, name: 'Personal' }), secondBoardFixture, boardFixture],
 };
 
 /** `ordering.STEP`, the spacing the server appends with (Section 4.9). */
@@ -143,17 +128,15 @@ const CARD_TEMPLATE: CardSummary = {
   title: 'Write launch announcement',
   position: STEP,
   is_archived: false,
-  is_template: false,
   start_at: null,
   due_at: null,
   due_complete: false,
-  cover: null,
   label_ids: [],
+  items: [],
   badges: {
     description: false,
-    attachments: 0,
-    checklist_done: 0,
-    checklist_total: 0,
+    item_done: 0,
+    item_total: 0,
   },
   created_at: '2026-09-03T11:00:00.000Z',
   updated_at: '2026-09-24T17:58:41.120Z',
@@ -171,9 +154,9 @@ export const cardFixtures: CardSummary[] = [
   makeCardSummary({ id: 103, short_id: 14, title: 'Migrate DNS', list_id: 12 }),
 ];
 
-const ITEM_TEMPLATE: ChecklistItem = {
+const ITEM_TEMPLATE: CardItem = {
   id: 501,
-  checklist_id: 51,
+  card_id: 101,
   name: 'Wireframe',
   position: STEP,
   is_checked: true,
@@ -181,77 +164,20 @@ const ITEM_TEMPLATE: ChecklistItem = {
   due_at: null,
 };
 
-/** Builds a `ChecklistItem` for a fixture or a handler's answer (Section 4.6). */
-export function makeChecklistItem(overrides: Partial<ChecklistItem> = {}): ChecklistItem {
+/** Builds a `CardItem` for a fixture or a handler's answer (Section 4.6). */
+export function makeCardItem(overrides: Partial<CardItem> = {}): CardItem {
   return { ...ITEM_TEMPLATE, ...overrides };
 }
 
-/** One checklist on card 101: two items, one of them ticked, so the tile badge reads 1/2. */
-export const checklistFixtures: Checklist[] = [
-  {
-    id: 51,
-    card_id: 101,
-    name: 'Launch steps',
-    position: STEP,
-    items: [
-      makeChecklistItem(),
-      makeChecklistItem({
-        id: 502,
-        name: 'Palette',
-        position: 2 * STEP,
-        is_checked: false,
-        checked_at: null,
-      }),
-    ],
-  },
-];
-
-/** `GET /api/boards/7/checklists` — the "Copy items from…" rows of `ChecklistPopover` (4.6). */
-export const boardChecklistsFixture: BoardChecklist[] = checklistFixtures.map((checklist) => ({
-  id: checklist.id,
-  name: checklist.name,
-  card_id: checklist.card_id,
-  card_title: cardFixtures[0]?.title ?? '',
-  item_count: checklist.items.length,
-}));
-
-const ATTACHMENT_TEMPLATE: Attachment = {
-  id: 401,
-  card_id: 101,
-  name: 'mock-up.png',
-  kind: 'upload',
-  url: '/uploads/attachments/401/mock-up.png',
-  mime_type: 'image/png',
-  size_bytes: 24_576,
-  is_image: true,
-  thumb_url: '/uploads/attachments/401/thumb.jpg',
-  dominant_color: 'var(--primary)',
-  is_cover: false,
-  created_at: '2026-09-24T15:14:00.000Z',
-};
-
-/** Builds an `AttachmentOut` for a fixture or a handler's answer (Section 4.6). */
-export function makeAttachment(overrides: Partial<Attachment> = {}): Attachment {
-  return { ...ATTACHMENT_TEMPLATE, ...overrides };
-}
-
-/**
- * One of each kind on card 101: an image, which is the only kind a cover can use, and a link.
- * `makeCardDetail` answers with no attachments unless a test asks for these, so a card is
- * attachment-free by default exactly as a new card is.
- */
-export const attachmentFixtures: Attachment[] = [
-  makeAttachment(),
-  makeAttachment({
-    id: 402,
-    name: 'Launch spec',
-    kind: 'link',
-    url: 'https://example.com/spec',
-    mime_type: null,
-    size_bytes: null,
-    is_image: false,
-    thumb_url: null,
-    dominant_color: null,
+/** Two items on card 101, one of them ticked, so the tile badge reads 1/2. */
+export const itemFixtures: CardItem[] = [
+  makeCardItem(),
+  makeCardItem({
+    id: 502,
+    name: 'Palette',
+    position: 2 * STEP,
+    is_checked: false,
+    checked_at: null,
   }),
 ];
 
@@ -313,8 +239,7 @@ export function makeCardDetail(overrides: Partial<CardDetail> = {}): CardDetail 
     due_reminder_minutes: null,
     board_name: boardFixture.name,
     list_name: 'To Do',
-    checklists: card.id === 101 ? checklistFixtures : [],
-    attachments: [],
+    items: card.id === 101 ? itemFixtures : [],
     ...overrides,
   };
 }
@@ -377,45 +302,20 @@ function labelById(labelId: number): Label {
   );
 }
 
-function checklistById(checklistId: number): Checklist {
-  return (
-    checklistFixtures.find((checklist) => checklist.id === checklistId) ?? {
-      id: checklistId,
-      card_id: 101,
-      name: 'Checklist',
-      position: STEP,
-      items: [],
-    }
-  );
-}
-
-function itemById(itemId: number): ChecklistItem {
-  for (const checklist of checklistFixtures) {
-    const item = checklist.items.find((row) => row.id === itemId);
-    if (item !== undefined) return item;
-  }
-  return makeChecklistItem({ id: itemId });
-}
-
-function attachmentById(attachmentId: number): Attachment {
-  return (
-    attachmentFixtures.find((row) => row.id === attachmentId) ??
-    makeAttachment({ id: attachmentId })
-  );
+function itemById(itemId: number): CardItem {
+  return itemFixtures.find((row) => row.id === itemId) ?? makeCardItem({ id: itemId });
 }
 
 /**
  * The card's recomputed `badges` the item patch answers with (Section 4.6), so a test can assert
  * that the tile's `done/total` came from the response rather than from a second client-side count.
  */
-function badgesAfter(item: ChecklistItem): Badges {
-  const items = checklistFixtures.flatMap((checklist) =>
-    checklist.items.map((row) => (row.id === item.id ? item : row)),
-  );
+function badgesAfter(item: CardItem): Badges {
+  const items = itemFixtures.map((row) => (row.id === item.id ? item : row));
   return {
     ...cardById(101).badges,
-    checklist_done: items.filter((row) => row.is_checked).length,
-    checklist_total: items.length,
+    item_done: items.filter((row) => row.is_checked).length,
+    item_total: items.length,
   };
 }
 
@@ -433,27 +333,6 @@ function mutated<T>(item: T, boardVersion: number): Mutated<T> {
 }
 
 const NO_CONTENT = { status: 204 } as const;
-
-/**
- * The uploaded file behind a multipart request, as far as this environment can see it.
- *
- * `POST /api/cards/{card_id}/attachments` has the two branches of Section 4.6 and the server
- * tells them apart by the content-type. Only the JSON branch can be recognised that way here:
- * jsdom's `FormData` is not the `FormData` the `Request` implementation under vitest knows, so a
- * multipart body — sent by `fetch` or by the `XMLHttpRequest` of Section 5.8 alike — reaches the
- * handler flattened to the string "[object FormData]" with a `text/plain` content-type, and
- * `request.formData()` throws. The branch is therefore "not JSON is an upload", and the file's
- * own name and size are read when they survive (a real browser, so every Playwright run) and
- * fall back to the fixture's when they do not. No mocked upload asserts on the name.
- */
-async function uploadedFile(request: Request): Promise<File | null> {
-  try {
-    const field = (await request.clone().formData()).get('file');
-    return field instanceof File ? field : null;
-  } catch {
-    return null;
-  }
-}
 
 export const handlers = [
   http.get('/api/meta', () => HttpResponse.json(metaFixture)),
@@ -496,9 +375,6 @@ export const handlers = [
     return HttpResponse.json(mutated(item, item.version));
   }),
   http.delete('/api/boards/:boardId', () => new HttpResponse(null, NO_CONTENT)),
-
-  http.put('/api/boards/:boardId/star', () => HttpResponse.json({ is_starred: true })),
-  http.delete('/api/boards/:boardId/star', () => HttpResponse.json({ is_starred: false })),
 
   http.get('/api/boards/:boardId/backgrounds', () => HttpResponse.json(backgroundsFixture)),
 
@@ -637,7 +513,6 @@ export const handlers = [
       start_at: patch.start_at === undefined ? card.start_at : patch.start_at,
       due_at: patch.due_at === undefined ? card.due_at : patch.due_at,
       due_complete: patch.due_complete ?? card.due_complete,
-      is_template: patch.is_template ?? card.is_template,
       badges:
         patch.description === undefined
           ? card.badges
@@ -648,34 +523,13 @@ export const handlers = [
   http.post('/api/cards/:cardId/move', async ({ params, request }) => {
     const body = (await request.json()) as MoveCardInput;
     const card = cardById(Number(params['cardId']));
-    // A cross-board move re-homes the card and answers with the target board's version, and the
-    // server assigns it a fresh `short_id` and drops its labels (Section 4.5).
-    const crossBoard = body.to_board_id !== undefined && body.to_board_id !== card.board_id;
     const item = makeCardSummary({
       ...card,
-      board_id: body.to_board_id ?? card.board_id,
       list_id: body.to_list_id,
       position: (body.index + 1) * STEP,
-      short_id: crossBoard ? 1 : card.short_id,
-      label_ids: crossBoard ? [] : card.label_ids,
     });
     const result: MoveResult<CardSummary> = { item, positions: {}, board_version: NEXT_VERSION };
     return HttpResponse.json(result);
-  }),
-  http.post('/api/cards/:cardId/copy', async ({ params, request }) => {
-    const input = (await request.json()) as CopyCardInput;
-    const card = cardById(Number(params['cardId']));
-    const item = makeCardSummary({
-      ...card,
-      id: 920,
-      short_id: 31,
-      title: input.title,
-      list_id: input.to_list_id,
-      position: (input.index + 1) * STEP,
-      is_template: input.is_template ?? false,
-      label_ids: input.keep.labels === true ? card.label_ids : [],
-    });
-    return HttpResponse.json(mutated(item, NEXT_VERSION), { status: 201 });
   }),
   http.post('/api/cards/:cardId/archive', ({ params }) => {
     const item = makeCardSummary({ ...cardById(Number(params['cardId'])), is_archived: true });
@@ -728,85 +582,18 @@ export const handlers = [
     return HttpResponse.json(result);
   }),
 
-  // --------------------------------------------------------- card covers (Section 4.5)
+  // ------------------------------------------------------- card items (Section 4.6)
 
-  http.put('/api/cards/:cardId/cover', async ({ params, request }) => {
-    const input = (await request.json()) as CoverInput;
-    const attachment = attachmentFixtures.find((row) => String(row.id) === input.value);
-    // Only an attachment cover carries the thumbnail and its dominant colour (Section 4.5).
-    const cover: CardCover = {
-      kind: input.kind,
-      value: input.value,
-      size: input.size ?? 'normal',
-      ...(input.kind === 'attachment' && attachment?.thumb_url != null
-        ? { image_url: attachment.thumb_url }
-        : {}),
-      ...(input.kind === 'attachment' && attachment?.dominant_color != null
-        ? { dominant_color: attachment.dominant_color }
-        : {}),
-    };
-    const item = makeCardSummary({ ...cardById(Number(params['cardId'])), cover });
-    return HttpResponse.json(mutated(item, NEXT_VERSION));
-  }),
-  http.delete('/api/cards/:cardId/cover', ({ params }) => {
-    const item = makeCardSummary({ ...cardById(Number(params['cardId'])), cover: null });
-    return HttpResponse.json(mutated(item, NEXT_VERSION));
-  }),
-
-  // ------------------------------------------------ checklists and items (Section 4.6)
-
-  http.get('/api/boards/:boardId/checklists', () =>
-    HttpResponse.json({ items: boardChecklistsFixture }),
-  ),
-  http.post('/api/cards/:cardId/checklists', async ({ params, request }) => {
-    const input = (await request.json()) as CreateChecklistInput;
-    const source =
-      input.copy_from_checklist_id === undefined
-        ? undefined
-        : checklistById(input.copy_from_checklist_id);
-    const item: Checklist = {
-      id: 60,
-      card_id: Number(params['cardId']),
-      name: input.name ?? 'Checklist',
-      position: 2 * STEP,
-      // The source's items are copied unchecked (Section 4.6).
-      items: (source?.items ?? []).map((row, at) =>
-        makeChecklistItem({
-          ...row,
-          id: 600 + at,
-          checklist_id: 60,
-          is_checked: false,
-          checked_at: null,
-        }),
-      ),
-    };
-    return HttpResponse.json(mutated(item, NEXT_VERSION), { status: 201 });
-  }),
-  http.patch('/api/checklists/:checklistId', async ({ params, request }) => {
-    const patch = (await request.json()) as { name: string };
-    const item = { ...checklistById(Number(params['checklistId'])), name: patch.name };
-    return HttpResponse.json(mutated(item, NEXT_VERSION));
-  }),
-  http.delete('/api/checklists/:checklistId', () => new HttpResponse(null, NO_CONTENT)),
-  http.post('/api/checklists/:checklistId/move', async ({ params, request }) => {
-    const body = (await request.json()) as MoveInput;
-    const item: Checklist = {
-      ...checklistById(Number(params['checklistId'])),
-      position: (body.index + 1) * STEP,
-    };
-    const result: MoveResult<Checklist> = { item, positions: {}, board_version: NEXT_VERSION };
-    return HttpResponse.json(result);
-  }),
-  http.post('/api/checklists/:checklistId/items', async ({ params, request }) => {
+  http.post('/api/cards/:cardId/items', async ({ params, request }) => {
     const input = (await request.json()) as CreateItemInput & { split_lines?: boolean };
-    const checklistId = Number(params['checklistId']);
+    const cardId = Number(params['cardId']);
     if (input.split_lines === true) {
       const lines = input.name.split('\n').filter((line) => line.trim() !== '');
       const created: ItemsCreated = {
         items: lines.map((line, at) =>
-          makeChecklistItem({
+          makeCardItem({
             id: 700 + at,
-            checklist_id: checklistId,
+            card_id: cardId,
             name: line.trim(),
             position: (at + 3) * STEP,
             is_checked: false,
@@ -817,9 +604,9 @@ export const handlers = [
       };
       return HttpResponse.json(created, { status: 201 });
     }
-    const item = makeChecklistItem({
+    const item = makeCardItem({
       id: 700,
-      checklist_id: checklistId,
+      card_id: cardId,
       name: input.name,
       position: 3 * STEP,
       is_checked: false,
@@ -827,80 +614,28 @@ export const handlers = [
     });
     return HttpResponse.json(mutated(item, NEXT_VERSION), { status: 201 });
   }),
-  http.patch('/api/checklist-items/:itemId', async ({ params, request }) => {
+  http.patch('/api/card-items/:itemId', async ({ params, request }) => {
     const patch = (await request.json()) as UpdateItemInput;
     const current = itemById(Number(params['itemId']));
-    const row = makeChecklistItem({
+    const row = makeCardItem({
       ...current,
       name: patch.name ?? current.name,
       is_checked: patch.is_checked ?? current.is_checked,
       due_at: patch.due_at === undefined ? current.due_at : patch.due_at,
     });
-    const item: ChecklistItemPatched = { ...row, badges: badgesAfter(row) };
+    const item: CardItemPatched = { ...row, badges: badgesAfter(row) };
     return HttpResponse.json(mutated(item, NEXT_VERSION));
   }),
-  http.delete('/api/checklist-items/:itemId', () => new HttpResponse(null, NO_CONTENT)),
-  http.post('/api/checklist-items/:itemId/move', async ({ params, request }) => {
-    const body = (await request.json()) as MoveItemInput;
-    const item = makeChecklistItem({
+  http.delete('/api/card-items/:itemId', () => new HttpResponse(null, NO_CONTENT)),
+  http.post('/api/card-items/:itemId/move', async ({ params, request }) => {
+    const body = (await request.json()) as MoveInput;
+    const item = makeCardItem({
       ...itemById(Number(params['itemId'])),
-      checklist_id: body.to_checklist_id,
       position: (body.index + 1) * STEP,
     });
-    const result: MoveResult<ChecklistItem> = { item, positions: {}, board_version: NEXT_VERSION };
+    const result: MoveResult<CardItem> = { item, positions: {}, board_version: NEXT_VERSION };
     return HttpResponse.json(result);
   }),
-  http.post('/api/checklist-items/:itemId/convert', ({ params }) => {
-    const item = itemById(Number(params['itemId']));
-    const card = makeCardSummary({ id: 910, short_id: 30, title: item.name, position: 4 * STEP });
-    return HttpResponse.json(mutated(card, NEXT_VERSION), { status: 201 });
-  }),
-
-  // ----------------------------------------------------------- attachments (Section 4.6)
-
-  http.post('/api/cards/:cardId/attachments', async ({ params, request }) => {
-    const cardId = Number(params['cardId']);
-    if (!(request.headers.get('content-type') ?? '').includes('application/json')) {
-      const file = await uploadedFile(request);
-      const name = file?.name ?? ATTACHMENT_TEMPLATE.name;
-      const mimeType =
-        file === null || file.type === '' ? ATTACHMENT_TEMPLATE.mime_type : file.type;
-      const isImage = mimeType !== null && mimeType.startsWith('image/');
-      const item = makeAttachment({
-        id: 410,
-        card_id: cardId,
-        name,
-        kind: 'upload',
-        url: `/uploads/attachments/410/${name}`,
-        mime_type: mimeType,
-        size_bytes: file?.size ?? ATTACHMENT_TEMPLATE.size_bytes,
-        is_image: isImage,
-        thumb_url: isImage ? '/uploads/attachments/410/thumb.jpg' : null,
-        dominant_color: isImage ? 'var(--primary)' : null,
-      });
-      return HttpResponse.json(mutated(item, NEXT_VERSION), { status: 201 });
-    }
-    const input = (await request.json()) as LinkAttachmentInput;
-    const item = makeAttachment({
-      id: 411,
-      card_id: cardId,
-      name: input.name === undefined || input.name === '' ? new URL(input.url).host : input.name,
-      kind: 'link',
-      url: input.url,
-      mime_type: null,
-      size_bytes: null,
-      is_image: false,
-      thumb_url: null,
-      dominant_color: null,
-    });
-    return HttpResponse.json(mutated(item, NEXT_VERSION), { status: 201 });
-  }),
-  http.patch('/api/attachments/:attachmentId', async ({ params, request }) => {
-    const { name } = (await request.json()) as { name: string };
-    const item = makeAttachment({ ...attachmentById(Number(params['attachmentId'])), name });
-    return HttpResponse.json(mutated(item, NEXT_VERSION));
-  }),
-  http.delete('/api/attachments/:attachmentId', () => new HttpResponse(null, NO_CONTENT)),
 
   // ------------------------------------------- search, board activity and realtime (4.3, 4.7, 4.8)
 

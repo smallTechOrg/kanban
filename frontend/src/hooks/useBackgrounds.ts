@@ -47,10 +47,10 @@ export function useBackgrounds(boardId: number): UseQueryResult<BoardBackgrounds
  * Three caches move: the board document (its `board` row *is* the response), the home groups
  * (the tile's thumbnail changed) and this board's library (it has one image more).
  *
- * The size and type limits are deliberately not restated here. `max_upload_mb` in `['meta']` is
- * the *attachment* cap, and a background's 10 MB is the server's own number; it answers 413 and
- * 415 with the sentence to show, so a second guard would be a second copy of a rule that would
- * then be free to drift.
+ * The size and type limits are deliberately not restated here. A background's 10 MB is the
+ * server's own number and `GET /api/meta` carries no field for it; it answers 413 and 415 with
+ * the sentence to show, so a second guard would be a second copy of a rule that would then be
+ * free to drift.
  */
 export function useUploadBackground(boardId: number): UploadBackgroundResult {
   const queryClient = useQueryClient();

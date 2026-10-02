@@ -5,19 +5,18 @@ import { X } from 'lucide-react';
 import { IconButton, Modal } from '@/components/ui';
 import { useCard } from '@/hooks/useBoardData';
 import { useCardDetail } from '@/hooks/useCard';
-import { useMoveChecklist, useMoveChecklistItem } from '@/hooks/useCardMutations';
+import { useMoveItem } from '@/hooks/useCardMutations';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { isId } from '@/lib/boardState';
-import { cardMoveFromDrop, itemOrder, type ItemOrder } from '@/lib/cardDnd';
+import { cardMoveFromDrop, itemOrder } from '@/lib/cardDnd';
 import { useUiStore } from '@/store/uiStore';
 import { ArchivedBanner } from './ArchivedBanner';
-import { CardCoverStrip } from './CardCoverStrip';
 import { CardModalHeader } from './CardModalHeader';
 import { CardModalMain } from './CardModalMain';
 import { CardModalSidebar } from './CardModalSidebar';
 import styles from './CardDetailModal.module.css';
 
-const NO_ORDER: ItemOrder = {};
+const NO_ORDER: readonly number[] = [];
 
 /** Section 2.7, the keyboard instructions the library reads out when a handle takes focus. */
 const DRAG_INSTRUCTIONS =
@@ -45,12 +44,11 @@ function hasLayerAbove(): boolean {
  *
  * It opens on the board cache — the title is on screen before `GET /api/cards/{card_id}`
  * answers, with the 2px indeterminate bar of Section 2.10 at the dialog top — and its own
- * `DragDropContext` holds the two nested droppables of the checklists (`lib/cardDnd.ts`), quite
- * separate from the board's.
+ * `DragDropContext` holds the card's one item droppable (`lib/cardDnd.ts`), quite separate
+ * from the board's.
  *
- * The two bands above the header are conditional: `ArchivedBanner` while the card is archived
- * (Section 2.6.1) and `CardCoverStrip` whenever a cover is set — which that component decides
- * itself from `card.cover`, so the modal does not decide it twice.
+ * The one band above the header is conditional: `ArchivedBanner` while the card is archived
+ * (Section 2.6.1).
  *
  * A card that has been moved to another board answers with a different `board_id`, and the URL
  * replaces itself with the card's real board rather than rendering a card that is not on the
@@ -69,10 +67,9 @@ export function CardDetailModal(): ReactElement | null {
 
   const setOpenCardId = useUiStore((state) => state.setOpenCardId);
   const setDragging = useUiStore((state) => state.setDragging);
-  const moveChecklist = useMoveChecklist(boardId, cardId);
-  const moveItem = useMoveChecklistItem(boardId, cardId);
+  const moveItem = useMoveItem(boardId, cardId);
 
-  const [hiddenChecklistIds, setHiddenChecklistIds] = useState<readonly number[]>([]);
+  const [hideChecked, setHideChecked] = useState(false);
 
   /**
    * Section 2.6.1: focus goes back to the tile the card was opened from. The dialog unmounts with
@@ -94,11 +91,10 @@ export function CardDetailModal(): ReactElement | null {
 
   // The drop is handled after a commit and the card can re-render between the lift and the
   // drop, so the two orders are read through a ref rather than a stale closure (`BoardDndContext`).
-  const renderedRef = useRef<ItemOrder>(NO_ORDER);
-  const fullRef = useRef<ItemOrder>(NO_ORDER);
-  renderedRef.current =
-    card === undefined ? NO_ORDER : itemOrder(card.checklists, hiddenChecklistIds);
-  fullRef.current = card === undefined ? NO_ORDER : itemOrder(card.checklists);
+  const renderedRef = useRef<readonly number[]>(NO_ORDER);
+  const fullRef = useRef<readonly number[]>(NO_ORDER);
+  renderedRef.current = card === undefined ? NO_ORDER : itemOrder(card.items, hideChecked);
+  fullRef.current = card === undefined ? NO_ORDER : itemOrder(card.items);
 
   // Section 5.13: the store mirrors the route param so M4b's shortcuts know which card is open.
   useEffect(() => {
@@ -133,15 +129,6 @@ export function CardDetailModal(): ReactElement | null {
     setDragging(false);
     const outcome = cardMoveFromDrop(result, renderedRef.current, fullRef.current);
     if (outcome.kind === 'item') moveItem.mutate(outcome.item);
-    else if (outcome.kind === 'checklist') moveChecklist.mutate(outcome.checklist);
-  }
-
-  function toggleHideChecked(checklistId: number): void {
-    setHiddenChecklistIds((current) =>
-      current.includes(checklistId)
-        ? current.filter((id) => id !== checklistId)
-        : [...current, checklistId],
-    );
   }
 
   const title = card?.title ?? cachedRow?.title ?? '';
@@ -159,8 +146,6 @@ export function CardDetailModal(): ReactElement | null {
       </div>
 
       {card?.is_archived === true ? <ArchivedBanner /> : null}
-
-      {card === undefined ? null : <CardCoverStrip boardId={boardId} card={card} />}
 
       <CardModalHeader
         boardId={boardId}
@@ -182,8 +167,8 @@ export function CardDetailModal(): ReactElement | null {
               <CardModalMain
                 boardId={boardId}
                 card={card}
-                hiddenChecklistIds={hiddenChecklistIds}
-                onToggleHideChecked={toggleHideChecked}
+                hideChecked={hideChecked}
+                onToggleHideChecked={() => setHideChecked((on) => !on)}
               />
             </DragDropContext>
             <CardModalSidebar card={card} />

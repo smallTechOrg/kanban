@@ -2,7 +2,7 @@ import { expect, test, type BrowserContext, type Locator, type Page } from '@pla
 
 /**
  * The M3 acceptance run of Section 7.2 ("Card detail modal core"), done the way a person does it:
- * one card, opened as a route, given a description, a label, a checklist and a due date, with
+ * one card, opened as a route, given a description, a label, items and a due date, with
  * every assertion made on what the screen shows — the rendered Markdown, the progress bar, and
  * above all the tile badges *behind* the modal, which are the whole point of the milestone.
  *
@@ -45,7 +45,6 @@ const DESCRIPTION = [
 
 const ITEMS = ['Write the copy', 'Pick the palette', 'Review'] as const;
 
-const CHECKLIST = 'Launch tasks';
 
 /** One column, which `ListColumn` labels with the list's name. */
 function column(page: Page, name: string): Locator {
@@ -199,12 +198,9 @@ test('M3 audit: the card modal round-trips every M3 feature to the tile', async 
     await expect(tileCard(page, cardPath).locator(`[aria-label="Label ${LABEL}"]`)).toBeVisible();
   });
 
-  await test.step('6. a checklist drives the progress bar and the tile done/total badge', async () => {
-    const popover = await openSidebar(page, RENAMED, 'Checklist', 'Add checklist');
-    await popover.getByLabel('Title').fill(CHECKLIST);
-    await popover.getByRole('button', { name: 'Add', exact: true }).click();
-
-    const section = modal(page, RENAMED).getByRole('region', { name: CHECKLIST });
+  await test.step("6. the card's items drive the progress bar and the tile done/total badge", async () => {
+    // There is no checklist to create first: the section is part of every card.
+    const section = modal(page, RENAMED).getByRole('region', { name: 'Items' });
     await expect(section).toBeVisible();
 
     await section.getByRole('button', { name: 'Add an item' }).click();
@@ -216,7 +212,7 @@ test('M3 audit: the card modal round-trips every M3 feature to the tile', async 
     }
     await composer.press('Escape');
 
-    const bar = section.getByRole('progressbar', { name: CHECKLIST });
+    const bar = section.getByRole('progressbar', { name: 'Items' });
     await expect(bar).toHaveAttribute('aria-valuenow', '0');
 
     await section.getByRole('checkbox', { name: ITEMS[0] }).check();
@@ -224,15 +220,23 @@ test('M3 audit: the card modal round-trips every M3 feature to the tile', async 
     await expect(bar).toHaveAttribute('aria-valuemax', '3');
     await expect(section.getByText('33%')).toBeVisible();
 
-    const badge = tileCard(page, cardPath).locator('[title="Checklist items"]');
+    const tile = tileCard(page, cardPath);
+    const badge = tile.locator('[title="Items"]');
     await expect(badge).toHaveText('1/3');
+
+    // Section 2.5.1: the tile lists the items themselves, in the card's order, and the one
+    // just ticked says so in its accessible name. CSS locators for the reason step 5 gives:
+    // the open modal makes the board behind it `aria-hidden`, which role locators skip.
+    await expect(tile.locator('li')).toHaveText([...ITEMS]);
+    await expect(tile.locator(`li[aria-label="${ITEMS[0] ?? ''} (done)"]`)).toHaveCount(1);
 
     await section.getByRole('checkbox', { name: ITEMS[1] }).check();
     await section.getByRole('checkbox', { name: ITEMS[2] }).check();
     await expect(bar).toHaveAttribute('aria-valuenow', '3');
     await expect(section.getByText('100%')).toBeVisible();
-    // Section 2.5.3: a complete checklist badge turns green.
+    // Section 2.5.3: an items badge with every box ticked turns green.
     await expect(badge).toHaveText('3/3');
+    await expect(tile.locator(`li[aria-label="${ITEMS[2] ?? ''} (done)"]`)).toHaveCount(1);
     await expect(badge).toHaveCSS('background-color', toRgb(await token(page, '--success')));
   });
 
@@ -269,8 +273,8 @@ test('M3 audit: the card modal round-trips every M3 feature to the tile', async 
     await expect(activity.getByText(`Renamed this card (from ${CARD})`)).toBeVisible();
     await expect(activity.getByText('Updated the description of this card')).toBeVisible();
     await expect(activity.getByText(`Added the ${LABEL} label to this card`)).toBeVisible();
-    await expect(activity.getByText(`Added checklist ${CHECKLIST} to this card`)).toBeVisible();
-    await expect(activity.getByText(`Completed ${ITEMS[0]} on ${CHECKLIST}`)).toBeVisible();
+    await expect(activity.getByText(`Added ${ITEMS[0]} to this card`)).toBeVisible();
+    await expect(activity.getByText(`Completed ${ITEMS[0]}`)).toBeVisible();
     await expect(activity.getByText('Marked the due date complete')).toBeVisible();
 
     // The feed is the server's, so the rows survive a reload rather than being this session's
@@ -318,17 +322,21 @@ test('M3 audit: the card modal round-trips every M3 feature to the tile', async 
       await expect(dialog.getByText(`in list ${FIRST_LIST}`)).toBeVisible();
       await expect(dialog.getByRole('heading', { name: 'Launch plan' })).toBeVisible();
       await expect(dialog.locator('pre code')).toHaveText('const ready = true;\n');
-      await expect(dialog.getByRole('region', { name: CHECKLIST })).toBeVisible();
-      await expect(
-        dialog.getByRole('progressbar', { name: CHECKLIST }),
-      ).toHaveAttribute('aria-valuenow', '3');
+      await expect(dialog.getByRole('region', { name: 'Items' })).toBeVisible();
+      await expect(dialog.getByRole('progressbar', { name: 'Items' })).toHaveAttribute(
+        'aria-valuenow',
+        '3',
+      );
       await expect(dialog.getByLabel('Mark the due date complete')).toBeChecked();
       // The quick-badges Labels group carries the chip (Section 2.6.3); an attached chip there is
       // a plain `span`, not the popover's toggle button.
       await expect(dialog.locator('[aria-labelledby="card-labels-label"]')).toContainText(LABEL);
 
-      // And the tile behind it carries the badges the modal's data produced.
-      await expect(tileCard(cold, cardPath).locator('[title="Checklist items"]')).toHaveText('3/3');
+      // And the tile behind it carries what the modal's data produced - the badges,
+      // and the item rows themselves, which a cold load can only have from the board
+      // document (Section 4.10.1).
+      await expect(tileCard(cold, cardPath).locator('[title="Items"]')).toHaveText('3/3');
+      await expect(tileCard(cold, cardPath).locator('li')).toHaveText([...ITEMS]);
       await expect(
         tileCard(cold, cardPath).locator('[aria-label="This card has a description."]'),
       ).toBeVisible();

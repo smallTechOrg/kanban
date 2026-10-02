@@ -1,9 +1,7 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import type { BoardSummary } from '@/api/types';
-import { cx } from '@/components/ui';
 import { boardBackgroundStyle } from '@/lib/boardGroups';
-import { StarButton } from './StarButton';
 import styles from './BoardTile.module.css';
 
 export interface BoardTileProps {
@@ -13,11 +11,10 @@ export interface BoardTileProps {
 }
 
 /**
- * One 96px board tile (Section 2.2): the board background, the name over a hover scrim and
- * the star.
+ * One 96px board tile (Section 2.2): the board background and the name over a hover scrim.
  *
- * The link covers the tile instead of wrapping it, because an anchor may not contain the
- * star's button; hovering anywhere over the tile still reveals the star and the scrim.
+ * The link covers the tile instead of wrapping it, so the scrim and the name can be painted
+ * above it; hovering anywhere over the tile reveals the scrim.
  */
 export function BoardTile({ board, gradients }: BoardTileProps): ReactElement {
   return (
@@ -26,11 +23,6 @@ export function BoardTile({ board, gradients }: BoardTileProps): ReactElement {
       <Link to={`/b/${board.id}`} className={styles.link}>
         <span className={styles.name}>{board.name}</span>
       </Link>
-      <StarButton
-        boardId={board.id}
-        isStarred={board.is_starred}
-        className={cx(styles.star, board.is_starred && styles.starVisible)}
-      />
     </div>
   );
 }

@@ -3,12 +3,12 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import type { BoardGroups } from '@/api/types';
-import { boardGroupsFixture, closedBoardFixture, makeBoardSummary } from '@/test/handlers';
+import { boardGroupsFixture, closedBoardFixture } from '@/test/handlers';
 import { renderWithProviders } from '@/test/render';
 import { server } from '@/test/server';
 import { HomePage } from './HomePage';
 
-const EMPTY_GROUPS: BoardGroups = { starred: [], recent: [], all: [] };
+const EMPTY_GROUPS: BoardGroups = { all: [] };
 
 function serveGroups(groups: BoardGroups): void {
   server.use(
@@ -20,62 +20,52 @@ function serveGroups(groups: BoardGroups): void {
   );
 }
 
-/** The heading's own section, so "Roadmap" is asserted where it belongs. */
-function section(name: RegExp): HTMLElement {
-  const heading = screen.getByRole('heading', { name });
-  const owner = heading.closest('section');
-  if (owner === null) throw new Error(`No section around the ${String(name)} heading`);
-  return owner;
-}
-
 describe('HomePage', () => {
-  it('renders Starred boards, Recently viewed and Your boards in that order', async () => {
+  it('renders every board in one list, with no Starred or Recent group', async () => {
     renderWithProviders(<HomePage />);
 
-    // The "Your boards" heading renders while the query is still in flight, so wait for the data.
-    await screen.findByRole('heading', { name: 'Starred boards' });
-    const headings = screen.getAllByRole('heading', {
-      name: /Starred boards|Recently viewed|Your boards/,
-    });
-    expect(headings.map((heading) => heading.textContent)).toEqual([
-      'Starred boards',
-      'Recently viewed',
-      'Your boards',
-    ]);
-
-    expect(within(section(/Starred boards/)).getByRole('link', { name: 'Roadmap' })).toBeVisible();
-    expect(within(section(/Recently viewed/)).getAllByRole('link')).toHaveLength(
-      boardGroupsFixture.recent.length,
-    );
-    expect(within(section(/Your boards/)).getAllByRole('link')).toHaveLength(
-      boardGroupsFixture.all.length,
-    );
+    const links = await screen.findAllByRole('link');
+    expect(links).toHaveLength(boardGroupsFixture.all.length);
     expect(screen.getByRole('button', { name: 'Create new board' })).toBeVisible();
+
+    for (const name of ['Starred boards', 'Recently viewed', 'Your boards']) {
+      expect(screen.queryByRole('heading', { name })).not.toBeInTheDocument();
+    }
   });
 
-  it('hides the starred section and explains the empty grid when there are no boards', async () => {
+  it('greets the reader instead of labelling the list', async () => {
+    renderWithProviders(<HomePage />);
+
+    const heading = await screen.findByRole('heading', { level: 1 });
+    expect(heading.textContent).toMatch(/^Good (morning|afternoon|evening)$/);
+  });
+
+  it('says what the app is, under the greeting', async () => {
+    renderWithProviders(<HomePage />);
+
+    // Section 2.2: the tagline and the three points are the only place an install with no
+    // sign-up gets to explain itself.
+    expect(await screen.findByText("Everything you're on, in one place.")).toBeInTheDocument();
+    expect(screen.getByText(/A board for the shopping/)).toBeInTheDocument();
+    for (const point of [
+      'A board for each part of life',
+      'Tick things off',
+      'Nothing to sign in to',
+    ]) {
+      expect(screen.getByText(point)).toBeInTheDocument();
+    }
+  });
+
+  it('explains the empty grid when there are no boards', async () => {
     serveGroups(EMPTY_GROUPS);
     renderWithProviders(<HomePage />);
 
-    expect(await screen.findByText(/Boards are where work gets done/)).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Starred boards' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Recently viewed' })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Boards are where everything you are keeping track of/)).
+      toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create new board' })).toBeVisible();
   });
 
-  it('shows at most four recently viewed tiles', async () => {
-    serveGroups({
-      ...EMPTY_GROUPS,
-      recent: [1, 2, 3, 4, 5].map((id) => makeBoardSummary({ id, name: `Board ${String(id)}` })),
-    });
-    renderWithProviders(<HomePage />);
-
-    await screen.findByRole('heading', { name: 'Recently viewed' });
-
-    expect(within(section(/Recently viewed/)).getAllByRole('link')).toHaveLength(4);
-  });
-
-  it('opens the closed boards modal from the section footer', async () => {
+  it('opens the closed boards modal from the footer', async () => {
     const user = userEvent.setup();
     renderWithProviders(<HomePage />);
 
@@ -103,11 +93,11 @@ describe('HomePage', () => {
     renderWithProviders(<HomePage />);
 
     expect(await screen.findByText("Couldn't load your boards.")).toBeInTheDocument();
-    expect(screen.queryByText(/Boards are where work gets done/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Boards are where everything/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Try again' }));
 
-    expect(await screen.findByText(/Boards are where work gets done/)).toBeInTheDocument();
+    expect(await screen.findByText(/Boards are where everything/)).toBeInTheDocument();
     expect(screen.queryByText("Couldn't load your boards.")).not.toBeInTheDocument();
   });
 });

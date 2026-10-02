@@ -1,9 +1,9 @@
-/* Section 2.6.3: one checklist block — header row, progress, item rows, composer. */
+/* Section 2.6.3: the card's items — header row, progress, item rows, composer. */
 .section {
   margin-bottom: 24px;
 }
 
-/* Section 2.6.3: a lifted checklist takes the list-drag shadow and no tilt. */
+/* Section 2.6.3: a lifted item takes the list-drag shadow and no tilt. */
 .dragging {
   background: var(--modal-bg);
   border-radius: var(--radius-sm);

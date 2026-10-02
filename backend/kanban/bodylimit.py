@@ -17,21 +17,18 @@ from kanban.errors import ApiError, LengthRequired, TooLarge, error_response
 #: Every `/api` route that is not an upload (Section 6.9).
 DEFAULT_MAX_BYTES: Final[int] = 1024 * 1024
 
-#: Board background images are capped below `KANBAN_MAX_UPLOAD_MB` (Section 4.11).
+#: The one body larger than `DEFAULT_MAX_BYTES` the app accepts (Sections 4.11 and 6.9).
 BACKGROUND_MAX_BYTES: Final[int] = 10 * 1024 * 1024
 
-#: The two multipart routes. Attachments are live; the background upload of Section 4.11 is
-#: guarded from here already, so its own cap is in place the day M5 wires the picker.
-ATTACHMENT_PATH: Final[re.Pattern[str]] = re.compile(r"^/api/cards/\d+/attachments/?$")
+#: The one multipart route left: a board's background image (Section 4.11).
 BACKGROUND_PATH: Final[re.Pattern[str]] = re.compile(r"^/api/boards/\d+/background/?$")
 
 
 class BodySizeLimitMiddleware:
-    """Cap the body of every request; the two upload routes get their own, larger caps."""
+    """Cap the body of every request; the one upload route gets its own, larger cap."""
 
-    def __init__(self, app: ASGIApp, *, max_upload_bytes: int) -> None:
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
-        self.max_upload_bytes = max_upload_bytes
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -40,7 +37,7 @@ class BodySizeLimitMiddleware:
 
         path: str = scope.get("path", "")
         is_upload = _is_upload(path, scope.get("method", "GET"))
-        limit = self._limit_for(path, is_upload)
+        limit = BACKGROUND_MAX_BYTES if is_upload else DEFAULT_MAX_BYTES
 
         content_length = _content_length(scope)
         if is_upload and content_length is None:
@@ -57,18 +54,11 @@ class BodySizeLimitMiddleware:
 
         await self.app(scope, _capped(receive, limit, scope, send), send)
 
-    def _limit_for(self, path: str, is_upload: bool) -> int:
-        if not is_upload:
-            return DEFAULT_MAX_BYTES
-        if BACKGROUND_PATH.match(path):
-            return BACKGROUND_MAX_BYTES
-        return self.max_upload_bytes
-
 
 def _is_upload(path: str, method: str) -> bool:
     if method != "POST":
         return False
-    return bool(ATTACHMENT_PATH.match(path) or BACKGROUND_PATH.match(path))
+    return bool(BACKGROUND_PATH.match(path))
 
 
 def _content_length(scope: Scope) -> int | None:

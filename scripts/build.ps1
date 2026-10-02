@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Kan Ban -- production build: compile the SPA into frontend/dist.
+  My Day -- production build: compile the SPA into frontend/dist.
 .DESCRIPTION
   Thin wrapper over `npm run build`; package.json owns the build command.
   Resolves the repo root from its own location so it works from any directory.

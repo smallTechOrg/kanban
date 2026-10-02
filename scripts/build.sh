@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Kan Ban -- production build: compile the SPA into frontend/dist.
+# My Day -- production build: compile the SPA into frontend/dist.
 # Thin wrapper over `npm run build`; package.json owns the build command.
 set -eu
 

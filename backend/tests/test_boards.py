@@ -5,7 +5,6 @@ landed, `GET /api/boards/{board_id}` returns the seeded lists of `default_lists`
 they are asserted from the board document rather than from the `lists` table.
 """
 
-import time
 from collections.abc import Callable
 from typing import Any
 
@@ -17,13 +16,6 @@ from kanban.seed import DEFAULT_LABEL_COLORS, DEFAULT_LIST_NAMES
 from tests.conftest import CSRF_HEADERS
 
 BoardFactory = Callable[..., dict[str, Any]]
-
-
-def _wait_for_the_next_millisecond() -> None:
-    """Busy-wait until the wall clock's millisecond advances (see the caller for why)."""
-    start = time.time()
-    while int(time.time() * 1000) == int(start * 1000):
-        pass
 
 
 def _groups(api: TestClient, *, closed: bool = False) -> dict[str, list[dict[str, Any]]]:
@@ -61,7 +53,6 @@ def test_create_returns_a_board_summary_at_version_one(board: dict[str, Any]) ->
     assert board["name"] == "Sprint 42"
     assert board["version"] == 1
     assert board["is_closed"] is False
-    assert board["is_starred"] is False
     assert board["background_type"] == "color"
     assert board["background_value"] == DEFAULT_BOARD_COLOR
     assert board["background_thumb_url"] is None
@@ -114,88 +105,29 @@ def test_create_requires_a_non_blank_name(api: TestClient) -> None:
 # --------------------------------------------------------------------------- grouping
 
 
-def test_all_is_alphabetical_and_starred_and_recent_start_empty(
-    api: TestClient, board_factory: BoardFactory
-) -> None:
+def test_the_one_group_is_alphabetical(api: TestClient, board_factory: BoardFactory) -> None:
+    """`GET /api/boards` answers with `all` and nothing else: one flat list"""
     zebra = board_factory("Zebra project")
     alpha = board_factory("alpha project")
 
     groups = _groups(api)
 
+    assert set(groups) == {"all"}  # no `starred`, no `recent`
     ordered = [
         board_id for board_id in _ids(groups["all"]) if board_id in {zebra["id"], alpha["id"]}
     ]
     assert ordered == [alpha["id"], zebra["id"]]  # COLLATE NOCASE, so "alpha" sorts before "Zebra"
-    assert zebra["id"] not in _ids(groups["starred"])
-    assert zebra["id"] not in _ids(groups["recent"])
 
 
-def test_starring_moves_a_board_into_the_starred_group(
+def test_a_closed_board_leaves_the_list_and_appears_under_closed(
     api: TestClient, board: dict[str, Any]
 ) -> None:
-    starred = api.put(f"/api/boards/{board['id']}/star", headers=CSRF_HEADERS)
-
-    assert starred.status_code == 200
-    assert starred.json() == {"is_starred": True}
-    groups = _groups(api)
-    assert board["id"] in _ids(groups["starred"])
-    assert board["id"] in _ids(groups["all"])  # a starred board is still in `all`
-    assert next(row for row in groups["all"] if row["id"] == board["id"])["is_starred"] is True
-
-
-def test_unstarring_removes_it_again_and_both_calls_are_idempotent(
-    api: TestClient, board: dict[str, Any]
-) -> None:
-    assert api.put(f"/api/boards/{board['id']}/star", headers=CSRF_HEADERS).status_code == 200
-    assert api.put(f"/api/boards/{board['id']}/star", headers=CSRF_HEADERS).status_code == 200
-    unstarred = api.delete(f"/api/boards/{board['id']}/star", headers=CSRF_HEADERS)
-    assert api.delete(f"/api/boards/{board['id']}/star", headers=CSRF_HEADERS).status_code == 200
-
-    assert unstarred.json() == {"is_starred": False}
-    assert board["id"] not in _ids(_groups(api)["starred"])
-
-
-def test_reading_a_board_puts_it_in_recently_viewed(api: TestClient, board: dict[str, Any]) -> None:
-    assert api.get(f"/api/boards/{board['id']}").status_code == 200
-
-    assert board["id"] in _ids(_groups(api)["recent"])
-
-
-def test_recently_viewed_holds_at_most_four_boards(
-    api: TestClient, board_factory: BoardFactory
-) -> None:
-    viewed = [board_factory(f"Viewed {index}") for index in range(5)]
-    for created in viewed:
-        assert api.get(f"/api/boards/{created['id']}").status_code == 200
-        # `board_views.viewed_at` is `utcnow_iso()`, which is millisecond precision, and
-        # "Recently viewed" sorts on nothing else (`services/boards.py` `list_boards`). Two
-        # views inside one millisecond are therefore recorded as simultaneous and the stable
-        # sort falls back to the SQL order, which is by name. A person cannot open two boards
-        # that fast - each view is a navigation and a round trip - but `TestClient` calls in
-        # process can, which made this assertion flaky. The wait makes the five views the
-        # distinct events the assertions below describe.
-        _wait_for_the_next_millisecond()
-
-    recent = _groups(api)["recent"]
-
-    assert len(recent) == 4
-    assert viewed[0]["id"] not in _ids(recent)  # the least recently viewed falls off
-    assert recent[0]["id"] == viewed[-1]["id"]  # newest first
-
-
-def test_a_closed_board_leaves_the_groups_and_appears_under_closed(
-    api: TestClient, board: dict[str, Any]
-) -> None:
-    assert api.put(f"/api/boards/{board['id']}/star", headers=CSRF_HEADERS).status_code == 200
-
     closed = api.post(f"/api/boards/{board['id']}/close", headers=CSRF_HEADERS)
 
     assert closed.status_code == 200
     assert closed.json()["item"]["is_closed"] is True
     assert closed.json()["board_version"] == closed.json()["item"]["version"]
-    open_groups = _groups(api)
-    assert board["id"] not in _ids(open_groups["all"])
-    assert board["id"] not in _ids(open_groups["starred"])
+    assert board["id"] not in _ids(_groups(api)["all"])
     assert board["id"] in _ids(_groups(api, closed=True)["closed"])
 
 
@@ -263,18 +195,7 @@ def test_a_closed_board_still_reads_but_refuses_a_patch(
     assert patched.json()["error"]["code"] == "conflict"
 
 
-def test_star_is_still_allowed_on_a_closed_board(api: TestClient, board: dict[str, Any]) -> None:
-    """`board_access(allow_closed=True)` exempts star, reopen and delete (Section 4.1)."""
-    assert api.post(f"/api/boards/{board['id']}/close", headers=CSRF_HEADERS).status_code == 200
-
-    starred = api.put(f"/api/boards/{board['id']}/star", headers=CSRF_HEADERS)
-    unstarred = api.delete(f"/api/boards/{board['id']}/star", headers=CSRF_HEADERS)
-
-    assert starred.json() == {"is_starred": True}
-    assert unstarred.json() == {"is_starred": False}
-
-
-def test_reopen_puts_the_board_back_in_the_groups(api: TestClient, board: dict[str, Any]) -> None:
+def test_reopen_puts_the_board_back_in_the_list(api: TestClient, board: dict[str, Any]) -> None:
     assert api.post(f"/api/boards/{board['id']}/close", headers=CSRF_HEADERS).status_code == 200
 
     reopened = api.post(f"/api/boards/{board['id']}/reopen", headers=CSRF_HEADERS)
@@ -321,19 +242,13 @@ def test_a_board_id_of_zero_is_rejected_by_the_path_type(api: TestClient) -> Non
 # ------------------------------------------------------------------- writes outside write_tx
 
 
-def test_neither_a_star_nor_a_board_view_bumps_the_board_version(
-    api: TestClient, board: dict[str, Any]
-) -> None:
-    """Both are writes outside `write_tx` (Section 4.1): no bump, no activity, no event."""
+def test_reading_a_board_does_not_bump_its_version(api: TestClient, board: dict[str, Any]) -> None:
+    """A read is a read: nothing is recorded on the way through (Section 4.1)."""
     assert board["version"] == 1
 
-    api.get(f"/api/boards/{board['id']}")  # the board_views upsert
     api.get(f"/api/boards/{board['id']}")
-    assert _version(api, board["id"]) == 1
+    api.get(f"/api/boards/{board['id']}")
 
-    api.put(f"/api/boards/{board['id']}/star", headers=CSRF_HEADERS)
-    assert _version(api, board["id"]) == 1
-    api.delete(f"/api/boards/{board['id']}/star", headers=CSRF_HEADERS)
     assert _version(api, board["id"]) == 1
 
 
@@ -349,7 +264,7 @@ def test_the_backgrounds_view_lists_the_presets_and_an_empty_library(
 
 
 @pytest.mark.parametrize("closed", [False, True])
-def test_the_groups_are_disjoint_by_closed_state(
+def test_the_listing_holds_one_group_decided_by_closed_state(
     api: TestClient, board_factory: BoardFactory, closed: bool
 ) -> None:
     created = board_factory("Group membership")
@@ -358,6 +273,6 @@ def test_the_groups_are_disjoint_by_closed_state(
 
     groups = _groups(api, closed=closed)
 
-    assert set(groups) == ({"closed"} if closed else {"starred", "recent", "all"})
     key = "closed" if closed else "all"
+    assert set(groups) == {key}
     assert created["id"] in _ids(groups[key])

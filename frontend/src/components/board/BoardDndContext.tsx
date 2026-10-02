@@ -37,7 +37,7 @@ export interface BoardDndContextProps {
 /**
  * The board's one `DragDropContext` (Sections 2.7 and 5.5). `BoardCanvas` wraps its columns in
  * it, `ListsDroppable` holds them, and each list body is a `CardsDroppable` of `CardTile`
- * draggables; the modal's checklists get their own context in M3.
+ * draggables; the card modal's items get their own context in `CardDetailModal`.
  *
  * `onDragEnd` does nothing itself: `lib/boardDnd.ts` turns the drop into the move, and the
  * mutation hooks own the optimistic splice and the write-back of the server's `position`. The

@@ -1,7 +1,7 @@
 {
   "name": "kanban-root",
   "private": true,
-  "description": "Root task runner for Kan Ban: one command drives the Python API and the Vite frontend together.",
+  "description": "Root task runner for My Day: one command drives the Python API and the Vite frontend together.",
   "engines": {
     "node": ">=20"
   },

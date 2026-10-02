@@ -85,16 +85,17 @@ describe('BoardMenuDrawer', () => {
     expect(screen.getByRole('button', { name: 'Create a new label' })).toBeInTheDocument();
   });
 
-  it('pushes the Settings panel with the covers toggle', async () => {
+  it('pushes the Settings panel with the colour-blind toggle', async () => {
     const user = userEvent.setup();
     renderDrawer();
 
     await user.click(await screen.findByRole('button', { name: 'Settings' }));
 
-    expect(screen.getByLabelText('Card covers enabled')).toBeChecked();
+    const toggle = screen.getByLabelText('Color blind friendly mode');
+    expect(toggle).not.toBeChecked();
 
-    await user.click(screen.getByLabelText('Card covers enabled'));
-    expect(screen.getByLabelText('Card covers enabled')).not.toBeChecked();
+    await user.click(toggle);
+    expect(screen.getByLabelText('Color blind friendly mode')).toBeChecked();
   });
 
   it('pushes the activity feed, whose rows are sentences from lib/activity.ts', async () => {

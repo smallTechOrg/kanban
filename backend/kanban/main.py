@@ -21,12 +21,11 @@ from kanban.middleware import RequestIdMiddleware
 from kanban.ratelimit import RateLimitMiddleware
 from kanban.routers import (
     activity,
-    attachments,
     boards,
     cards,
-    checklists,
     events,
     health,
+    items,
     labels,
     lists,
     meta,
@@ -50,7 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # binding the loop here is what makes `loop.call_soon_threadsafe` legal from a worker thread.
     event_bus.loop = asyncio.get_running_loop()
     app.state.bus = event_bus
-    logger.info("Kan Ban %s ready (env=%s, db=%s)", __version__, settings.env, settings.db_path)
+    logger.info("My Day %s ready (env=%s, db=%s)", __version__, settings.env, settings.db_path)
     yield
     engine.dispose()
 
@@ -73,15 +72,10 @@ def create_app() -> FastAPI:
     # header is answered before the body limit wraps `receive()` and before any dependency runs.
     middleware.append(Middleware(RateLimitMiddleware))
     middleware.append(Middleware(CsrfHeaderMiddleware))
-    middleware.append(
-        Middleware(
-            BodySizeLimitMiddleware,
-            max_upload_bytes=settings.max_upload_mb * 1024 * 1024,
-        )
-    )
+    middleware.append(Middleware(BodySizeLimitMiddleware))
 
     app = FastAPI(
-        title="Kan Ban API",
+        title="My Day API",
         version=__version__,
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
@@ -96,8 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(lists.router, prefix="/api")
     app.include_router(cards.router, prefix="/api")
     app.include_router(labels.router, prefix="/api")
-    app.include_router(attachments.router, prefix="/api")
-    app.include_router(checklists.router, prefix="/api")
+    app.include_router(items.router, prefix="/api")
     app.include_router(activity.router, prefix="/api")
     app.include_router(events.router, prefix="/api")
     app.include_router(search.router, prefix="/api")

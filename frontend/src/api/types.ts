@@ -35,11 +35,9 @@ export interface LabelColor {
 export interface Meta {
   version: string;
   label_colors: Record<string, LabelColor>;
-  cover_colors: Record<string, string>;
   board_colors: Record<string, string>;
   board_gradients: Record<string, string>;
   list_colors: Record<string, string>;
-  max_upload_mb: number;
 }
 
 export type BackgroundType = 'color' | 'gradient' | 'image';
@@ -55,15 +53,12 @@ export interface BoardSummary {
   background_thumb_url: string | null;
   is_closed: boolean;
   version: number;
-  is_starred: boolean;
   created_at: string;
   updated_at: string;
 }
 
-/** `GET /api/boards` — `starred` by star position, `recent` the last 4 viewed, `all` alphabetical. */
+/** `GET /api/boards` — one flat list of every open board, alphabetical. */
 export interface BoardGroups {
-  starred: BoardSummary[];
-  recent: BoardSummary[];
   all: BoardSummary[];
 }
 
@@ -127,33 +122,20 @@ export interface ListList {
   items: ListWithCount[];
 }
 
-/** The four tile badge counts of Sections 2.5.3 and 4.10.1. */
+/** The three tile badge counts of Sections 2.5.3 and 4.10.1. */
 export interface Badges {
   description: boolean;
-  attachments: number;
-  checklist_done: number;
-  checklist_total: number;
-}
-
-export type CoverKind = 'color' | 'attachment';
-export type CoverSize = 'normal' | 'full';
-
-/**
- * `cards.cover_type` / `cover_value` / `cover_size` as the tile reads them (Section 4.10.1).
- * `image_url` and `dominant_color` are only ever set for an `attachment` cover (M4).
- */
-export interface CardCover {
-  kind: CoverKind;
-  value: string;
-  size: CoverSize;
-  image_url?: string;
-  dominant_color?: string;
+  item_done: number;
+  item_total: number;
 }
 
 /**
  * A card as every card response and the board payload carry it (Sections 4.5 and 4.10.1).
  * `client_id` is the stored `cards.client_id` echoed for the row's lifetime, so `CardTile`
  * keys on `client_id ?? id` and never remounts on the optimistic id swap (Section 4.4).
+ *
+ * `items` is the array itself rather than a count, because the tile lists them under the
+ * title (Section 2.5.1); `badges.item_done` / `item_total` are the same rows counted.
  */
 export interface CardSummary {
   id: number;
@@ -164,21 +146,20 @@ export interface CardSummary {
   title: string;
   position: number;
   is_archived: boolean;
-  is_template: boolean;
   start_at: string | null;
   due_at: string | null;
   due_complete: boolean;
-  cover: CardCover | null;
   label_ids: number[];
+  items: CardItem[];
   badges: Badges;
   created_at: string;
   updated_at: string;
 }
 
-/** One row of a checklist, as Section 4.6 types it. */
-export interface ChecklistItem {
+/** One checkable item of a card, as Section 4.6 types it. */
+export interface CardItem {
   id: number;
-  checklist_id: number;
+  card_id: number;
   name: string;
   position: number;
   is_checked: boolean;
@@ -187,67 +168,17 @@ export interface ChecklistItem {
 }
 
 /**
- * `PATCH /api/checklist-items/{item_id}` answers with `ChecklistItemOut & {badges}`, so ticking
- * an item patches the tile's `checklist_done / checklist_total` from the same round trip
- * (Section 4.6).
+ * `PATCH /api/card-items/{item_id}` answers with `CardItemOut & {badges}`, so ticking an item
+ * patches the tile's `item_done / item_total` from the same round trip (Section 4.6).
  */
-export interface ChecklistItemPatched extends ChecklistItem {
+export interface CardItemPatched extends CardItem {
   badges: Badges;
 }
 
-/** A checklist with its items in `position` order (Section 4.6). */
-export interface Checklist {
-  id: number;
-  card_id: number;
-  name: string;
-  position: number;
-  items: ChecklistItem[];
-}
-
-/** `POST /api/checklists/{checklist_id}/items` with `split_lines`: one item per line (4.6). */
+/** `POST /api/cards/{card_id}/items` with `split_lines`: one item per line (4.6). */
 export interface ItemsCreated {
-  items: ChecklistItem[];
+  items: CardItem[];
   board_version: number;
-}
-
-/** One row of `GET /api/boards/{board_id}/checklists`: the "Copy items from…" select (4.6). */
-export interface BoardChecklist {
-  id: number;
-  name: string;
-  card_id: number;
-  card_title: string;
-  item_count: number;
-}
-
-/** `GET /api/boards/{board_id}/checklists` (Section 4.6). */
-export interface BoardChecklistList {
-  items: BoardChecklist[];
-}
-
-/** `attachments.kind`: an uploaded file or a pasted link (Sections 3.4 and 4.6). */
-export type AttachmentKind = 'upload' | 'link';
-
-/**
- * One `attachments` row (`AttachmentOut`, Section 4.6). `url` is what the row links to and
- * what the section renders: `/uploads/attachments/{id}/{safe_name}` for an upload (Section
- * 3.11) or the pasted `http(s)` address for a link. `thumb_url` is the 512x256 2:1 JPEG
- * images get, which is also the `cover.image_url` of a card covered by this attachment, and
- * `dominant_color` the colour Pillow read off it; both are `null` for everything else.
- */
-export interface Attachment {
-  id: number;
-  card_id: number;
-  name: string;
-  kind: AttachmentKind;
-  url: string;
-  mime_type: string | null;
-  size_bytes: number | null;
-  is_image: boolean;
-  thumb_url: string | null;
-  dominant_color: string | null;
-  /** True while this attachment is the card's cover, so the row offers "Remove cover". */
-  is_cover: boolean;
-  created_at: string;
 }
 
 /**
@@ -260,16 +191,13 @@ export type DueReminderMinutes = 0 | 5 | 10 | 15 | 60 | 120 | 1440 | 2880;
 /**
  * `GET /api/cards/{card_id}` — `CardSummary` plus the fields only the modal reads (Section 4.5).
  * `label_ids` stays an id array because the board payload already cached every label of the
- * board; `attachments` does not, because only the modal renders it and the cover strip reads
- * the original image out of it by `Number(cover.value)` (Section 2.6.1).
+ * board, and `items` is inherited: the tile and `ItemsSection` render one array.
  */
 export interface CardDetail extends CardSummary {
   description: string;
   due_reminder_minutes: number | null;
   board_name: string;
   list_name: string;
-  checklists: Checklist[];
-  attachments: Attachment[];
 }
 
 /**
@@ -317,11 +245,6 @@ export type Board = BoardPayload;
 export interface CardsCreated {
   items: CardSummary[];
   board_version: number;
-}
-
-/** `PUT` / `DELETE /api/boards/{board_id}/star`. A star bumps no version and records no activity. */
-export interface StarState {
-  is_starred: boolean;
 }
 
 /** `GET /api/boards/{board_id}/backgrounds` — the `/api/meta` presets plus the uploaded images. */
@@ -435,8 +358,8 @@ export interface ActivityPage {
   next_before: number | null;
 }
 
-/** The seven entities an event can name (Section 4.8); `item` is a checklist item. */
-export type EventEntity = 'board' | 'list' | 'card' | 'label' | 'checklist' | 'item' | 'attachment';
+/** The five entities an event can name (Section 4.8); `item` is a card item. */
+export type EventEntity = 'board' | 'list' | 'card' | 'label' | 'item';
 
 /**
  * One SSE frame of `GET /api/boards/{board_id}/events` and one item of `/changes` (Section 4.8).

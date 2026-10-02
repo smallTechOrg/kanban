@@ -134,31 +134,26 @@ describe('CardDetailModal', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('mounts the attachments section and the activity feed of Section 2.6.3', async () => {
+  it('mounts the items section and the activity feed of Section 2.6.3', async () => {
     renderAt(CARD_URL);
     const dialog = await openModal();
 
-    // `AttachmentsSection` renders with no attachments, because it owns the modal-wide drop zone.
-    expect(within(dialog).getByRole('heading', { name: 'Attachments' })).toBeInTheDocument();
+    // `ItemsSection` renders whether or not the card has items (Section 2.6.3).
+    expect(within(dialog).getByRole('heading', { name: 'Items' })).toBeInTheDocument();
     expect(within(dialog).getByRole('heading', { name: 'Activity' })).toBeInTheDocument();
   });
 
-  it('shows the cover strip and the archived band the card asks for', async () => {
+  it('shows the archived band the card asks for', async () => {
     server.use(
       http.get('/api/cards/:cardId', () =>
-        HttpResponse.json(
-          makeCardDetail({
-            is_archived: true,
-            cover: { kind: 'color', value: 'sky', size: 'normal' },
-          }),
-        ),
+        HttpResponse.json(makeCardDetail({ is_archived: true })),
       ),
     );
     renderAt(CARD_URL);
     const dialog = await openModal();
 
     expect(within(dialog).getByText('This card is archived.')).toBeInTheDocument();
-    // The strip's own control (Section 2.6.1); the sidebar's "Cover" row is the other one.
-    expect(within(dialog).getAllByRole('button', { name: 'Cover' })).toHaveLength(2);
+    // An archived card is the one state that offers a way back to the board (Section 2.6.4).
+    expect(within(dialog).getByRole('button', { name: 'Send to board' })).toBeInTheDocument();
   });
 });

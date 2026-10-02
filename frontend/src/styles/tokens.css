@@ -40,8 +40,6 @@
   /* The hatched band an archived card's modal wears (Section 2.6.1, ArchivedBanner). */
   --archived-bg: #fbe5b4;
   --archived-stripe: rgba(0, 0, 0, 0.05);
-  /* The gradient a full-size cover paints its white title over (Sections 2.5.1 and 2.6.1). */
-  --cover-scrim: rgba(0, 0, 0, 0.6);
   /* The same wash at the hover strength Section 2.5.4 gives the quick editor's side buttons. */
   --quick-edit-overlay-hover: rgba(0, 0, 0, 0.8);
   /* Text on a dark fill and the dark panel itself (Section 2.1.2: Button primary is white;
@@ -147,6 +145,7 @@
   --t-popover: 0.1s ease;
   --t-drawer: 0.2s ease;
   --t-bg: 0.2s ease;
+  --t-rise: 0.32s ease;
 }
 
 /* Trello's pre-2023 radii. localStorage-only in v1 (no UI toggle). */
@@ -174,5 +173,6 @@
     --t-popover: 0s;
     --t-drawer: 0s;
     --t-bg: 0s;
+    --t-rise: 0s;
   }
 }

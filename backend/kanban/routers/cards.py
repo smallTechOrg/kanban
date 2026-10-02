@@ -13,11 +13,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.orm import Session
 
-from kanban import copy
 from kanban.access import BoardCtx, card_access, list_access
 from kanban.db import get_db
 from kanban.schemas.cards import (
-    CardCopyIn,
     CardCreateIn,
     CardDetail,
     CardMoveIn,
@@ -78,7 +76,7 @@ def read_card(card_id: CardId, access: CardAccess, db: Db) -> CardDetail:
 
 @router.patch("/cards/{card_id}", response_model=CardMutated)
 def update_card(card_id: CardId, body: CardUpdateIn, access: CardAccess, db: Db) -> CardMutated:
-    """Patch a card's scalar fields (Section 4.5). Moving, archiving and covers have own routes."""
+    """Patch a card's scalar fields (Section 4.5). Moving and archiving have their own routes."""
     result = service.update_card(
         db,
         board_id=access.board_id,
@@ -96,10 +94,8 @@ def move_card(card_id: CardId, body: CardMoveIn, access: CardAccess, db: Db) -> 
     """The drag-and-drop endpoint (Sections 4.9 and 6.7.2); `PATCH` is the documented alias.
 
     `positions` is empty unless the destination had to be renumbered, in which case the client
-    writes every listed position into its cache before re-sorting. A `to_board_id` naming another
-    board is the cross-board move of Section 3.6 and answers with *that* board's `board_version`;
-    the caller's right to write there is checked by the service, because the id is in the body and
-    no path dependency ever sees it.
+    writes every listed position into its cache before re-sorting. The destination is a list of
+    the board this route already resolved: a card never changes board (Section 3.6).
     """
     result = service.move_card(
         db,
@@ -109,36 +105,11 @@ def move_card(card_id: CardId, body: CardMoveIn, access: CardAccess, db: Db) -> 
         index=body.index,
         prev_id=body.prev_id,
         next_id=body.next_id,
-        to_board_id=body.to_board_id,
     )
     return CardMoveResult(
         item=CardSummary.model_validate(result.item),
         positions=result.positions,
         board_version=result.board_version,
-    )
-
-
-@router.post(
-    "/cards/{card_id}/copy", response_model=CardMutated, status_code=status.HTTP_201_CREATED
-)
-def copy_card(card_id: CardId, body: CardCopyIn, access: CardAccess, db: Db) -> CardMutated:
-    """Copy a card, optionally onto another board's list (Sections 4.5 and 3.6).
-
-    The `keep` flags are handed to `kanban/copy.py`'s own `Keep`, which is the single answer to
-    what a copy brings along; this handler only maps the body onto it.
-    """
-    result = service.copy_card(
-        db,
-        board_id=access.board_id,
-        card_id=card_id,
-        title=body.title,
-        to_list_id=body.to_list_id,
-        index=body.index,
-        keep=copy.Keep(**body.keep.model_dump()),
-        is_template=body.is_template,
-    )
-    return CardMutated(
-        item=CardSummary.model_validate(result.item), board_version=result.board_version
     )
 
 
@@ -162,5 +133,5 @@ def unarchive_card(card_id: CardId, access: CardAccess, db: Db) -> CardMutated:
 
 @router.delete("/cards/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_card(card_id: CardId, access: CardAccess, db: Db) -> None:
-    """Delete an archived card; 409 `conflict` unless it is archived (Section 3.7)."""
+    """Delete a card and its items (Section 3.7). The card need not be archived first."""
     service.delete_card(db, board_id=access.board_id, card_id=card_id)

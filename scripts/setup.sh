@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Kan Ban -- one-time setup (Linux/macOS/Git Bash).
+# My Day -- one-time setup (Linux/macOS/Git Bash).
 # Thin wrapper over `npm run setup`; package.json owns what setup actually does.
 set -eu
 
@@ -12,6 +12,6 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "==> Setting up Kan Ban in $ROOT"
+echo "==> Setting up My Day in $ROOT"
 npm run setup
 echo "==> Done. Next: '$ROOT/scripts/dev.sh' for the dev loop, or 'npm run build && npm start' for production."

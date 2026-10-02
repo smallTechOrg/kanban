@@ -20,7 +20,7 @@ const SKELETON_LISTS = 3;
 const SKELETON_CARDS = 3;
 
 /** The document title outside a board, as index.html ships it. */
-const APP_TITLE = 'Kan Ban';
+const APP_TITLE = 'My Day';
 
 /**
  * `/b/:boardId` (Section 5.2). It reads the normalised board document through

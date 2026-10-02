@@ -6,7 +6,6 @@ from kanban import __version__
 from kanban.constants import (
     BOARD_COLORS,
     BOARD_GRADIENTS,
-    COVER_COLORS,
     LABEL_COLORS,
     LIST_COLORS,
 )
@@ -14,11 +13,9 @@ from kanban.constants import (
 META_FIELDS = (
     "version",
     "label_colors",
-    "cover_colors",
     "board_colors",
     "board_gradients",
     "list_colors",
-    "max_upload_mb",
 )
 
 
@@ -52,7 +49,6 @@ def test_meta_serves_the_palettes_from_constants(api: TestClient) -> None:
     payload = api.get("/api/meta").json()
 
     assert payload["label_colors"] == LABEL_COLORS
-    assert payload["cover_colors"] == COVER_COLORS
     assert payload["board_colors"] == BOARD_COLORS
     assert payload["board_gradients"] == BOARD_GRADIENTS
     assert payload["list_colors"] == LIST_COLORS

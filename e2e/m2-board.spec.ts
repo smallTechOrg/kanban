@@ -182,7 +182,7 @@ test('M2: board page, composers, mouse drag-and-drop, list menu', async ({ page 
 
     // Section 3.10: `default_lists` is To Do, Doing, Done, in that order.
     await expectLists(page, [FIRST_LIST, DOING, DONE]);
-    await expect(page).toHaveTitle(`${BOARD} | Kan Ban`);
+    await expect(page).toHaveTitle(`${BOARD} | My Day`);
   });
 
   await test.step('2. rename the first list inline; the name survives a reload', async () => {

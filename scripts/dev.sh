@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Kan Ban -- start the API (:8000, --reload) and Vite (:5173) together.
+# My Day -- start the API (:8000, --reload) and Vite (:5173) together.
 # Thin wrapper over `npm run dev`; package.json owns the two commands.
 set -eu
 

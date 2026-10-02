@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kanban"
-version = "2.0.0"
-description = "Kan Ban - a self-hosted Trello-style kanban board (API + SPA host)."
+version = "3.0.0"
+description = "My Day - a self-hosted board for everything you are keeping track of (API + SPA host)."
 requires-python = ">=3.12"
 license = { text = "MIT" }
 

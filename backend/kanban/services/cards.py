@@ -10,57 +10,31 @@ takes the `board_id` the router resolved. Live SSE events are
 derived from the `activities` rows this module records, by the `Session` listeners of `events.py`,
 so nothing here publishes one.
 
-The one permission decision that cannot be a dependency lives here for the same reason: a
-cross-board move and a cross-board copy name their destination board in the *body*, which
-`access.board_access` never sees, so Section 3.6 puts the destination check in the service.
-`target_board()` makes it, applying exactly the rules that dependency applies and none of its own -
-404 for a board that is not there, 409 for a closed one - and `reassign_board()` is the
-row surgery a card needs when it changes board (a fresh `short_id`, and the labels dropped
-because they belong to the board it left). `services/lists.py` calls both for that move rather than
-writing a second copy, exactly as it already calls `next_short_id`.
+A card never changes board: a move names a list on the board the router already resolved. The two
+helpers that hand a row to another board - `target_board()` and `reassign_board()` - survive for
+the *list* move of Section 3.6, which carries its whole column across and names its destination
+board in the body, where `access.board_access` cannot see it. `services/lists.py` calls both rather
+than writing a second copy, exactly as it already calls `next_short_id`.
 
 Because the `CardDetail` of Section 4.5 *is* the card plus its children, this module owns the read
-shapes those children are returned in - `card_badges`, `card_label_ids`, `checklist_out`,
-`checklist_item_out`, `attachment_out` and `card_attachments` - and `services/labels.py`,
-`services/checklists.py` and `services/attachments.py` call them instead of writing a second copy
-(CLAUDE.md section 3). The dependency can only run this way: all three of those modules already
-import this one for `next_short_id`, the badges and the card summary, and the reverse edge would be
-a circular import.
+shapes those children are returned in - `card_badges`, `card_label_ids`, `card_item_out`,
+`card_items` and `card_items_out` - and `services/labels.py` and `services/items.py` call them
+instead of writing a second copy (CLAUDE.md section 3). The dependency can only run this way: both
+of those modules already import this one for `next_short_id`, the badges and the card summary, and
+the reverse edge would be a circular import.
 """
 
-import re
 from collections.abc import Sequence
 from typing import Any, NamedTuple
-from urllib.parse import urlsplit
 
 from sqlalchemy import collate, delete, func, select
 from sqlalchemy.orm import Session
 
-from kanban import activity, copy, storage
+from kanban import activity
 from kanban.db import WriteCtx, write_tx
 from kanban.errors import BadRequest, Conflict, NotFound
-from kanban.models import (
-    Attachment,
-    Board,
-    Card,
-    CardLabel,
-    Checklist,
-    ChecklistItem,
-    Label,
-    List,
-)
+from kanban.models import Board, Card, CardItem, CardLabel, Label, List
 from kanban.ordering import check_neighbours, place_in_container
-from kanban.services.boards import UPLOADS_URL, orphaned_upload_ids
-
-#: `cards.cover_type` for a cover that points at one of the card's image attachments (Section 3.4).
-ATTACHMENT_COVER = "attachment"
-
-#: What a link whose URL has no host falls back to for its display name (Section 4.6).
-LINK_FALLBACK_NAME = "Link"
-
-#: Section 4.4: a composer title that is *nothing but* an `http(s)` URL is a pasted link, not a
-#: title. Anything with a space, or any other scheme, is the title the person typed.
-_BARE_URL = re.compile(r"^https?://\S+$", re.IGNORECASE)
 
 #: `GET /api/boards/{board_id}/archived` (Section 4.3): the documented page size and the Section
 #: 4.1 cursor cap, shared by the cards page here and the lists page of `services/lists.py`.
@@ -141,174 +115,32 @@ def _board_of_list(db: Session, list_id: int) -> int:
     return int(board_id)
 
 
-def _cover(db: Session, card: Card) -> dict[str, Any] | None:
-    """The `cover` object of Section 4.10.1, or `None` when the card has no cover.
-
-    An `attachment` cover also carries the `image_url` and `dominant_color` of the row its
-    `cover_value` names, because that is what `CardTile` paints (Section 2.5.1) and what the
-    optimistic patch of a cover mutation writes into the tile's cache. `board_payload.py` resolves
-    the same two columns for a whole board in its one cards statement; this is the single-row form,
-    and the second statement only ever runs for a card that has an image cover.
-    """
-    if card.cover_type is None or card.cover_value is None:
-        return None
-    cover: dict[str, Any] = {
-        "kind": card.cover_type,
-        "value": card.cover_value,
-        "size": card.cover_size,
-    }
-    if card.cover_type != ATTACHMENT_COVER:
-        return cover
-    row = db.execute(
-        select(Attachment.thumb_path, Attachment.dominant_color).where(
-            Attachment.id == _as_row_id(card.cover_value)
-        )
-    ).first()
-    if row is not None and row.thumb_path is not None:
-        cover["image_url"] = f"{UPLOADS_URL}/{row.thumb_path}"
-    if row is not None and row.dominant_color is not None:
-        cover["dominant_color"] = row.dominant_color
-    return cover
-
-
-def _as_row_id(value: str) -> int:
-    """`cards.cover_value` read as the `attachments.id` it holds for an `attachment` cover.
-
-    The column is one TEXT column for both cover kinds (Section 3.4), and only this module and
-    `board_payload.py` (which casts in SQL) ever turn it back into an id. `-1` matches no row, so a
-    value that is somehow not a number degrades to a cover with no image rather than a 500.
-    """
-    return int(value) if value.isdigit() else -1
-
-
-def link_name(url: str) -> str:
-    """The display name a link attachment defaults to: the URL's host (Section 4.6)."""
-    return urlsplit(url).hostname or LINK_FALLBACK_NAME
-
-
-def pasted_link_host(title: str) -> str | None:
-    """The host of `title` when the composer was handed a bare `http(s)` URL (Section 4.4).
-
-    `None` for every ordinary title, and for a URL with no host at all, which has no name to
-    become the card's - the raw text is kept instead, so nothing a person typed is ever lost.
-    """
-    if _BARE_URL.match(title) is None:
-        return None
-    return urlsplit(title).hostname or None
-
-
-def add_link_attachment(
-    db: Session, ctx: WriteCtx, *, card: Card, url: str, name: str | None = None
-) -> int:
-    """Insert one `kind='link'` attachment on `card` and record `attachment.added` (Section 4.6).
-
-    Transaction-less on purpose: the caller owns the `write_tx`, which is what lets
-    `POST /api/lists/{list_id}/cards` create the card and the link a pasted URL turns into inside
-    one transaction (Section 4.4) while `services/attachments.create_link_attachment` wraps the
-    same rows in a transaction of its own. Raises nothing; the card is already loaded.
-    """
-    row = Attachment(
-        card_id=card.id,
-        kind="link",
-        name=name or link_name(url),
-        url=url,
-    )
-    db.add(row)
-    db.flush()
-    activity.record(
-        ctx,
-        "attachment.added",
-        card_id=card.id,
-        list_id=card.list_id,
-        card_title=card.title,
-        attachment_id=int(row.id),
-        attachment_name=row.name,
-        kind="link",
-    )
-    return int(row.id)
-
-
-def attachment_out(db: Session, row: Attachment) -> dict[str, Any]:
-    """The `AttachmentOut` of Section 4.6 for one row.
-
-    `url` and `thumb_url` are `file_path` / `thumb_path` under `/uploads/`, which Section 3.11
-    guarantees: "the path of every file under `uploads/` is exactly its URL path after
-    `/uploads/`", so no second naming scheme exists to disagree with the one on disk. `is_cover` is
-    derived from the owning card rather than stored, which is what makes the row's action read
-    "Remove cover" instead of "Make cover" (Section 2.6.4).
-
-    It lives here rather than in `services/attachments.py` for the reason the docstring at the top
-    of this module gives: `CardDetail` carries `attachments`, and that module already imports this
-    one, so this is the only direction that is not a cycle.
-    """
-    cover = db.execute(
-        select(Card.cover_type, Card.cover_value).where(Card.id == row.card_id)
-    ).one()
-    return {
-        "id": row.id,
-        "card_id": row.card_id,
-        "name": row.name,
-        "kind": row.kind,
-        "url": row.url,
-        "mime_type": row.mime_type,
-        "size_bytes": row.size_bytes,
-        "is_image": bool(row.is_image),
-        "thumb_url": f"{UPLOADS_URL}/{row.thumb_path}" if row.thumb_path else None,
-        "dominant_color": row.dominant_color,
-        "is_cover": cover.cover_type == ATTACHMENT_COVER and cover.cover_value == str(row.id),
-        "created_at": row.created_at,
-    }
-
-
-def card_attachments(db: Session, card_id: int) -> list[dict[str, Any]]:
-    """Every attachment of one card, newest first, as `CardDetail.attachments` (Section 4.5).
-
-    `AttachmentsSection` lists the most recent upload at the top and the cover strip reads the
-    covering row out of the same array (Section 2.6.4), so the order is `id DESC`.
-    """
-    rows = db.execute(
-        select(Attachment).where(Attachment.card_id == card_id).order_by(Attachment.id.desc())
-    ).scalars()
-    return [attachment_out(db, row) for row in rows]
-
-
 def _badges(db: Session, card: Card) -> dict[str, Any]:
-    """The four badge counts of Section 2.5 for one card, in one statement.
+    """The three badge counts of Section 2.5 for one card, in one statement.
 
-    `board_payload.py` computes the same four values for a whole board with correlated
+    `board_payload.py` computes the same three values for a whole board with correlated
     sub-selects; this is the single-row form every card mutation answers with.
     """
-    items = (
-        select(func.count())
-        .select_from(ChecklistItem)
-        .join(Checklist, Checklist.id == ChecklistItem.checklist_id)
-        .where(Checklist.card_id == card.id)
-    )
+    items = select(func.count()).select_from(CardItem).where(CardItem.card_id == card.id)
     counts = db.execute(
         select(
-            select(func.count())
-            .select_from(Attachment)
-            .where(Attachment.card_id == card.id)
-            .scalar_subquery()
-            .label("attachments"),
-            items.scalar_subquery().label("checklist_total"),
-            items.where(ChecklistItem.is_checked == 1).scalar_subquery().label("checklist_done"),
+            items.scalar_subquery().label("item_total"),
+            items.where(CardItem.is_checked == 1).scalar_subquery().label("item_done"),
         )
     ).one()
     return {
         "description": card.description != "",
-        "attachments": counts.attachments,
-        "checklist_done": counts.checklist_done,
-        "checklist_total": counts.checklist_total,
+        "item_done": counts.item_done,
+        "item_total": counts.item_total,
     }
 
 
 def card_badges(db: Session, *, card_id: int) -> dict[str, Any]:
     """The four badge counts of Section 2.5 for one card, addressed by id.
 
-    `services.checklists` answers its item patch with exactly this object (Section 4.6), so
-    ticking an item updates the tile's `checklist_done / checklist_total` from the same round trip
-    without assembling the whole `CardDetail` around it.
+    `services.items` answers its item patch with exactly this object (Section 4.6), so ticking an
+    item updates the tile's `item_done / item_total` from the same round trip without assembling
+    the whole `CardDetail` around it.
     """
     return _badges(db, _load(db, card_id))
 
@@ -332,7 +164,9 @@ def card_label_ids(db: Session, *, card_id: int) -> list[int]:
 def _summary(db: Session, card: Card) -> dict[str, Any]:
     """Build the `CardSummary` of Section 4.10.1 for one card.
 
-    `label_ids` are ordered the way the chips row renders them (label `position`).
+    `label_ids` are ordered the way the chips row renders them (label `position`), and `items`
+    is the array the tile lists under the title (Section 2.5.1) - the same one `CardDetail`
+    carries, which is why it is built here rather than once per caller.
     """
     return {
         "id": card.id,
@@ -343,23 +177,22 @@ def _summary(db: Session, card: Card) -> dict[str, Any]:
         "title": card.title,
         "position": card.position,
         "is_archived": bool(card.is_archived),
-        "is_template": bool(card.is_template),
         "start_at": card.start_at,
         "due_at": card.due_at,
         "due_complete": bool(card.due_complete),
-        "cover": _cover(db, card),
         "label_ids": card_label_ids(db, card_id=card.id),
+        "items": card_items_out(db, card.id),
         "badges": _badges(db, card),
         "created_at": card.created_at,
         "updated_at": card.updated_at,
     }
 
 
-def checklist_item_out(row: ChecklistItem) -> dict[str, Any]:
-    """The `ChecklistItemOut` of Section 4.6 for one `checklist_items` row."""
+def card_item_out(row: CardItem) -> dict[str, Any]:
+    """The `CardItemOut` of Section 4.6 for one `card_items` row."""
     return {
         "id": row.id,
-        "checklist_id": row.checklist_id,
+        "card_id": row.card_id,
         "name": row.name,
         "position": row.position,
         "is_checked": bool(row.is_checked),
@@ -368,27 +201,17 @@ def checklist_item_out(row: ChecklistItem) -> dict[str, Any]:
     }
 
 
-def _checklist_fields(row: Checklist) -> dict[str, Any]:
-    """Everything a `ChecklistOut` carries except its `items` (Section 4.6)."""
-    return {
-        "id": row.id,
-        "card_id": row.card_id,
-        "name": row.name,
-        "position": row.position,
-    }
-
-
-def checklist_items(db: Session, checklist_id: int) -> list[ChecklistItem]:
-    """One checklist's items in the `(position, id)` order every ordered table is read in (4.9).
+def card_items(db: Session, card_id: int) -> list[CardItem]:
+    """One card's items in the `(position, id)` order every ordered table is read in (4.9).
 
     `populate_existing` because `expire_on_commit` is off (Section 6.5.2): a row left over from a
     write transaction would otherwise still carry its pre-commit values.
     """
     return list(
         db.execute(
-            select(ChecklistItem)
-            .where(ChecklistItem.checklist_id == checklist_id)
-            .order_by(ChecklistItem.position, ChecklistItem.id)
+            select(CardItem)
+            .where(CardItem.card_id == card_id)
+            .order_by(CardItem.position, CardItem.id)
             .execution_options(populate_existing=True)
         )
         .scalars()
@@ -396,49 +219,21 @@ def checklist_items(db: Session, checklist_id: int) -> list[ChecklistItem]:
     )
 
 
-def checklist_out(db: Session, checklist: Checklist) -> dict[str, Any]:
-    """The `ChecklistOut` of Section 4.6: one checklist with its items in `position` order.
+def card_items_out(db: Session, card_id: int) -> list[dict[str, Any]]:
+    """One card's items as `CardDetail.items` (Sections 4.5 and 4.6).
 
-    Every checklist mutation of `services/checklists.py` answers with this, and `CardDetail`
-    embeds the same objects, so the shape is written down once.
+    Every item mutation of `services/items.py` answers with one of these rows and `CardDetail`
+    embeds the whole array, so the shape is written down once.
     """
-    return _checklist_fields(checklist) | {
-        "items": [checklist_item_out(item) for item in checklist_items(db, checklist.id)]
-    }
-
-
-def _checklists(db: Session, card_id: int) -> list[dict[str, Any]]:
-    """Every checklist of one card with its items, both in `position` order (Section 4.6).
-
-    Two statements rather than one per checklist: a card carries a handful of them and the modal
-    renders them as whole `ChecklistSection`s, so the items are read in one pass and grouped in
-    Python. The rows themselves are shaped by the two shared builders above.
-    """
-    checklists = db.execute(
-        select(Checklist)
-        .where(Checklist.card_id == card_id)
-        .order_by(Checklist.position, Checklist.id)
-    ).scalars()
-    items: dict[int, list[dict[str, Any]]] = {}
-    for item in db.execute(
-        select(ChecklistItem)
-        .join(Checklist, Checklist.id == ChecklistItem.checklist_id)
-        .where(Checklist.card_id == card_id)
-        .order_by(ChecklistItem.position, ChecklistItem.id)
-    ).scalars():
-        items.setdefault(item.checklist_id, []).append(checklist_item_out(item))
-    return [
-        _checklist_fields(checklist) | {"items": items.get(checklist.id, [])}
-        for checklist in checklists
-    ]
+    return [card_item_out(row) for row in card_items(db, card_id)]
 
 
 def get_card(db: Session, *, card_id: int) -> dict[str, Any]:
     """One card as the modal needs it: the `CardDetail` of Section 4.5, archived ones included.
 
-    Everything `CardSummary` carries plus the description, the reminder offset, the board and
-    list names of Section 2.6.2, the card's checklists and its attachments, so opening the modal is
-    one request. Raises `NotFound` when the card is gone.
+    Everything `CardSummary` carries - the items included - plus the description, the reminder
+    offset and the board and list names of Section 2.6.2, so opening the modal is one request.
+    Raises `NotFound` when the card is gone.
     """
     card = _load(db, card_id)
     names = db.execute(
@@ -452,16 +247,14 @@ def get_card(db: Session, *, card_id: int) -> dict[str, Any]:
         "due_reminder_minutes": card.due_reminder_minutes,
         "board_name": names.board_name,
         "list_name": names.list_name,
-        "checklists": _checklists(db, card_id),
-        "attachments": card_attachments(db, card_id),
     }
 
 
 def card_summary(db: Session, *, card_id: int) -> dict[str, Any]:
     """The `CardSummary` of Section 4.10.1 for one card, re-read from the database.
 
-    What every card mutation answers with, and what `services.checklists` answers "Convert to
-    card" with: the new tile, not the whole `CardDetail` the modal reads.
+    What every card mutation answers with: the new tile, not the whole `CardDetail` the modal
+    reads.
     """
     return _summary(db, _load(db, card_id))
 
@@ -473,7 +266,8 @@ def split_pasted_lines(body: str, *, split_lines: bool) -> list[str]:
     """One row per call, or one per non-empty line of a pasted body (Sections 4.4 and 4.6).
 
     The rule behind the composer's "Add N cards?" prompt and the identical "Add N items?" prompt
-    of a checklist, which `services.checklists` therefore calls rather than restating: lines are
+    of a card's item composer, which `services.items` therefore calls rather than restating: lines
+    are
     stripped, blank ones dropped, and a body that is nothing but whitespace stays one row (the
     `CardTitle` / `ItemName` constraints guarantee it holds a non-blank character).
     """
@@ -540,12 +334,9 @@ def create_card(
 
     Every card gets `MAX(short_id) + 1` of its board read under the write lock, the composer's
     `label_ids` and one `card.created` activity row; `client_id` is stored on the first card,
-    which is the optimistic tile the composer is waiting for. A title that is nothing but an
-    `http(s)` URL is a pasted link (Section 4.4): the card is named after the URL's host and
-    carries a `{kind: 'link'}` attachment, whose `attachment.added` row follows the
-    `card.created` one. Raises `BadRequest` when the list is archived or a label does not belong
-    to the board, `NotFound` when the list is gone and `Busy` (503) when the write lock cannot
-    be taken.
+    which is the optimistic tile the composer is waiting for. Raises `BadRequest` when the list is
+    archived or a label does not belong to the board, `NotFound` when the list is gone and `Busy`
+    (503) when the write lock cannot be taken.
     """
     titles = split_pasted_lines(title, split_lines=split_lines)
     with write_tx(db, [board_id]) as ctx:
@@ -561,12 +352,11 @@ def create_card(
             position, _ = place_in_container(
                 db, Card, "list_id", list_id, index=_create_slot(index, offset)
             )
-            host = pasted_link_host(line)
             card = Card(
                 board_id=board_id,
                 list_id=list_id,
                 short_id=short_id + offset,
-                title=host or line,
+                title=line,
                 position=position,
                 client_id=client_id if offset == 0 else None,
             )
@@ -582,8 +372,6 @@ def create_card(
                 card_title=card.title,
                 list_name=target.name,
             )
-            if host is not None:
-                add_link_attachment(db, ctx, card=card, url=line, name=host)
             created.append(card.id)
     return CardBatch(
         items=[card_summary(db, card_id=card_id) for card_id in created],
@@ -631,8 +419,8 @@ def update_card(
     `changes` is the `exclude_unset` dump of `CardUpdateIn`: an absent key is untouched and an
     explicit `None` clears one of the three nullable columns. A value equal to the stored one is
     written but records nothing, so a no-op save never adds a feed entry. `start_at` and `due_at`
-    share the single row `_record_dates` writes; `due_complete` and `is_template` each record
-    their own pair of types, and `due_reminder_minutes` records nothing at all - Section 3.8 has
+    share the single row `_record_dates` writes; `due_complete` records its own pair of types,
+    and `due_reminder_minutes` records nothing at all - Section 3.8 has
     no type for it and it is not a fact about the card anybody reads back in a sentence. Raises
     `NotFound` when the card is gone and `Busy` (503) on a lock timeout.
     """
@@ -668,15 +456,6 @@ def update_card(
             activity.record(
                 ctx,
                 "card.due_completed" if card.due_complete else "card.due_incompleted",
-                card_id=card_id,
-                list_id=card.list_id,
-                card_title=card.title,
-            )
-        if "is_template" in changes and changes["is_template"] != bool(card.is_template):
-            card.is_template = int(changes["is_template"])
-            activity.record(
-                ctx,
-                "card.template_set" if card.is_template else "card.template_unset",
                 card_id=card_id,
                 list_id=card.list_id,
                 card_title=card.title,
@@ -746,38 +525,25 @@ def move_card(
     index: int,
     prev_id: int | None = None,
     next_id: int | None = None,
-    to_board_id: int | None = None,
 ) -> CardMove:
-    """Move a card within its list, to another list, or to another board (Sections 4.9 and 3.6).
+    """Move a card within its list or to another list of the same board (Sections 4.9 and 3.6).
 
     The whole sequence runs in one `write_tx`, so the neighbour read and the write are serialised
     by `BEGIN IMMEDIATE` and two simultaneous movers get distinct positions. Neighbours take
     precedence over `index`; both stale falls back to an append. The activity is `card.moved`
     across lists and `card.reordered` within one.
 
-    A `to_board_id` that differs from the card's board makes it **one transaction spanning both
-    boards** (`write_tx(db, [source, target])`): the card is handed over by `reassign_board`, the
-    two boards' versions are bumped in the same COMMIT and two rows are recorded - `card.moved_out`
-    on the source board with the source's version, `card.moved_in` on the target with the target's
-    - so the card can never vanish from one board without appearing on the other. The returned
-    `board_version` is the destination board's.
+    A card never leaves its board: the destination is a list, and `_move_target` refuses one that
+    belongs to another board. Only a *list* carries its cards across (`services/lists.py`).
 
-    Raises `NotFound` (404) when `to_board_id` names no board, `Conflict` (409) when
-    it is closed, `BadRequest` when `to_list_id` is not an active list of the destination board or
-    a neighbour breaks the invariant of `ordering.check_neighbours`, `NotFound` when the card is
-    gone and `Busy` (503) on a lock timeout.
+    Raises `BadRequest` when `to_list_id` is not an active list of this board or a neighbour
+    breaks the invariant of `ordering.check_neighbours`, `NotFound` when the card is gone and
+    `Busy` (503) on a lock timeout.
     """
-    crossing = to_board_id is not None and to_board_id != board_id
-    destination_board_id = to_board_id if crossing else board_id
-    assert destination_board_id is not None  # `crossing` is False when `to_board_id` is None
-    # Both checks happen before the transaction opens, because `write_tx` reads the version of
-    # every board it is given and a board the caller may not touch must never get that far.
-    other_board = target_board(db, board_id=destination_board_id) if crossing else None
-    board_ids = [board_id, destination_board_id] if crossing else [board_id]
-    with write_tx(db, board_ids) as ctx:
+    with write_tx(db, [board_id]) as ctx:
         card = _load(db, card_id)
         source = _load_list(db, card.list_id)
-        target = _move_target(db, to_list_id=to_list_id, board_id=destination_board_id)
+        target = _move_target(db, to_list_id=to_list_id, board_id=board_id)
         check_neighbours(
             db,
             Card,
@@ -798,34 +564,7 @@ def move_card(
             next_id=next_id,
             exclude_id=card_id,
         )
-        if other_board is not None:
-            this_board_name = board_name(db, board_id)
-            reassign_board(db, card, to_board_id=other_board.id)
-            # `other_board_*` names the board at the *other* end of the move, seen from the board
-            # whose feed the row belongs to (Section 3.8), so the two rows mirror each other.
-            activity.record(
-                ctx,
-                "card.moved_out",
-                card_id=card_id,
-                list_id=source.id,
-                board_id=board_id,
-                card_title=card.title,
-                other_board_id=other_board.id,
-                other_board_name=other_board.name,
-                list_name=source.name,
-            )
-            activity.record(
-                ctx,
-                "card.moved_in",
-                card_id=card_id,
-                list_id=target.id,
-                board_id=other_board.id,
-                card_title=card.title,
-                other_board_id=board_id,
-                other_board_name=this_board_name,
-                list_name=target.name,
-            )
-        elif source.id == target.id:
+        if source.id == target.id:
             activity.record(
                 ctx,
                 "card.reordered",
@@ -853,72 +592,7 @@ def move_card(
     return CardMove(
         item=card_summary(db, card_id=card_id),
         positions=renumbered,
-        board_version=ctx.versions[destination_board_id],
-    )
-
-
-# --------------------------------------------------------------------------- copy
-
-
-def copy_card(
-    db: Session,
-    *,
-    board_id: int,
-    card_id: int,
-    title: str,
-    to_list_id: int,
-    index: int | None = None,
-    keep: copy.Keep | None = None,
-    is_template: bool | None = None,
-) -> CardMutation:
-    """Copy a card into `to_list_id`, on this board or another one (Section 4.5).
-
-    `kanban/copy.py` owns what a copy *is* - which columns come along, which children each `keep`
-    flag brings, and the rule that a copy landing on another board keeps no labels; this function
-    owns the request: the destination list, the `short_id` and the `position` read under the write
-    lock, and the one `card.copied` activity row.
-
-    The transaction is the destination board's alone: a copy changes nothing on the source board,
-    so only the destination's `version` is bumped and the returned `board_version` is its.
-
-    Raises `NotFound` when the destination board or the source card is gone, `Conflict` (409) when
-    that board is closed, `BadRequest` (400) when `to_list_id` is not an active list of it, and
-    `Busy` (503) on a lock timeout.
-    """
-    to_board_id = _board_of_list(db, to_list_id)
-    crossing = to_board_id != board_id
-    if crossing:
-        target_board(db, board_id=to_board_id)
-    with write_tx(db, [to_board_id]) as ctx:
-        source = _load(db, card_id)
-        source_list = _load_list(db, source.list_id)
-        target = _move_target(db, to_list_id=to_list_id, board_id=to_board_id)
-        position, _ = place_in_container(db, Card, "list_id", to_list_id, index=index)
-        result = copy.copy_card(
-            db,
-            source,
-            list_id=target.id,
-            board_id=to_board_id,
-            short_id=next_short_id(db, to_board_id),
-            title=title,
-            position=position,
-            keep=keep or copy.Keep(),
-            is_template=is_template,
-        )
-        activity.record(
-            ctx,
-            "card.copied",
-            card_id=result.card.id,
-            list_id=target.id,
-            card_title=title,
-            source_card_id=source.id,
-            source_card_title=source.title,
-            source_list_name=source_list.name,
-            list_name=target.name,
-        )
-        copy_id = result.card.id
-    return CardMutation(
-        item=card_summary(db, card_id=copy_id), board_version=ctx.versions[to_board_id]
+        board_version=ctx.board_version,
     )
 
 
@@ -987,18 +661,17 @@ def unarchive_card(db: Session, *, board_id: int, card_id: int) -> CardMutation:
 
 
 def delete_card(db: Session, *, board_id: int, card_id: int) -> None:
-    """Delete an archived card and everything under it (Sections 3.7 and 4.5).
+    """Delete a card and its items (Sections 3.7 and 4.5).
 
-    Raises `Conflict` (409) unless the card is archived - archive first, then delete - and
-    `NotFound` when it is already gone. The `card.deleted` activity row carries the title and
-    list name in `data` with a NULL `card_id`, so the board feed keeps the sentence. Every
-    attachment directory of the card is removed after the commit (Section 3.7).
+    Delete is the one destructive action a card offers, so it does not require the card to be
+    archived first: the card modal asks for confirmation instead, because there is no undo
+    (Section 2.6.4). The `card.deleted` activity row carries the title and list name in `data`
+    with a NULL `card_id`, so the board feed keeps the sentence after the row it names is gone.
+    `card_items` go with it through `ON DELETE CASCADE`. Raises `NotFound` when the card is
+    already gone and `Busy` (503) on a lock timeout.
     """
     with write_tx(db, [board_id]) as ctx:
         card = _load(db, card_id)
-        if not card.is_archived:
-            raise Conflict("conflict", "Archive the card before deleting it.", {"card_id": card_id})
-        doomed = orphaned_upload_ids(db, Card.id == card_id)
         activity.record(
             ctx,
             "card.deleted",
@@ -1007,7 +680,6 @@ def delete_card(db: Session, *, board_id: int, card_id: int) -> None:
             list_name=_load_list(db, card.list_id).name,
         )
         db.delete(card)
-    storage.delete_uploads(doomed)
 
 
 def list_archived_cards(

@@ -10,15 +10,11 @@ EXPECTED_TABLES = frozenset(
     {
         "board_backgrounds",
         "boards",
-        "board_stars",
-        "board_views",
         "lists",
         "cards",
         "labels",
         "card_labels",
-        "checklists",
-        "checklist_items",
-        "attachments",
+        "card_items",
         "activities",
         "cards_fts",
     }
@@ -52,4 +48,4 @@ def test_head_revision_is_recorded(database: None) -> None:
     with engine.connect() as conn:
         revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
 
-    assert revision == "0001_initial"
+    assert revision == "0002_personal_manager"

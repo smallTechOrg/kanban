@@ -32,8 +32,6 @@ export function isId(value: number): boolean {
 }
 
 export type BackgroundKind = 'color' | 'gradient' | 'image';
-export type CoverKind = 'color' | 'attachment';
-export type CoverSize = 'normal' | 'full';
 export type LabelTone = 'subtle' | 'normal' | 'bold';
 
 /** The board row of the payload, as `BoardHeader` and the About panel read it. */
@@ -46,7 +44,6 @@ export interface BoardMeta {
   background_value: string;
   background_thumb_url: string | null;
   is_closed: boolean;
-  is_starred: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -63,19 +60,27 @@ export interface ListRow {
   updated_at: string;
 }
 
-export interface CoverRow {
-  kind: CoverKind;
-  value: string;
-  size: CoverSize;
-  image_url?: string;
-  dominant_color?: string;
-}
-
 export interface BadgeCounts {
   description: boolean;
-  attachments: number;
-  checklist_done: number;
-  checklist_total: number;
+  item_done: number;
+  item_total: number;
+}
+
+/**
+ * One of a card's items as the tile lists it (Sections 2.5.1 and 4.6).
+ *
+ * The `CardItem` of `api/types.ts` written out again, for the reason `BadgeCounts` is: a pure
+ * module sits below every app layer and may not import `api/`, and these rows reach the cache
+ * through `CardSummary.items` unchanged.
+ */
+export interface CardItemRow {
+  id: Id;
+  card_id: Id;
+  name: string;
+  position: number;
+  is_checked: boolean;
+  checked_at: string | null;
+  due_at: string | null;
 }
 
 export interface CardRow {
@@ -92,12 +97,12 @@ export interface CardRow {
   title: string;
   position: number;
   is_archived: boolean;
-  is_template: boolean;
   start_at: string | null;
   due_at: string | null;
   due_complete: boolean;
-  cover: CoverRow | null;
   label_ids: Id[];
+  /** The card's items in `(position, id)` order, which the tile lists (2.5.1). */
+  items: CardItemRow[];
   badges: BadgeCounts;
   created_at: string;
   /** Drives the Filter popover's Activity section (Section 2.3.3). */
@@ -148,7 +153,7 @@ export function isTempId(id: Id): boolean {
 
 /**
  * The next optimistic id: ids count down, so two rows minted in the same millisecond cannot
- * collide. One counter serves every id space — cards, lists, labels, checklists and items —
+ * collide. One counter serves every id space — cards, lists, labels and items —
  * because `isTempId` above recognises all of them by the same sign, and two counters (one per
  * mutation hook) were the same rule written twice (CLAUDE.md section 3).
  */
@@ -406,17 +411,15 @@ export function draftCard(input: DraftCardInput): CardRow {
     title: input.title,
     position: 0,
     is_archived: false,
-    is_template: false,
     start_at: null,
     due_at: null,
     due_complete: false,
-    cover: null,
     label_ids: [...(input.labelIds ?? [])],
+    items: [],
     badges: {
       description: false,
-      attachments: 0,
-      checklist_done: 0,
-      checklist_total: 0,
+      item_done: 0,
+      item_total: 0,
     },
     created_at: input.now,
     updated_at: input.now,

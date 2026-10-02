@@ -7,7 +7,7 @@ because Windows will not delete a database file while a handle is open.
 The `KANBAN_*` environment is set before `kanban` is imported: `kanban.config.settings` and
 `kanban.db.engine` are module-level singletons that read it once.
 
-Kan Ban is a single-person install with no account of any kind, so the ladder every API test
+My Day is a single-person install with no account of any kind, so the ladder every API test
 builds on is short: `api` (one `TestClient` per module) -> `board_factory` / `board` (boards
 created through the real API). The one guard that still decides whether a mutation is allowed to
 start is the CSRF header, and it is passed per request as `CSRF_HEADERS` rather than set on the
