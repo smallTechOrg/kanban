@@ -1,0 +1,6 @@
+/* Section 2.6.3: 552px column, padding 0 8px 8px 16px (768px = 552 + 168 + the two paddings). */
+.main {
+  flex: 1 1 552px;
+  min-width: 0;
+  padding: 0 8px 8px 16px;
+}

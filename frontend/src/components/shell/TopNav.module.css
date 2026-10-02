@@ -1,0 +1,107 @@
+/* Section 2.1.1: 44px sticky bar, 0 8px padding, white 14px text. */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-nav);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: var(--nav-h);
+  padding: 0 8px;
+  background: var(--nav-bg);
+  color: var(--text-inverse);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+/* On a board the bar is a wash over the board background instead of a solid fill. */
+.onBoard {
+  background: var(--nav-bg-board);
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Section 2.1.1: nav buttons sit on a 30% white wash, not the board header's 24%. */
+.navButton {
+  background: var(--nav-btn);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.navButton:hover:not(:disabled) {
+  background: var(--nav-btn-hover);
+}
+
+.navButton:active:not(:disabled) {
+  background: var(--nav-btn-active);
+}
+
+.chevron {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  color: var(--text-inverse);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+}
+
+.wordmark:hover {
+  text-decoration: none;
+}
+
+/* The 24x24 favicon mark: blue rounded square, three white 4px bars with 3px gaps. */
+.mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 24px;
+  height: 24px;
+  background: var(--logo);
+  border-radius: var(--radius-sm);
+}
+
+.bar {
+  width: 4px;
+  height: 12px;
+  background: var(--text-inverse);
+  border-radius: 1px;
+}
+
+/*
+ * Section 2.9.4 allows no horizontal page scroll below 768px, and the left group alone is wider
+ * than a 390px bar. The wordmark keeps its 24px mark and drops its text — the same trade the
+ * search field beside it makes — so the link stays the home affordance at every width. Its
+ * accessible name is the aria-label, which reads exactly like the text it replaces (WCAG 2.5.3).
+ */
+@media (max-width: 767px) {
+  .wordmarkText {
+    display: none;
+  }
+
+  .wordmark {
+    padding: 0 4px;
+  }
+}
+
+/* Section 2.9.4: Recent and Starred are hidden below 1024px. */
+@media (max-width: 1023px) {
+  .wideOnly {
+    display: none;
+  }
+}

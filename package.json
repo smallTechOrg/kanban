@@ -1,0 +1,39 @@
+{
+  "name": "kanban-root",
+  "private": true,
+  "description": "Root task runner for My Day: one command drives the Python API and the Vite frontend together.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "setup": "npm run setup:py && npm run setup:js",
+    "setup:py": "uv venv --python 3.12 .venv && uv pip install --python .venv -e \"backend[dev]\"",
+    "setup:js": "npm install --prefix frontend",
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "node scripts/venv-python.mjs -m uvicorn kanban.main:app --app-dir backend --reload --port 8000",
+    "dev:web": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "node scripts/venv-python.mjs -m kanban",
+    "migrate": "node scripts/venv-python.mjs -m kanban migrate",
+    "seed": "node scripts/venv-python.mjs -m kanban seed --demo",
+    "backup": "node scripts/venv-python.mjs -m kanban backup",
+    "lint": "npm run lint:py && npm run lint:js",
+    "lint:py": "node scripts/venv-python.mjs -m ruff check backend && node scripts/venv-python.mjs -m ruff format --check backend",
+    "lint:js": "npm run lint --prefix frontend",
+    "format": "npm run format:py && npm run format:js",
+    "format:py": "node scripts/venv-python.mjs -m ruff format backend",
+    "format:js": "npm run format --prefix frontend",
+    "typecheck": "npm run typecheck --prefix frontend",
+    "test": "npm run test:py && npm run test:js",
+    "test:py": "node scripts/venv-python.mjs -m pytest backend/tests",
+    "test:js": "npm run test --prefix frontend",
+    "test:e2e": "npm run build && playwright test -c e2e/playwright.config.ts",
+    "gen:types": "npx openapi-typescript http://127.0.0.1:8000/api/openapi.json -o frontend/src/api/types.ts"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.47.0",
+    "concurrently": "^9.0.0",
+    "openapi-typescript": "^7.4.0"
+  }
+}

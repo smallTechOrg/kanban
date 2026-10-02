@@ -1,0 +1,204 @@
+/*
+ * Section 2.1.1: a 200px field that grows to 400px on focus, and the results panel under it.
+ * The two groups are 32px rows highlighted in --selected, the same tint the Home sidebar and
+ * the DatePicker range use (Section 2.9.1).
+ */
+.search {
+  position: relative;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 200px;
+  height: var(--sidebar-btn-h);
+  padding: 0 8px;
+  background: var(--nav-btn);
+  border-radius: var(--radius-sm);
+  transition: width 0.1s;
+}
+
+.field:focus-within {
+  width: 400px;
+}
+
+.icon {
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  color: var(--text-inverse);
+}
+
+.input {
+  min-width: 0;
+  flex: 1;
+  background: none;
+  border: 0;
+  color: var(--text-inverse);
+  font-size: var(--fs-body);
+}
+
+.input::placeholder {
+  color: var(--nav-placeholder);
+  opacity: 1;
+}
+
+/*
+ * No `outline: none` here. The field's own focus affordance is the 200px -> 400px growth of
+ * Section 2.1.1, which is a size change and not a focus indicator: suppressing the outline left
+ * the one search box in the app with nothing a keyboard reader could see, against Section
+ * 5.10's "`--focus` visible on every interactive element via `:focus-visible`". The global ring
+ * in styles/global.css paints it, and it still never shows for a mouse click, because that rule
+ * is `:focus-visible` and `:focus:not(:focus-visible)` clears it.
+ */
+
+.panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: var(--z-popover);
+  width: 400px;
+  max-width: calc(100vw - 16px);
+  max-height: 80vh;
+  padding: 8px 0;
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: var(--popover-radius);
+  box-shadow: var(--shadow-popover);
+}
+
+.heading {
+  margin: 0;
+  padding: 8px 12px 4px;
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: var(--sidebar-btn-h);
+  padding: 4px 12px;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cardRow {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.highlighted {
+  background: var(--selected);
+}
+
+.thumb {
+  flex: none;
+  width: 24px;
+  height: 16px;
+  border-radius: 2px;
+  background-size: cover;
+  background-position: center;
+}
+
+.name {
+  overflow: hidden;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.where {
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+}
+
+.chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Section 2.1.1: the chips of a search row are 8px tall, not the tile's 16px bar. */
+.chip {
+  min-width: 24px;
+  height: 8px;
+}
+
+.empty {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: var(--fs-body);
+  color: var(--text-muted);
+}
+
+/*
+ * Section 2.9.4: below 768px "search collapses to an icon that expands to full width". Full
+ * width means the bar's, which a flex item cannot reach while the wordmark and the buttons hold
+ * their own: the focused shell therefore leaves the flow and stretches between the nav's 8px
+ * gutters, painting over the controls behind it (it is the last positioned child of the nav, and
+ * blurring puts everything back). The panel stays anchored to it, so it widens with the field.
+ */
+@media (max-width: 767px) {
+  .field,
+  .field:focus-within {
+    width: var(--sidebar-btn-h);
+    justify-content: center;
+  }
+
+  .search:focus-within {
+    position: absolute;
+    inset: 0 8px;
+    display: flex;
+    align-items: center;
+  }
+
+  .field:focus-within {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /*
+   * The collapsed field is the input, not just the icon: `display: none` would take the only
+   * focusable node out of the tree, so the magnifier could not be tapped into a field and the
+   * "/" shortcut of Section 2.8 would have nothing to focus. It therefore fills the 32px box
+   * transparently, above the icon, and returns to the flow once it has focus.
+   */
+  .field {
+    position: relative;
+  }
+
+  .input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    padding: 0 8px;
+    opacity: 0;
+  }
+
+  .field kbd {
+    display: none;
+  }
+
+  .field:focus-within .input {
+    position: static;
+    width: auto;
+    padding: 0;
+    opacity: 1;
+  }
+}

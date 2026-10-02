@@ -1,0 +1,90 @@
+/* Section 2.6.3: 36px row, hover wash, 16px checkbox, strike-through when checked. */
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.row:hover,
+.row:focus-within {
+  background: var(--hover);
+}
+
+.dragging {
+  background: var(--surface);
+  box-shadow: var(--shadow-card-drag);
+}
+
+.checkbox {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--primary);
+  border: 2px solid var(--border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.text {
+  flex: 1;
+  padding: 0;
+  font: inherit;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+  text-align: left;
+  overflow-wrap: anywhere;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.checked {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+/* Section 2.6.3: a due item shows a small date badge after the text. */
+.due {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  font-size: var(--fs-meta);
+  line-height: 20px;
+  color: var(--text-muted);
+  background: var(--hover);
+  border-radius: var(--radius-sm);
+}
+
+/* The icon group appears on hover or when something inside the row has focus. */
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  visibility: hidden;
+}
+
+.row:hover .actions,
+.row:focus-within .actions {
+  visibility: visible;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 8px 8px;
+}
+
+.editorInput {
+  border-radius: var(--radius-sm);
+}
+
+.editorFooter {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}

@@ -1,0 +1,41 @@
+/*
+ * Section 2.4.2: padding 10px 8px 10px 12px, 4px gaps, items aligned to the top so a
+ * two-line title does not push the buttons down. The whole header is the list's drag handle.
+ */
+.header {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 8px 10px 12px;
+  cursor: grab;
+}
+
+.header:active {
+  cursor: grabbing;
+}
+
+.heading {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+/* Two-line clamp on the display button; the editor inherits the same 14px 600 font. */
+.title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.count {
+  flex: none;
+  padding: 4px 0;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}

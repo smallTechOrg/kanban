@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="My Day">
+  <!-- Brand mark. The literal below mirrors --logo in src/styles/tokens.css; a static
+       asset cannot read a CSS custom property, and Section 1.7 of the plan pins this file. -->
+  <rect width="32" height="32" rx="7" fill="#0052CC" />
+  <rect x="6" y="8" width="5" height="16" rx="1.5" fill="#FFFFFF" />
+  <rect x="13.5" y="8" width="5" height="11" rx="1.5" fill="#FFFFFF" />
+  <rect x="21" y="8" width="5" height="14" rx="1.5" fill="#FFFFFF" />
+</svg>

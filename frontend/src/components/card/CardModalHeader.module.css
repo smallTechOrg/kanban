@@ -1,0 +1,54 @@
+/*
+ * Section 2.6.2: the icon at 24px from the dialog edge, aligned with the title's first line;
+ * the title 20px/600 with a 40px left offset; the sub-line 12px muted.
+ */
+.header {
+  display: flex;
+  gap: 8px;
+  padding: 16px 40px 8px 24px;
+}
+
+.icon {
+  flex: 0 0 var(--icon-size);
+  margin-top: 4px;
+  color: var(--icon);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+}
+
+.titleInput {
+  width: 100%;
+  font-size: var(--fs-title);
+  font-weight: 600;
+  line-height: 24px;
+  color: var(--text);
+}
+
+.subline {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 4px 0 0;
+  font-size: var(--fs-meta);
+  line-height: 16px;
+  color: var(--text-muted);
+}
+
+/* Section 2.6.2: the list name is the link button that opens `MoveCardPopover`; it inherits the
+   sub-line's 12px muted type rather than the browser's button chrome. */
+.listName {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}

@@ -1,0 +1,34 @@
+/* Section 2.6.4: the 168px column beside the main one. */
+.sidebar {
+  flex: none;
+  width: 168px;
+  padding: 0 16px 8px 8px;
+}
+
+.heading {
+  margin: 0 0 8px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+
+/* The card's hard delete (Section 2.6.4), in the row rhythm of the buttons above it. */
+.delete {
+  margin-bottom: 8px;
+}
+
+/* Section 2.6.1: on a phone the sidebar stacks under the main column as a 2-column grid. */
+@media (max-width: 767px) {
+  .sidebar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 8px;
+    width: 100%;
+    padding: 0 16px 16px;
+  }
+
+  .heading {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,0 +1,12 @@
+.kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  font-family: var(--font);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+  color: var(--text);
+  background: var(--modal-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}

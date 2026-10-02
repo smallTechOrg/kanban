@@ -1,0 +1,33 @@
+/* Section 2.6.3: 11px percentage in a 32px cell, 8px track, 0.14s fill transition. */
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 24px;
+}
+
+.percent {
+  flex: 0 0 32px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+
+.track {
+  flex: 1;
+  height: 8px;
+  overflow: hidden;
+  background: var(--hover);
+  border-radius: 4px;
+}
+
+.fill {
+  height: 100%;
+  background: var(--progress);
+  border-radius: 4px;
+  transition: width 0.14s ease;
+}
+
+.complete {
+  background: var(--success);
+}

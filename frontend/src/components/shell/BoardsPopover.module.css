@@ -1,0 +1,72 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+
+/* Section 2.1.1: 32px rows, 16px thumbnail, star at the right. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: var(--sidebar-btn-h);
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  transition: background var(--t-hover);
+}
+
+.open:hover {
+  background: var(--hover);
+}
+
+.thumb {
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  border-radius: 2px;
+}
+
+.name {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.star {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.starred {
+  color: var(--star);
+  fill: var(--star);
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+}
+
+/* Section 2.8's combined panel: one block per group, its 12px label above the rows. */
+.group + .group {
+  margin-top: 12px;
+}
+
+.groupLabel {
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}

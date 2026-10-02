@@ -1,0 +1,46 @@
+/* Section 2.4.4: a card-shaped textarea, the token preview strip, then the two controls. */
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+  margin-bottom: var(--card-gap);
+}
+
+.input {
+  min-height: 54px;
+  border-radius: var(--card-radius);
+}
+
+/* The parsed #label / ^position chips, only rendered when tokens are present. */
+.tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.token {
+  padding: 0 8px;
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--text);
+  background: var(--hover);
+  border-radius: 4px;
+}
+
+.footer {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.confirmBody {
+  margin-bottom: 8px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}
+
+.confirmSecond {
+  margin-top: 4px;
+}

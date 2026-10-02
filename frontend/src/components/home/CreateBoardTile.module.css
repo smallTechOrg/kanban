@@ -1,0 +1,18 @@
+.tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 96px;
+  padding: 8px;
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  color: var(--text);
+  background: var(--list-bg);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* Section 2.2: the hover fill is the value --border already carries. */
+.tile:hover {
+  background: var(--border);
+}

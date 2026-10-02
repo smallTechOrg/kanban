@@ -1,0 +1,46 @@
+/*
+ * `react-day-picker` ships its own stylesheet and declares its variables on `.rdp-root`, the
+ * element it renders inside this wrapper, so its defaults are overridden by naming that class
+ * rather than by inheritance. The values are the tokens of Section 2.9.1 — the accent is
+ * `--primary` and a selected range wears `--selected`, the same tint the Home sidebar uses.
+ */
+.calendar :global(.rdp-root) {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: var(--selected);
+  --rdp-day-width: 36px;
+  --rdp-day-height: 36px;
+  --rdp-day_button-width: 34px;
+  --rdp-day_button-height: 34px;
+  --rdp-nav_button-width: 28px;
+  --rdp-nav_button-height: 28px;
+  --rdp-nav-height: 32px;
+  --rdp-weekday-padding: 4px 0;
+  --rdp-today-color: var(--text-inverse);
+
+  font-size: var(--fs-body);
+  color: var(--text);
+}
+
+.calendar :global(.rdp-month_caption) {
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+
+.calendar :global(.rdp-weekday) {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Section 2.6.5: today is the filled blue day, whether or not it is the selected one. */
+.calendar :global(.rdp-today .rdp-day_button) {
+  background: var(--primary);
+}
+
+.calendar :global(.rdp-day_button:hover) {
+  background: var(--hover);
+}
+
+.calendar :global(.rdp-today .rdp-day_button:hover) {
+  background: var(--primary-hover);
+}

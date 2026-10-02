@@ -1,0 +1,14 @@
+/*
+ * Section 2.4.1: the card region grows and scrolls while the header and footer stay put.
+ * The 6px floor is the empty list's drop zone (2.4.5); the scrollbar itself is the global
+ * `cardList` rule in styles/global.css (Section 5.6).
+ */
+.region {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 6px;
+  padding: 0 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}

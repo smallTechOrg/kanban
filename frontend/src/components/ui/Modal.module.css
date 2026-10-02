@@ -1,0 +1,57 @@
+.overlay {
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+  overflow-y: auto;
+  background: var(--overlay);
+}
+
+.panel {
+  position: relative;
+  width: var(--modal-w);
+  max-width: 100%;
+  margin: auto;
+  background: var(--modal-bg);
+  border-radius: var(--popover-radius);
+  box-shadow: var(--shadow-modal);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 12px 0 16px;
+}
+
+.title {
+  flex: 1;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  line-height: var(--lh-body);
+  color: var(--text);
+  padding-top: 6px;
+}
+
+.body {
+  padding: 8px 16px 16px;
+}
+
+/* `flush`: the card modal's columns own the padding of Section 2.6.3. */
+.bodyFlush {
+  padding: 0;
+}
+
+/* Section 5.6: below 768px a modal fills the viewport. The width prop is inline. */
+@media (max-width: 767px) {
+  .overlay {
+    padding: 0;
+  }
+
+  .panel {
+    width: 100% !important;
+    min-height: 100%;
+    border-radius: 0;
+  }
+}

@@ -1,0 +1,154 @@
+/*
+ * Reset, document defaults, focus ring and scrollbars (Section 5.6).
+ * Every value here is a token from tokens.css — no literals.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body,
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote,
+dl,
+dd,
+ul,
+ol {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding: 0;
+  list-style: none;
+}
+
+body {
+  font: var(--fs-body) / var(--lh-body) var(--font);
+  color: var(--text);
+  background: var(--page-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+img,
+picture,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Accessibility is part of "done": every interactive element shows this ring. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Card titles must break rather than overflow their tile. */
+.wrapAnywhere {
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Custom scrollbars for the board canvas and card lists (Section 5.6). They are global
+ * class names, not module classes, because these two surfaces are the only scroll
+ * containers on a board and Section 5.6 names them here; BoardCanvas and CardList add
+ * `canvas` / `cardList` beside their own module class.
+ *
+ * The canvas bar is 12px on the dark board background (2.3.2); the card region's is 8px
+ * on the light list column, so it has its own thumb and no track (2.4.1).
+ */
+.canvas {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+.canvas::-webkit-scrollbar {
+  height: 12px;
+}
+
+.canvas::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+}
+
+.canvas::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 6px;
+}
+
+.cardList {
+  scrollbar-width: thin;
+  scrollbar-color: var(--card-scroll-thumb) transparent;
+}
+
+.cardList::-webkit-scrollbar {
+  width: 8px;
+}
+
+.cardList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cardList::-webkit-scrollbar-thumb {
+  background: var(--card-scroll-thumb);
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,31 @@
+# My Day - single service, single SQLite file on a bind mount.
+#
+#   docker compose up --build       first run, or after a code change
+#   docker compose up -d            afterwards
+#   docker compose logs -f kanban
+#
+# The database, uploads and backups all live under ./data on the host, so the container
+# stays disposable. Copy .env.example to .env before the first run if you want to change
+# anything; every KANBAN_* variable is documented there and in README.md.
+
+services:
+  kanban:
+    build: .
+    image: myday:3.0.0
+    container_name: kanban
+    restart: unless-stopped
+    ports:
+      - '8000:8000'
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      # Inside a container the app must bind every interface, otherwise the published
+      # port reaches nothing. On the host the default stays loopback-only (Section 1.9).
+      # My Day has no authentication, so `ports:` below is the only access control there
+      # is: bind it to 127.0.0.1 ('127.0.0.1:8000:8000') or front it with a reverse proxy
+      # unless the whole network is trusted.
+      KANBAN_HOST: 0.0.0.0
+      KANBAN_DATA_DIR: /app/data
+      KANBAN_FRONTEND_DIST: /app/frontend/dist
