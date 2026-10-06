@@ -10,10 +10,10 @@ import { SearchPopover } from './SearchPopover';
 import styles from './TopNav.module.css';
 
 /**
- * The 44px bar of Section 2.1.1: grid button, wordmark, Boards, the Create menu and the
+ * The 44px bar of Section 2.1.1: grid button, wordmark, Spaces, the Create menu and the
  * search shell.
  *
- * There is no Recent or Starred dropdown: one person's boards are one list, so "Boards" goes
+ * There is no Recent or Starred dropdown: one person's spaces are one list, so "Spaces" goes
  * home and the `B` shortcut opens `BoardsPopover` on that same button.
  *
  * Which popover is open lives in `uiStore.openPopover`, the single field that keeps exactly
@@ -65,7 +65,7 @@ export function TopNav(): ReactElement {
           {...{ [SHORTCUT_ANCHOR_ATTR]: 'boards' }}
           onClick={() => navigate('/')}
         >
-          Boards
+          Spaces
         </Button>
 
         <Button
@@ -91,7 +91,7 @@ export function TopNav(): ReactElement {
               navigate('/');
             }}
           >
-            Boards
+            Spaces
           </MenuRow>
         </Popover>
       ) : null}

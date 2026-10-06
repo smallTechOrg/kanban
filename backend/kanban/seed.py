@@ -85,7 +85,7 @@ class _DemoBoard(NamedTuple):
 DEMO_BOARDS: Final[tuple[_DemoBoard, ...]] = (
     _DemoBoard(
         name="Shopping",
-        color="green",
+        color="moss",
         lists=("Need now", "This week", "Bought"),
         cards=(
             _DemoCard(
@@ -112,7 +112,7 @@ DEMO_BOARDS: Final[tuple[_DemoBoard, ...]] = (
     ),
     _DemoBoard(
         name="This week",
-        color="blue",
+        color="denim",
         lists=("Today", "This week", "Done"),
         cards=(
             _DemoCard("Today", "Call the dentist", due_in_days=0),
@@ -131,7 +131,7 @@ DEMO_BOARDS: Final[tuple[_DemoBoard, ...]] = (
     ),
     _DemoBoard(
         name="Money",
-        color="purple",
+        color="teal",
         lists=("Due soon", "Subscriptions", "Paid"),
         cards=(
             _DemoCard("Due soon", "Rent", due_in_days=3),
@@ -150,7 +150,7 @@ DEMO_BOARDS: Final[tuple[_DemoBoard, ...]] = (
     ),
     _DemoBoard(
         name="Home & errands",
-        color="orange",
+        color="clay",
         lists=("To do", "To fix", "Someday"),
         cards=(
             _DemoCard("To do", "Bins out on Tuesday"),
@@ -175,7 +175,7 @@ DEMO_BOARD_NAMES: Final[tuple[str, ...]] = tuple(board.name for board in DEMO_BO
 #: The `--big` board of Section 3.10, which the M2 and M5 performance checks load. 30 x 100 is
 #: also the board Section 4.10.1 sets the "under 100 ms" payload target against.
 BIG_BOARD_NAME: Final[str] = "Performance check"
-BIG_BOARD_BACKGROUND: Final[str] = BOARD_COLORS["purple"]
+BIG_BOARD_BACKGROUND: Final[str] = BOARD_COLORS["plum"]
 BIG_LIST_COUNT: Final[int] = 30
 BIG_CARDS_PER_LIST: Final[int] = 100
 

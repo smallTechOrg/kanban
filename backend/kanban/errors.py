@@ -174,7 +174,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(OperationalError)
     async def _operational(_request: Request, exc: OperationalError) -> JSONResponse:
         if is_locked_error(exc):
-            return error_response(Busy("database_busy", "The board is busy, please retry."))
+            return error_response(Busy("database_busy", "The space is busy, please retry."))
         logger.exception("Database error")
         return error_response(ApiError("internal_error", "Internal server error."))
 

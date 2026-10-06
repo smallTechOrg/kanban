@@ -1,7 +1,11 @@
 """`alembic upgrade head` on a fresh file produces the Section 3.4 schema."""
 
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+
 from sqlalchemy import inspect, text
 
+from kanban.constants import BOARD_COLORS
 from kanban.db import engine
 from kanban.models import Base
 
@@ -48,4 +52,24 @@ def test_head_revision_is_recorded(database: None) -> None:
     with engine.connect() as conn:
         revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
 
-    assert revision == "0002_personal_manager"
+    assert revision == "0003_my_day_palette"
+
+
+def test_the_palette_migration_lands_every_board_on_a_current_swatch() -> None:
+    """`0003` repaints the old backgrounds, and onto colours the picker can still offer."""
+    spec = spec_from_file_location(
+        "migration_0003",
+        Path(__file__).resolve().parents[1] / "alembic" / "versions" / "0003_my_day_palette.py",
+    )
+    assert spec is not None and spec.loader is not None
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    palette: dict[str, str] = module.PALETTE
+
+    assert len(palette) == len(BOARD_COLORS)
+    # Every board lands on a swatch the picker still shows, and on a different one each time,
+    # so the downgrade can put it back.
+    assert set(palette.values()) <= set(BOARD_COLORS.values())
+    assert len(set(palette.values())) == len(palette)
+    # Nothing is repainted twice: no old colour is also a new one.
+    assert set(palette).isdisjoint(BOARD_COLORS.values())

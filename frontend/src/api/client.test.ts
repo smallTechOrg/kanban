@@ -13,7 +13,7 @@ function envelope(code: string, message: string): Record<string, unknown> {
  * can be asserted without a real second of sleeping. An absent header means one second.
  */
 function busy() {
-  return HttpResponse.json(envelope('lock_timeout', 'The board is busy.'), {
+  return HttpResponse.json(envelope('lock_timeout', 'The space is busy.'), {
     status: 503,
     headers: { 'Retry-After': '0' },
   });

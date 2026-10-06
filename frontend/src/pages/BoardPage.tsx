@@ -66,7 +66,10 @@ export function BoardPage(): ReactElement {
 
   if (!isId(boardId) || isError) {
     return (
-      <NotFoundPage title="Board not found" body="This board may be private or may not exist." />
+      <NotFoundPage
+          title="Space not found"
+          body="This space may have been deleted, or the link may be wrong."
+        />
     );
   }
 

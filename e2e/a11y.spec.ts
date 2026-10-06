@@ -69,15 +69,16 @@ function lines(violations: readonly Result[]): string[] {
  * first; the test still fails if any of them found something.
  *
  * `color-contrast` reports instead of failing, and this is the one exception in the file.
- * Every contrast pair axe flags here is a hex or an rgba() that Section 2.9.1 and the two
+ * Every contrast pair axe flags here is a token or an rgba() that Section 2.9.1 and the two
  * tables of Sections 2.1.1 / 2.1.2 write down as the design: white 700 text on the
- * `rgba(255,255,255,0.3)` nav wash over `#026AA7` (3.22:1), white on the board header's
- * `rgba(255,255,255,0.24)`, `--link` `#0079BF` on the `--selected` `#E4F0F6` row (4.03:1) and
- * `--text-muted` `#5E6C84` on `--list-bg` `#EBECF0` (4.49:1, a hundredth short). Section 5.10
- * asks for 4.5:1 on all of them, so the plan contradicts itself; CLAUDE.md's rule is that the
- * plan wins, and raising any of these means repainting the chrome — which this pass is
- * explicitly not allowed to do. The findings are attached to the run instead of swallowed, so
- * the report still names them, and the deviation is recorded in CLAUDE.md section 8.
+ * `rgba(255,255,255,0.3)` wash over the `--nav-bg` rail, white on the board header's
+ * `rgba(255,255,255,0.24)`, `--link` on the `--selected` row and `--text-muted` on `--list-bg`.
+ * Section 5.10 asks for 4.5:1 on all of them, so the plan contradicts itself; CLAUDE.md's rule
+ * is that the plan wins, and raising any of these means repainting the chrome — which this pass
+ * is explicitly not allowed to do. The findings are attached to the run instead of swallowed, so
+ * the report still names them, and the deviation is recorded in CLAUDE.md section 8. The exact
+ * ratios moved with the "ink and iris" palette; the report, not this comment, is where they are
+ * read off.
  */
 async function scan(page: Page, surface: string): Promise<void> {
   const results = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze();
@@ -102,26 +103,26 @@ test('a11y: axe finds no serious or critical violation on Home, Board or the car
 }) => {
   await test.step('1. Home: the create tile, the grid and the sidebar', async () => {
     await page.goto('/');
-    await expect(page.getByRole('button', { name: 'Create new board' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create new space' })).toBeVisible();
     await scan(page, 'Home');
   });
 
   await test.step('2. create a board through the popover', async () => {
-    await page.getByRole('button', { name: 'Create new board' }).click();
-    const popover = page.getByRole('dialog', { name: 'Create board' });
+    await page.getByRole('button', { name: 'Create new space' }).click();
+    const popover = page.getByRole('dialog', { name: 'Create space' });
     await expect(popover).toBeVisible();
 
     // The open popover is part of the page, so this scan covers the popover chrome too.
     await scan(page, 'Home (create-board popover open)');
 
-    await popover.getByLabel('Board title *').fill(BOARD);
+    await popover.getByLabel('Space title *').fill(BOARD);
     await popover.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/b\/\d+$/);
     await expect(page.getByRole('heading', { name: BOARD })).toBeVisible();
   });
 
   await test.step('3. Home again, with this board in the grid', async () => {
-    await page.locator('header').getByRole('button', { name: 'Boards', exact: true }).click();
+    await page.locator('header').getByRole('button', { name: 'Spaces', exact: true }).click();
     await expect(page).toHaveURL('http://127.0.0.1:8020/');
     await expect(page.getByRole('link', { name: BOARD, exact: true }).first()).toBeVisible();
     await scan(page, 'Home (with a board)');

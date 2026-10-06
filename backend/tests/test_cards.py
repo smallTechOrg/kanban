@@ -436,7 +436,7 @@ def test_unarchive_into_a_board_with_no_active_list_is_409_and_changes_nothing(
     assert response.status_code == 409
     error = response.json()["error"]
     assert error["code"] == "conflict"
-    assert error["message"] == "Send a list to the board first"
+    assert error["message"] == "Put a list back first"
     assert error["details"] == {"list_id": todo}
     stored = card_row(item["id"])
     assert stored is not None
@@ -478,7 +478,7 @@ def test_a_closed_board_freezes_its_cards(
     )
 
     assert response.status_code == 409
-    assert response.json()["error"]["message"] == "Board is closed"
+    assert response.json()["error"]["message"] == "Space is closed"
     # Reads are never refused (Section 4.1).
     assert api.get(f"/api/cards/{item['id']}").status_code == 200
 

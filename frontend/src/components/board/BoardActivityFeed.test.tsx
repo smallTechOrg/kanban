@@ -22,7 +22,7 @@ describe('BoardActivityFeed', () => {
     renderWithProviders(<BoardActivityFeed boardId={BOARD_ID} />);
 
     // The board-level row is plain text; the card row links to /b/7/c/101 (Section 2.3.4).
-    expect(await screen.findByText(/Renamed this board \(from Website\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/Renamed this space \(from Website\)/)).toBeInTheDocument();
     const link = screen.getByRole('link');
     expect(link).toHaveAttribute('href', '/b/7/c/101');
   });

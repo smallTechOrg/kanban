@@ -79,7 +79,7 @@ export function useCreateBoard(): UseMutationResult<BoardSummary, Error, CreateB
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: BOARDS_KEY });
     },
-    onError: (error) => show(errorMessage(error, "Couldn't create the board."), 'error'),
+    onError: (error) => show(errorMessage(error, "Couldn't create the space."), 'error'),
   });
 }
 
@@ -133,14 +133,14 @@ function useBoardStateChange(
 export function useCloseBoard(
   boardId: number,
 ): UseMutationResult<Mutated<BoardSummary>, Error, void> {
-  return useBoardStateChange(boardId, closeBoard, "Couldn't close the board.");
+  return useBoardStateChange(boardId, closeBoard, "Couldn't close the space.");
 }
 
 /** `POST /api/boards/{board_id}/reopen` — admin only; allowed while the board is closed. */
 export function useReopenBoard(
   boardId: number,
 ): UseMutationResult<Mutated<BoardSummary>, Error, void> {
-  return useBoardStateChange(boardId, reopenBoard, "Couldn't reopen the board.");
+  return useBoardStateChange(boardId, reopenBoard, "Couldn't reopen the space.");
 }
 
 /** `DELETE /api/boards/{board_id}` — 204, and 409 unless the board is closed. No undo. */
@@ -154,6 +154,6 @@ export function useDeleteBoard(boardId: number): UseMutationResult<void, Error, 
       void queryClient.invalidateQueries({ queryKey: BOARDS_KEY });
       void queryClient.invalidateQueries({ queryKey: CLOSED_BOARDS_KEY });
     },
-    onError: (error) => show(errorMessage(error, "Couldn't delete the board."), 'error'),
+    onError: (error) => show(errorMessage(error, "Couldn't delete the space."), 'error'),
   });
 }

@@ -637,7 +637,7 @@ def test_a_closed_board_refuses_list_mutations_but_still_reads(
     assert api.post(f"/api/boards/{closed['id']}/close", headers=CSRF_HEADERS).status_code == 200
     refused = api.post(f"/api/lists/{list_id}/archive", headers=CSRF_HEADERS)
     assert refused.status_code == 409, refused.text
-    assert refused.json()["error"]["message"] == "Board is closed"
+    assert refused.json()["error"]["message"] == "Space is closed"
     assert api.get(f"/api/boards/{closed['id']}/lists").status_code == 200
 
 

@@ -563,7 +563,7 @@ export function applyArchiveList(state: BoardState, listId: Id): BoardState {
   };
 }
 
-/** "Send to board": the column returns to its stored slot (an archived row keeps `position`). */
+/** "Put back": the column returns to its stored slot (an archived row keeps `position`). */
 export function applyUnarchiveList(state: BoardState, listId: Id): BoardState {
   const list = state.lists[listId];
   if (list === undefined || !list.is_archived) return state;

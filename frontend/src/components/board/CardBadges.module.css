@@ -1,13 +1,22 @@
-/* Section 2.5.3: the badge row, 12px icons and 12px --text-muted text. */
+/*
+ * Section 2.5.3: the badge row, 12px icons and 12px --text-muted text.
+ *
+ * The row stretches the full width of whatever holds it, and on a card tile that width lies
+ * over the anchor covering the tile (`CardTile.module.css`), so its empty half used to swallow
+ * a click meant for the card. It lets a pointer through and each badge takes it back, which is
+ * the row the reader sees rather than the box it is laid out in.
+ */
 .row {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   align-items: center;
   margin-top: 4px;
+  pointer-events: none;
 }
 
 .badge {
+  pointer-events: auto;
   display: inline-flex;
   gap: 4px;
   align-items: center;

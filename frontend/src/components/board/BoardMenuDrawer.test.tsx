@@ -41,10 +41,10 @@ describe('BoardMenuDrawer', () => {
     renderDrawer();
 
     expect(await screen.findByRole('heading', { name: 'Menu' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'About this board' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'About this space' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Archived items' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Activity' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Close board…' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Close space…' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Labels' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Settings' })).toBeEnabled();
     // M5 made "Change background" real; no row is a scope guard any more (Section 7.2).
@@ -56,9 +56,9 @@ describe('BoardMenuDrawer', () => {
     const user = userEvent.setup();
     renderDrawer();
 
-    await user.click(await screen.findByRole('button', { name: 'About this board' }));
+    await user.click(await screen.findByRole('button', { name: 'About this space' }));
 
-    expect(screen.getByRole('heading', { name: 'About this board' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'About this space' })).toBeInTheDocument();
     expect(screen.getByText('Description')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Archived items' })).not.toBeInTheDocument();
 
@@ -105,7 +105,7 @@ describe('BoardMenuDrawer', () => {
     await user.click(await screen.findByRole('button', { name: 'Activity' }));
 
     const feed = await screen.findByRole('list');
-    expect(feed).toHaveTextContent('Renamed this board (from Website)');
+    expect(feed).toHaveTextContent('Renamed this space (from Website)');
     expect(feed).toHaveTextContent('Added Write launch announcement to To Do');
   });
 
@@ -138,13 +138,13 @@ describe('BoardMenuDrawer', () => {
     );
     const handles = renderDrawer();
 
-    await user.click(await screen.findByRole('button', { name: 'Close board…' }));
+    await user.click(await screen.findByRole('button', { name: 'Close space…' }));
 
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText('Close board?')).toBeInTheDocument();
+    expect(within(dialog).getByText('Close space?')).toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        'You can find and reopen closed boards at the bottom of your boards page.',
+        'You can find and reopen closed spaces at the bottom of your spaces page.',
       ),
     ).toBeInTheDocument();
     expect(calls).toEqual([]);

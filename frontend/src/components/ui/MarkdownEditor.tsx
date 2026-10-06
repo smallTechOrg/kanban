@@ -20,7 +20,7 @@ export interface MarkdownEditorProps {
   onChange: (next: string) => void;
   onSave: () => void;
   onCancel: () => void;
-  /** Accessible name of the textarea, e.g. "Description" or "Board description". */
+  /** Accessible name of the textarea, e.g. "Description" or "Space description". */
   label: string;
   placeholder?: string;
   minRows?: number;

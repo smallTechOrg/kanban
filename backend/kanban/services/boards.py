@@ -72,7 +72,7 @@ def _load_summary(db: Session, board_id: int) -> dict[str, Any]:
     """
     board = db.get(Board, board_id, populate_existing=True)
     if board is None:  # pragma: no cover - the caller holds the write lock or board_access
-        raise NotFound("not_found", "That board does not exist.")
+        raise NotFound("not_found", "That space does not exist.")
     return board_summary(board)
 
 
@@ -184,7 +184,7 @@ def update_board(db: Session, *, board_id: int, changes: dict[str, Any]) -> dict
     with write_tx(db, [board_id]) as ctx:
         board = db.get(Board, board_id, populate_existing=True)
         if board is None:  # pragma: no cover - board_access resolved it a moment ago
-            raise NotFound("not_found", "That board does not exist.")
+            raise NotFound("not_found", "That space does not exist.")
         if "name" in changes and changes["name"] != board.name:
             activity.record(
                 ctx,
@@ -220,7 +220,7 @@ def close_board(db: Session, *, board_id: int) -> dict[str, Any]:
     with write_tx(db, [board_id]) as ctx:
         board = db.get(Board, board_id, populate_existing=True)
         if board is None:  # pragma: no cover - board_access resolved it a moment ago
-            raise NotFound("not_found", "That board does not exist.")
+            raise NotFound("not_found", "That space does not exist.")
         board.is_closed = 1
         activity.record(ctx, "board.closed")
     return _load_summary(db, board_id)
@@ -234,7 +234,7 @@ def reopen_board(db: Session, *, board_id: int) -> dict[str, Any]:
     with write_tx(db, [board_id]) as ctx:
         board = db.get(Board, board_id, populate_existing=True)
         if board is None:  # pragma: no cover - board_access resolved it a moment ago
-            raise NotFound("not_found", "That board does not exist.")
+            raise NotFound("not_found", "That space does not exist.")
         board.is_closed = 0
         activity.record(ctx, "board.reopened")
     return _load_summary(db, board_id)
@@ -251,7 +251,7 @@ def delete_board(db: Session, *, board_id: int) -> None:
     with write_tx(db, [board_id]):
         board = db.get(Board, board_id, populate_existing=True)
         if board is None:  # pragma: no cover - board_access resolved it a moment ago
-            raise NotFound("not_found", "That board does not exist.")
+            raise NotFound("not_found", "That space does not exist.")
         if not board.is_closed:
             raise Conflict(
                 "conflict", "Close the board before deleting it.", {"board_id": board_id}
@@ -287,7 +287,7 @@ def upload_background(
         with write_tx(db, [board_id]) as ctx:
             board = db.get(Board, board_id, populate_existing=True)
             if board is None:  # pragma: no cover - board_access resolved it a moment ago
-                raise NotFound("not_found", "That board does not exist.")
+                raise NotFound("not_found", "That space does not exist.")
             row = BoardBackground(
                 file_path="",  # the id below is what names the files, so neither path exists yet
                 thumb_path="",

@@ -12,7 +12,7 @@ export interface BoardsPopoverProps {
   onClose: () => void;
 }
 
-const EMPTY_MESSAGE = 'No boards yet';
+const EMPTY_MESSAGE = 'No spaces yet';
 
 interface BoardRowsProps {
   boards: readonly BoardSummary[];
@@ -64,16 +64,16 @@ export function BoardsPopover({ anchor, onClose }: BoardsPopoverProps): ReactEle
   };
 
   return (
-    <Popover anchor={anchor} title="Boards" onClose={onClose}>
+    <Popover anchor={anchor} title="Spaces" onClose={onClose}>
       <TextInput
         value={filter}
         onChange={(event) => setFilter(event.target.value)}
-        placeholder="Filter boards"
-        aria-label="Filter boards"
+        placeholder="Filter spaces"
+        aria-label="Filter spaces"
       />
       {isPending ? (
         <div className={styles.loading}>
-          <Spinner size={24} label="Loading boards" />
+          <Spinner size={24} label="Loading spaces" />
         </div>
       ) : boards.length === 0 ? (
         <EmptyState message={EMPTY_MESSAGE} />

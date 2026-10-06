@@ -55,9 +55,9 @@ test('M4b: every key of the Section 2.8 cheat sheet', async ({ page }) => {
 
   await test.step('1. create a board and two cards', async () => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'Create new board' }).click();
-    const popover = page.getByRole('dialog', { name: 'Create board' });
-    await popover.getByLabel('Board title').fill(BOARD);
+    await page.getByRole('button', { name: 'Create new space' }).click();
+    const popover = page.getByRole('dialog', { name: 'Create space' });
+    await popover.getByLabel('Space title').fill(BOARD);
     await popover.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/b\/\d+$/);
     boardPath = new URL(page.url()).pathname;

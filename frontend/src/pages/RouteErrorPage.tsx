@@ -13,7 +13,7 @@ export function RouteErrorPage(): ReactElement {
 
   return (
     <MessagePanel title="Something went wrong">
-      {detail}. Reload the page, or <a href="/">go back to your boards</a>.
+      {detail}. Reload the page, or <a href="/">go back to your spaces</a>.
     </MessagePanel>
   );
 }

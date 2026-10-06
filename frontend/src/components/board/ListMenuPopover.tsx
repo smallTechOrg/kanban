@@ -39,8 +39,8 @@ const SORTS: readonly { by: SortListBy; label: string }[] = [
 ];
 
 const ARCHIVE_ALL_BODY =
-  'This will remove all the cards in this list from the board. To view archived cards and ' +
-  "bring them back to the board, click 'Menu' > 'Archived items'.";
+  'This will remove all the cards in this list from the space. To view archived cards and ' +
+  "bring them back, click 'Menu' > 'Archived items'.";
 
 interface MoveListFormProps {
   boardId: number;
@@ -95,7 +95,7 @@ function MoveListForm({
 
   return (
     <div className={styles.form}>
-      <Field label="Board">
+      <Field label="Space">
         {(control) => (
           <Select
             {...control}
@@ -286,7 +286,7 @@ export function ListMenuPopover({
     title: 'Move all cards in this list',
     content: (nav: PopoverNav): ReactNode =>
       others.length === 0 ? (
-        <p className={styles.body}>This board has no other list to move the cards to.</p>
+        <p className={styles.body}>This space has no other list to move the cards to.</p>
       ) : (
         others.map((id) => (
           <MenuRow

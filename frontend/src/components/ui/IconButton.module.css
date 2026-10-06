@@ -6,7 +6,8 @@
   width: var(--sidebar-btn-h);
   height: var(--sidebar-btn-h);
   color: var(--icon);
-  border-radius: var(--radius-sm);
+  /* A pill on a square box is a circle: the icon buttons round off with the text ones. */
+  border-radius: var(--radius-pill);
   transition: background var(--t-hover);
 }
 

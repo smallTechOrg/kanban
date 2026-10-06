@@ -59,7 +59,7 @@ describe('CreateBoardPopover', () => {
     const create = screen.getByRole('button', { name: 'Create' });
     expect(create).toBeDisabled();
 
-    const title = screen.getByLabelText('Board title *');
+    const title = screen.getByLabelText('Space title *');
     await user.type(title, '   ');
     expect(create).toBeDisabled();
 
@@ -72,10 +72,10 @@ describe('CreateBoardPopover', () => {
     useFullPalette();
     renderPopover();
 
-    await user.click(screen.getByLabelText('Board title *'));
+    await user.click(screen.getByLabelText('Space title *'));
     await user.tab();
 
-    expect(await screen.findByText(/Board title is required/)).toBeInTheDocument();
+    expect(await screen.findByText(/Space title is required/)).toBeInTheDocument();
   });
 
   it('paints the preview with the chosen background', async () => {
@@ -89,7 +89,7 @@ describe('CreateBoardPopover', () => {
     await user.click(gradient);
 
     expect(gradient).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('img', { name: 'Board preview' }).getAttribute('style')).toContain(
+    expect(screen.getByRole('img', { name: 'Space preview' }).getAttribute('style')).toContain(
       'linear-gradient',
     );
   });
@@ -101,7 +101,7 @@ describe('CreateBoardPopover', () => {
     renderPopover();
 
     await user.click(await screen.findByRole('button', { name: 'Ocean gradient background' }));
-    await user.type(screen.getByLabelText('Board title *'), 'Roadmap');
+    await user.type(screen.getByLabelText('Space title *'), 'Roadmap');
     await user.click(screen.getByLabelText('Start with default lists'));
     await user.click(screen.getByRole('button', { name: 'Create' }));
 

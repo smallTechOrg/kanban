@@ -49,9 +49,9 @@ test('M4b: a second tab follows the first within a second', async ({ context }) 
 
   await test.step('create a board with one card', async () => {
     await author.goto('/');
-    await author.getByRole('button', { name: 'Create new board' }).click();
-    const popover = author.getByRole('dialog', { name: 'Create board' });
-    await popover.getByLabel('Board title').fill(BOARD);
+    await author.getByRole('button', { name: 'Create new space' }).click();
+    const popover = author.getByRole('dialog', { name: 'Create space' });
+    await popover.getByLabel('Space title').fill(BOARD);
     await popover.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(author).toHaveURL(/\/b\/\d+$/);
 

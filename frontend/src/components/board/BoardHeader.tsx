@@ -62,10 +62,10 @@ export function BoardHeader({ boardId }: BoardHeaderProps): ReactElement | null 
         <InlineEditable
           className={styles.name}
           // The board name is this button's visible text, so the accessible name has to carry
-          // it too (WCAG 2.5.3): a bare "Board name" would make the `h1` announce that literal
+          // it too (WCAG 2.5.3): a bare "Space name" would make the `h1` announce that literal
           // string instead of the board, because a label on the only child wins the heading's
           // name computation. Same shape as `ListHeader`'s "Rename list <name>".
-          label={`Rename board ${board.name}`}
+          label={`Rename space ${board.name}`}
           value={board.name}
           onSave={(name) => updateBoard.mutate({ name })}
         />

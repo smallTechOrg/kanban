@@ -44,7 +44,7 @@ describe('SearchPopover', () => {
     await user.click(screen.getByRole('textbox', { name: 'Search' }));
     await user.keyboard('launch');
 
-    expect(await screen.findByRole('heading', { name: 'Boards' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Spaces' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Cards' })).toBeInTheDocument();
     expect(screen.getByText(BOARD_NAME)).toBeInTheDocument();
     expect(screen.getByText(CARD_TITLE)).toBeInTheDocument();

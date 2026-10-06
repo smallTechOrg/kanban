@@ -108,9 +108,9 @@ test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ pag
 
   await test.step('1. create a board with four cards, labels and a due date', async () => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'Create new board' }).click();
-    const create = page.getByRole('dialog', { name: 'Create board' });
-    await create.getByLabel('Board title').fill(BOARD);
+    await page.getByRole('button', { name: 'Create new space' }).click();
+    const create = page.getByRole('dialog', { name: 'Create space' });
+    await create.getByLabel('Space title').fill(BOARD);
     await create.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/b\/\d+$/);
     boardPath = new URL(page.url()).pathname;
@@ -192,12 +192,12 @@ test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ pag
 
   await test.step('5. "B" opens the boards popover: one list, one filter', async () => {
     await page.keyboard.press('b');
-    const boards = page.getByRole('dialog', { name: 'Boards' });
+    const boards = page.getByRole('dialog', { name: 'Spaces' });
     await expect(boards).toBeVisible();
     // One person's boards are one list: there is no Recent or Starred group in it.
     await expect(boards.getByRole('heading', { name: 'Recent' })).toHaveCount(0);
     await expect(boards.getByRole('heading', { name: 'Starred' })).toHaveCount(0);
-    await expect(boards.getByLabel('Filter boards')).toBeVisible();
+    await expect(boards.getByLabel('Filter spaces')).toBeVisible();
     await expect(boards.getByRole('button', { name: BOARD, exact: true })).toBeVisible();
 
     await page.keyboard.press('Escape');
@@ -231,14 +231,14 @@ test('M4b: filter, search, shortcuts, the board menu and realtime', async ({ pag
     await expect(drawer.getByText(`Added ${ALPHA} to ${TODO}`)).toBeVisible();
     await expect(drawer.getByText('Added the green label to this card').first()).toBeVisible();
     await expect(drawer.getByText('Archived this card')).toBeVisible();
-    await expect(drawer.getByText('Created this board')).toBeVisible();
+    await expect(drawer.getByText('Created this space')).toBeVisible();
 
     await drawer.getByRole('button', { name: 'Back' }).click();
     await drawer.getByRole('button', { name: 'Archived items' }).click();
     await expect(drawer.getByRole('heading', { name: 'Archived items' })).toBeVisible();
     await expect(drawer.getByText(DELTA)).toBeVisible();
 
-    await drawer.getByRole('button', { name: 'Send to board' }).click();
+    await drawer.getByRole('button', { name: 'Put back' }).click();
     await expect(drawer.getByText('No archived cards')).toBeVisible();
     await expect(column(page, TODO).getByRole('link', { name: DELTA })).toBeVisible();
     // The restore puts the card back in its own slot, which is the one it left (Section 2.3.4).

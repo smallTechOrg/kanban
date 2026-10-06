@@ -573,7 +573,7 @@ function useCardIdResolver(boardId: number): (cardId: Id) => Promise<Id> {
         pendingState === undefined ? undefined : selectCard(pendingState, cardId)?.client_id;
       // No row behind the temporary id: its create already resolved or rolled back, and there
       // is nothing left to address. Failing here beats sending `/api/cards/-1`.
-      if (clientId === undefined) throw new Error('That card is no longer on the board.');
+      if (clientId === undefined) throw new Error('That card is no longer on the space.');
       await new Promise<void>((resolve) => addPending(clientId, resolve));
       const settled = queryClient.getQueryData<BoardState>(boardKey(boardId));
       const created = settled === undefined ? undefined : findCardByClientId(settled, clientId);

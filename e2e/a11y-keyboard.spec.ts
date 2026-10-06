@@ -73,14 +73,14 @@ test.describe.configure({ mode: 'serial' });
 test('a11y: create board, list, card and label with the keyboard alone', async ({ page }) => {
   await test.step('1. create a board from the Home create tile', async () => {
     await page.goto('/');
-    await tabAndPress(page, page.getByRole('button', { name: 'Create new board' }));
+    await tabAndPress(page, page.getByRole('button', { name: 'Create new space' }));
 
-    const popover = page.getByRole('dialog', { name: 'Create board' });
+    const popover = page.getByRole('dialog', { name: 'Create space' });
     await expect(popover).toBeVisible();
 
     // Section 5.10: a popover puts the initial focus inside itself, so the title field is
     // reachable without ever leaving the panel — and Tab cannot escape the trap.
-    await tabTo(page, popover.getByLabel('Board title *'));
+    await tabTo(page, popover.getByLabel('Space title *'));
     await page.keyboard.type(BOARD);
     await tabAndPress(page, popover.getByRole('button', { name: 'Create', exact: true }));
 

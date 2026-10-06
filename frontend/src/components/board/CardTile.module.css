@@ -16,8 +16,17 @@
   cursor: pointer;
 }
 
+/*
+ * Hover deepens the shadow and nothing else. A 1px lift was the obvious thing to add here and
+ * it broke the drag: `@hello-pangea/dnd` measures every tile with `getBoundingClientRect()`
+ * when an item is lifted, so a tile that moves because the pointer happens to be over it is a
+ * tile whose measured box is a pixel away from where the library believes it is. That was
+ * enough for the cross-list keyboard drag of `e2e/board-dnd.spec.ts` to find no destination
+ * and silently stay put. Nothing on a tile may change its geometry on hover.
+ */
 .tile:hover {
   background: var(--modal-bg);
+  box-shadow: var(--shadow-popover);
 }
 
 /*
@@ -83,11 +92,18 @@
 /*
  * The chips, the badge row and the pencil are the tile's own controls, so they paint above the
  * anchor's stretched layer instead of under it.
+ *
+ * Both rows are block boxes as wide as the tile, so the layer that lets a chip be clicked also
+ * covered the empty space beside it: a click aimed at the tile just right of a label or a due
+ * date landed on the row and opened nothing. The rows therefore let a pointer through and only
+ * the chips and the badges themselves take it back, which puts the gaps back on the anchor
+ * underneath (`.link::after`) and keeps the whole-tile click target of Section 2.5.1.
  */
 .labels,
 .badges {
   position: relative;
   z-index: 1;
+  pointer-events: none;
 }
 
 .title {
@@ -145,6 +161,7 @@
 /* The chip itself is the ui/ primitive; the tile only says that clicking one is a control. */
 .chip {
   cursor: pointer;
+  pointer-events: auto;
 }
 
 /* Section 2.5.1: the quick-edit pencil, visible only while the tile is hovered or focused. */

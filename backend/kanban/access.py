@@ -8,7 +8,7 @@ section 3): no service re-reads a board to decide what a request may do.
 It owns
 
 * `board_access()`, which loads the board a `/api/boards/{board_id}` route names, answers 404
-  `not_found` when there is none and 409 `conflict` "Board is closed" for a mutation on a closed
+  `not_found` when there is none and 409 `conflict` "Space is closed" for a mutation on a closed
   board. `allow_closed` exempts the routes that must keep working while a board is closed -
   reopen and board delete (Section 4.1). Reads are never refused;
 * the four child-row factories - `list_access`, `card_access`, `label_access`, `item_access` -
@@ -66,16 +66,16 @@ Db = Annotated[Session, Depends(get_db)]
 def board_access(*, allow_closed: bool = False) -> Callable[..., BoardCtx]:
     """Build the dependency that resolves the board a route names (Section 6.6).
 
-    404 `not_found` when the board does not exist; 409 `conflict` "Board is closed" for a
+    404 `not_found` when the board does not exist; 409 `conflict` "Space is closed" for a
     mutation on a closed board unless `allow_closed`.
     """
 
     def dependency(request: Request, board_id: PathId, db: Db) -> BoardCtx:
         board = db.get(Board, board_id)
         if board is None:
-            raise NotFound("not_found", "Board not found.")
+            raise NotFound("not_found", "Space not found.")
         if board.is_closed and not allow_closed and _is_mutation(request.method):
-            raise Conflict("conflict", "Board is closed", {"board_id": board_id})
+            raise Conflict("conflict", "Space is closed", {"board_id": board_id})
         return BoardCtx(board=board)
 
     return dependency

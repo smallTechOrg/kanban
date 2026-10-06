@@ -18,29 +18,29 @@ function row(
 
 /** Every row of the Section 3.8 table, rendered as the open card's feed shows it. */
 const SENTENCES: [string, Record<string, unknown>, string][] = [
-  ['board.created', { board_name: 'Launch' }, 'Created this board'],
-  ['board.renamed', { from: 'Launch', to: 'Launch v2' }, 'Renamed this board (from Launch)'],
-  ['board.description_changed', {}, 'Updated the description of this board'],
+  ['board.created', { board_name: 'Launch' }, 'Created this space'],
+  ['board.renamed', { from: 'Launch', to: 'Launch v2' }, 'Renamed this space (from Launch)'],
+  ['board.description_changed', {}, 'Updated the description of this space'],
   [
     'board.background_changed',
     { background_type: 'color', background_value: 'green' },
-    'Changed the background of this board',
+    'Changed the background of this space',
   ],
-  ['board.closed', {}, 'Closed this board'],
-  ['board.reopened', {}, 'Re-opened this board'],
+  ['board.closed', {}, 'Closed this space'],
+  ['board.reopened', {}, 'Re-opened this space'],
 
-  ['list.created', { list_name: 'Doing' }, 'Added list Doing to this board'],
+  ['list.created', { list_name: 'Doing' }, 'Added list Doing to this space'],
   ['list.renamed', { from: 'Doing', to: 'In progress' }, 'Renamed list In progress (from Doing)'],
   ['list.moved', { list_name: 'Done', index: 2 }, 'Moved list Done'],
   [
     'list.moved_out',
     { list_name: 'Done', other_board_id: 9, other_board_name: 'Ops', index: 2 },
-    'Moved list Done to board Ops',
+    'Moved list Done to space Ops',
   ],
   [
     'list.moved_in',
     { list_name: 'Done', other_board_id: 7, other_board_name: 'Launch', index: 2 },
-    'Moved list Done from board Launch',
+    'Moved list Done from space Launch',
   ],
   [
     'list.copied',
@@ -48,7 +48,7 @@ const SENTENCES: [string, Record<string, unknown>, string][] = [
     'Copied list Done (copy) from Done',
   ],
   ['list.archived', { list_name: 'Done' }, 'Archived list Done'],
-  ['list.unarchived', { list_name: 'Done' }, 'Sent list Done to the board'],
+  ['list.unarchived', { list_name: 'Done' }, 'Put list Done back'],
   ['list.color_changed', { list_name: 'Done', color: 'green' }, 'Changed the color of list Done'],
   ['list.color_changed', { list_name: 'Done', color: null }, 'Removed the color from list Done'],
 
@@ -77,7 +77,7 @@ const SENTENCES: [string, Record<string, unknown>, string][] = [
     'Moved this card from To Do to Doing',
   ],
   ['card.archived', { card_title: 'Write plan' }, 'Archived this card'],
-  ['card.unarchived', { card_title: 'Write plan' }, 'Sent this card to the board'],
+  ['card.unarchived', { card_title: 'Write plan' }, 'Put this card back'],
   [
     'card.deleted',
     { card_title: 'Write plan', list_name: 'Done' },

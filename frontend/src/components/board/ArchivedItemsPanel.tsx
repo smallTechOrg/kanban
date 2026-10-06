@@ -20,7 +20,7 @@ export interface ArchivedItemsPanelProps {
 }
 
 interface RowActionsProps {
-  /** "Send to board": the restore, which also drops the row from this listing. */
+  /** "Put back": the restore, which also drops the row from this listing. */
   onRestore: () => void;
   restoring: boolean;
   confirmTitle: string;
@@ -43,7 +43,7 @@ function RowActions({
   return (
     <p className={styles.actions}>
       <Button variant="link" loading={restoring} onClick={onRestore}>
-        Send to board
+        Put back
       </Button>
       <span className={styles.dot} aria-hidden="true" />
       <Button
@@ -125,7 +125,7 @@ function ArchivedListRow({ boardId, list }: ListRowProps): ReactElement {
 
 /**
  * The "Archived items" panel of the board menu drawer (Section 2.3.4): a search field, the
- * cards/lists switch, and one row per archived card or list with "Send to board" and "Delete".
+ * cards/lists switch, and one row per archived card or list with "Put back" and "Delete".
  *
  * Both halves are `useInfiniteQuery`s keyed `['archived', boardId, type, q]` (`hooks/useArchived`
  * debounces the search text, so the key changes once per pause), and only the visible half is

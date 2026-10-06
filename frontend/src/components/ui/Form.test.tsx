@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { Checkbox, Field, Select, TextInput } from './Form';
 
 const HELPER = 'lowercase letters, numbers and _ only, 3-32';
-const ERROR = 'Board title is required';
+const ERROR = 'Space title is required';
 
 /** The register-form pattern: the helper is replaced by the error once validation fails. */
 function Harness(): ReactElement {

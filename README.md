@@ -2,28 +2,29 @@
 
 **Everything you're on, in one place.**
 
-A self-hosted board for keeping track of your own life: one for the shopping, one for the bills,
-one for the week ahead. There is no account to create and no sign-in step: start it and the
-boards are there. One Python process serves the JSON API under `/api` and the compiled React
+A self-hosted planner for keeping track of your own life: one space for the shopping, one for the
+bills, one for the week ahead. There is no account to create and no sign-in step: start it and
+your spaces are there. One Python process serves the JSON API under `/api` and the compiled React
 single-page app; SQLite is the only datastore; Node is the build and dev toolchain and never runs
 in production.
 
-The board reads like Trello's, and nothing else does. The parts of Trello that answer a *team's*
-problems — starred and recently-viewed boards, attachments, covers, card templates, move and copy
-between boards, checklists as named containers — are not here. A card holds a title, a description,
+A space reads like a Trello board, and nothing else does — the palette, the chrome and the
+vocabulary are My Day's own. The parts of Trello that answer a *team's* problems — starred and
+recently-viewed boards, attachments, covers, card templates, move and copy between boards,
+checklists as named containers — are not here. A card holds a title, a description,
 labels, dates and items to tick off, and its one destructive action is Delete.
 
 > Trello is a trademark of Atlassian. This project is not affiliated with, endorsed by, or sponsored by
 > Atlassian. Trello is referenced here only as a visual reference point for the board itself.
 
-`npm run seed` fills a fresh install with four example boards — Shopping, This week, Money and
+`npm run seed` fills a fresh install with four example spaces — Shopping, This week, Money and
 Home & errands — so the first thing you see is a week that looks like yours.
 
 - Specification and single source of truth: [docs/PLANNING.md](docs/PLANNING.md)
 - Engineering rules every change must follow: [CLAUDE.md](CLAUDE.md)
 
 > **There is no authentication.** My Day has no accounts, no passwords and no login page, so anything
-> that can reach the port can read and change every board. It binds `127.0.0.1` by default and is meant
+> that can reach the port can read and change every space. It binds `127.0.0.1` by default and is meant
 > to stay that way, or to sit on a network you trust. If you need it reachable from elsewhere, put a
 > reverse proxy in front of it that does the authenticating (and covers `/uploads` and the event stream
 > too, not just `/api`). See [Exposing it beyond your own machine](#exposing-it-beyond-your-own-machine).
@@ -118,16 +119,16 @@ At startup the server creates `data/` and `data/uploads/`, applies Alembic migra
 
 `KANBAN_HOST` is `127.0.0.1` because nothing in the app authenticates a request: there is no account,
 no password and no session, so the socket it listens on is the entire access control. On your own
-machine that is exactly right - the boards open instantly and nothing asks you who you are.
+machine that is exactly right - a space opens instantly and nothing asks you who you are.
 
 Before setting `KANBAN_HOST=0.0.0.0`, decide what is in front of it:
 
 - **A LAN you trust** (a home server, one household): acceptable, and the usual reason to change it.
-  Every device that can route to the machine can edit every board, including anything on the guest
+  Every device that can route to the machine can edit every space, including anything on the guest
   Wi-Fi, so bind it to the interface you mean rather than all of them where you can.
 - **Anything reachable from the internet**: put a reverse proxy in front that requires a credential
   (HTTP basic auth, an identity-aware proxy, a VPN or a tunnel) and forward only to the loopback port.
-  The proxy must cover `/uploads` and `GET /api/boards/{id}/events` as well as `/api`, or the board
+  The proxy must cover `/uploads` and `GET /api/boards/{id}/events` as well as `/api`, or the space
   background images and the live event stream stay open.
 - Under Docker, `ports:` is that boundary: `'127.0.0.1:8000:8000'` keeps the container on loopback
   while `'8000:8000'` publishes it to the whole network.
@@ -192,7 +193,7 @@ the repo root from their own location, so they work from any directory.
 | `npm run build` | `make build` | Build the SPA into `frontend/dist` |
 | `npm start` | `make start` | Serve API + SPA from one Python process |
 | `npm run migrate` | `make migrate` | Apply Alembic migrations to head |
-| `npm run seed` | `make seed` | Create the four example boards (Shopping, This week, Money, Home & errands) |
+| `npm run seed` | `make seed` | Create the four example spaces (Shopping, This week, Money, Home & errands) |
 | `npm run backup` | `make backup` | `VACUUM INTO data/backups/` plus a zip of `data/uploads/` |
 | `npm run lint` | `make lint` | `ruff check` + `ruff format --check` on the backend, eslint on the frontend |
 | `npm run format` | `make format` | Rewrite Python with `ruff format`, TypeScript with prettier |

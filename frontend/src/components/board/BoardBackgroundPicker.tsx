@@ -247,7 +247,7 @@ export function BoardBackgroundPicker({
           </div>
           {library !== undefined && library.custom.length === 0 ? (
             <p className={styles.empty}>
-              Images you upload stay here, ready for any of your boards.
+              Images you upload stay here, ready for any of your spaces.
             </p>
           ) : null}
           <input

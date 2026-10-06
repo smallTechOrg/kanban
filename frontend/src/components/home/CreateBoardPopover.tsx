@@ -9,7 +9,7 @@ import { BackgroundPicker, type BackgroundChoice } from './BackgroundPicker';
 import styles from './CreateBoardPopover.module.css';
 
 /** Section 2.2.1 item 3, shown under the input once it has been left empty. */
-const TITLE_HINT = '\u{1F44B} Board title is required';
+const TITLE_HINT = '\u{1F44B} Space title is required';
 
 export interface CreateBoardPopoverProps {
   anchor: HTMLElement | DOMRect;
@@ -69,7 +69,7 @@ export function CreateBoardPopover({ anchor, onClose }: CreateBoardPopoverProps)
   }
 
   return (
-    <Popover anchor={anchor} title="Create board" onClose={onClose}>
+    <Popover anchor={anchor} title="Create space" onClose={onClose}>
       <form
         className={styles.form}
         onSubmit={(event) => {
@@ -81,7 +81,7 @@ export function CreateBoardPopover({ anchor, onClose }: CreateBoardPopoverProps)
           className={styles.preview}
           style={previewStyle(hovered ?? selected, gradients)}
           role="img"
-          aria-label="Board preview"
+          aria-label="Space preview"
         >
           <span className={styles.barShort} />
           <span className={styles.barMedium} />
@@ -96,7 +96,7 @@ export function CreateBoardPopover({ anchor, onClose }: CreateBoardPopoverProps)
           onPreview={setHovered}
         />
 
-        <Field label="Board title *" error={error}>
+        <Field label="Space title *" error={error}>
           {(control) => (
             <TextInput
               {...control}

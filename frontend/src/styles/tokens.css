@@ -5,6 +5,10 @@
  *
  * Label, cover and board-background palettes are deliberately NOT tokens: they come
  * from GET /api/meta and are applied by src/lib/colors.ts (Section 5.6).
+ *
+ * The palette is My Day's own ("ink and iris"), not the Atlassian one the plan was drawn
+ * from: a deep ink-violet rail, an iris accent and warm violet-tinted greys. Section 2.9.1
+ * of docs/PLANNING.md carries the same values; see the note at its head.
  */
 :root {
   /* typography */
@@ -18,27 +22,27 @@
   --fs-title: 20px;
   --fs-board: 18px;
 
-  /* neutrals (Atlassian palette) */
-  --text: #172b4d;
-  --text-muted: #5e6c84;
-  --text-subtle: #6b778c;
-  --icon: #42526e;
-  --border: #dfe1e6;
-  --page-bg: #fafbfc;
+  /* neutrals (warm, violet-tinted greys — My Day's own) */
+  --text: #211f2e;
+  --text-muted: #58536b;
+  --text-subtle: #6b6681;
+  --icon: #46425c;
+  --border: #e4e1ec;
+  --page-bg: #f7f6fb;
   --surface: #ffffff;
-  --modal-bg: #f4f5f7;
-  --list-bg: #ebecf0;
-  --hover: #091e420f;
-  --pressed: #091e4226;
+  --modal-bg: #f4f2f9;
+  --list-bg: #edeaf4;
+  --hover: #241f470f;
+  --pressed: #241f4726;
   /* The selected-row tint shared by the Home sidebar (2.2), search results (2.1.2) and the
      DatePicker range (2.7.3). */
-  --selected: #e4f0f6;
+  --selected: #ece7fa;
   --overlay: rgba(0, 0, 0, 0.64);
   /* The gap a dragged card leaves behind in its list (Sections 2.5.1 and 5.5). */
   --drop-placeholder: rgba(9, 30, 66, 0.08);
   --quick-edit-overlay: rgba(0, 0, 0, 0.6);
   /* The hatched band an archived card's modal wears (Section 2.6.1, ArchivedBanner). */
-  --archived-bg: #fbe5b4;
+  --archived-bg: #f7e3bd;
   --archived-stripe: rgba(0, 0, 0, 0.05);
   /* The same wash at the hover strength Section 2.5.4 gives the quick editor's side buttons. */
   --quick-edit-overlay-hover: rgba(0, 0, 0, 0.8);
@@ -46,28 +50,29 @@
      Tooltip and Toast are #172B4D with white text). Kept literal rather than aliased to
      --text so the dark theme cannot invert them. */
   --text-inverse: #ffffff;
-  --surface-inverse: #172b4d;
+  --surface-inverse: #241f47;
 
   /* brand */
-  --primary: #0079bf;
-  --primary-hover: #026aa7;
-  --primary-active: #055a8c;
-  --nav-bg: #026aa7;
-  --focus: #0079bf;
-  --link: #0079bf;
-  --logo: #0052cc;
+  --primary: #4c3fb5;
+  --primary-hover: #3f349b;
+  --primary-active: #342b82;
+  /* The rail is one solid ink bar on every page, board included (Section 2.1.1). */
+  --nav-bg: #241f47;
+  --focus: #4c3fb5;
+  --link: #3f349b;
+  --logo: #4c3fb5;
 
   /* semantic */
-  --success: #61bd4f;
-  --warning: #f2d600;
-  --due-soon: #f5cd47;
-  --danger: #eb5a46;
-  --danger-btn: #b04632;
-  --danger-btn-hover: #933b27;
-  --progress: #5ba4cf;
+  --success: #2e9e6b;
+  --warning: #e8a317;
+  --due-soon: #f3b63f;
+  --danger: #d9534a;
+  --danger-btn: #b43f36;
+  --danger-btn-hover: #97332b;
+  --progress: #4c3fb5;
   /* The "Reconnecting…" banner of Section 2.10 is the same yellow as a due-soon badge. */
   --banner-bg: var(--due-soon);
-  --star: #f2d600;
+  --star: #e8a317;
 
   /* top nav (Section 2.1.1: buttons sit on a 30/40/50% white wash) */
   --nav-btn: rgba(255, 255, 255, 0.3);
@@ -76,34 +81,36 @@
   --nav-placeholder: rgba(255, 255, 255, 0.8);
 
   /* board header / canvas */
-  --board-header-bg: rgba(0, 0, 0, 0.24);
-  /* The nav darkens the board background instead of using --nav-bg (Section 2.1.1). */
-  --nav-bg-board: rgba(0, 0, 0, 0.15);
+  --board-header-bg: rgba(27, 23, 51, 0.38);
+  /* On a board the rail keeps its ink, tinted by the background it sits on (Section 2.1.1). */
+  --nav-bg-board: rgba(36, 31, 71, 0.82);
   --tw-btn: rgba(255, 255, 255, 0.24);
   --tw-btn-hover: rgba(255, 255, 255, 0.32);
   --scroll-thumb: rgba(255, 255, 255, 0.4);
   --scroll-track: rgba(0, 0, 0, 0.15);
   /* The card region inside a list scrolls on its own 8px bar over a transparent track (2.4.1). */
-  --card-scroll-thumb: #bfc4ce;
+  --card-scroll-thumb: #c3bed2;
   /* The 15% scrim shared by the board-tile hover overlay (2.2) and the TopNav on a board (2.1). */
   --tile-overlay: rgba(0, 0, 0, 0.15);
 
-  /* shadows */
-  --shadow-card: 0 1px 1px #091e4240, 0 0 1px #091e424f;
-  --shadow-card-drag: 0 8px 12px #091e4226, 0 0 1px #091e424f;
-  --shadow-popover: 0 8px 12px #091e4226, 0 0 1px #091e424f;
-  --shadow-modal: 0 8px 16px -4px #091e4240, 0 0 1px #091e424f;
-  --shadow-list: 0 1px 1px #091e4240;
+  /* shadows: softer and wider than the plan's, to match the rounder shapes below */
+  --shadow-card: 0 1px 2px #241f471f, 0 1px 1px #241f4714;
+  --shadow-card-drag: 0 12px 20px -6px #241f4759, 0 0 1px #241f474f;
+  --shadow-popover: 0 10px 24px -6px #241f4733, 0 0 1px #241f474f;
+  --shadow-modal: 0 16px 32px -8px #241f4740, 0 0 1px #241f474f;
+  --shadow-list: 0 2px 6px -2px #241f4733;
   /* The centred card of the closed-board screen (Section 2.3.5). */
-  --shadow-panel: 0 0 10px #091e4240;
+  --shadow-panel: 0 10px 24px -6px #241f4740;
   /* The board menu drawer casts its shadow leftwards, over the canvas (Section 2.3.4). */
-  --shadow-drawer: -8px 0 12px #091e4226;
+  --shadow-drawer: -10px 0 24px -8px #241f4740;
 
   /* radii */
-  --radius-sm: 3px;
-  --card-radius: 8px;
-  --list-radius: 12px;
-  --popover-radius: 8px;
+  --radius-sm: 6px;
+  --card-radius: 10px;
+  --list-radius: 14px;
+  --popover-radius: 12px;
+  /* Buttons and inputs are pills rather than the plan's 3px corners. */
+  --radius-pill: 999px;
 
   /* sizing */
   --nav-h: 44px;
@@ -156,15 +163,15 @@
 
 /* Defined from M0 so no component ever hard-codes a colour. localStorage-only in v1. */
 :root[data-theme='dark'] {
-  --surface: #1d2125;
-  --page-bg: #1d2125;
-  --list-bg: #101204;
-  --modal-bg: #323940;
-  --text: #b6c2cf;
-  --text-muted: #9fadbc;
-  --border: #38414a;
-  --hover: #a6c5e229;
-  --pressed: #a6c5e238;
+  --surface: #221f2e;
+  --page-bg: #1a1824;
+  --list-bg: #15131d;
+  --modal-bg: #2c2839;
+  --text: #cdc8dd;
+  --text-muted: #a9a3bd;
+  --border: #39344a;
+  --hover: #c7bdf029;
+  --pressed: #c7bdf038;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -38,7 +38,7 @@ describe('BoardPage', () => {
     // rather than the literal string "Board name" (WCAG 2.5.3), the same shape the list
     // headers below use.
     expect(
-      await screen.findByRole('button', { name: 'Rename board Website relaunch' }),
+      await screen.findByRole('button', { name: 'Rename space Website relaunch' }),
     ).toHaveTextContent('Website relaunch');
     expect(screen.getByRole('button', { name: 'Rename list To Do' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Rename list Doing' })).toBeInTheDocument();
@@ -50,7 +50,7 @@ describe('BoardPage', () => {
   it('titles the document after the board', async () => {
     renderBoard();
 
-    await screen.findByRole('button', { name: 'Rename board Website relaunch' });
+    await screen.findByRole('button', { name: 'Rename space Website relaunch' });
 
     expect(document.title).toBe('Website relaunch | My Day');
   });
@@ -89,7 +89,7 @@ describe('BoardPage', () => {
     server.use(
       http.get('/api/boards/:boardId', () =>
         HttpResponse.json(
-          { error: { code: 'not_found', message: 'Board not found' } },
+          { error: { code: 'not_found', message: 'Space not found' } },
           {
             status: 404,
           },
@@ -98,12 +98,12 @@ describe('BoardPage', () => {
     );
     renderBoard();
 
-    expect(await screen.findByRole('heading', { name: 'Board not found' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Space not found' })).toBeInTheDocument();
   });
 
   it('shows the 404 copy for an id that cannot be a board', () => {
     renderBoard('/b/nope');
 
-    expect(screen.getByRole('heading', { name: 'Board not found' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Space not found' })).toBeInTheDocument();
   });
 });

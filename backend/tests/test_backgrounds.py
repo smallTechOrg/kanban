@@ -284,11 +284,11 @@ def test_a_library_image_can_be_reselected_and_a_colour_clears_it(
     background_id = image_id(upload_item(api, board["id"]))
 
     cleared = patch_board(
-        api, board["id"], background_type="color", background_value=BOARD_COLORS["red"]
+        api, board["id"], background_type="color", background_value=BOARD_COLORS["clay"]
     )
     assert cleared.status_code == 200, cleared.text
     assert cleared.json()["item"]["background_thumb_url"] is None
-    assert cleared.json()["item"]["background_value"] == BOARD_COLORS["red"]
+    assert cleared.json()["item"]["background_value"] == BOARD_COLORS["clay"]
 
     reselected = patch_board(api, board["id"], background_image_id=background_id)
     assert reselected.status_code == 200, reselected.text

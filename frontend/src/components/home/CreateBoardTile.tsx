@@ -4,7 +4,7 @@ import { CreateBoardPopover } from './CreateBoardPopover';
 import styles from './CreateBoardTile.module.css';
 
 /**
- * The "Create new board" tile of Section 2.2, and the anchor of its popover.
+ * The "Create new space" tile of Section 2.2, and the anchor of its popover.
  *
  * Which popover is open lives in `uiStore` (Section 5.13), so opening this one closes any
  * other. The anchor is part of the match because the TopNav Create menu opens the same
@@ -30,7 +30,7 @@ export function CreateBoardTile(): ReactElement {
           }
         }}
       >
-        Create new board
+        Create new space
       </button>
       {isOpen ? <CreateBoardPopover anchor={button} onClose={() => setOpenPopover(null)} /> : null}
     </>

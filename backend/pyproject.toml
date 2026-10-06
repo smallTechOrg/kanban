@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kanban"
-version = "3.0.0"
+version = "3.1.0"
 description = "My Day - a self-hosted board for everything you are keeping track of (API + SPA host)."
 requires-python = ">=3.12"
 license = { text = "MIT" }

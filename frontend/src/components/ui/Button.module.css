@@ -8,7 +8,8 @@
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   font-weight: 500;
-  border-radius: var(--radius-sm);
+  /* My Day's buttons are pills, not the plan's 3px corners (Section 2.9.1). */
+  border-radius: var(--radius-pill);
   transition: background var(--t-hover);
 }
 

@@ -305,7 +305,7 @@ def _validated_label_ids(db: Session, *, board_id: int, label_ids: Sequence[int]
     )
     missing = [label_id for label_id in wanted if label_id not in known]
     if missing:
-        raise BadRequest("bad_request", "That label is not on this board.", {"label_ids": missing})
+        raise BadRequest("bad_request", "That label is not on this space.", {"label_ids": missing})
     return wanted
 
 
@@ -476,7 +476,7 @@ def _move_target(db: Session, *, to_list_id: int, board_id: int) -> List:
     if target is None or target.board_id != board_id:
         raise BadRequest(
             "bad_request",
-            "That list is not on this board.",
+            "That list is not on this space.",
             {"list_id": to_list_id, "board_id": board_id},
         )
     if target.is_archived:
@@ -490,15 +490,15 @@ def target_board(db: Session, *, board_id: int) -> Board:
     The one guard a dependency cannot apply, because `to_board_id` and the destination list arrive
     in the body rather than the path: `access.board_access()` never sees them, so Section 3.6 puts
     the check here. It applies exactly the rules that dependency does and adds none of its own -
-    404 `not_found` for a board that is not there, 409 `conflict` "Board is closed" for one that
+    404 `not_found` for a board that is not there, 409 `conflict` "Space is closed" for one that
     is - so a move into another board is refused for the same reasons, and with the same wording,
     as any mutation addressed to it directly.
     """
     board = db.get(Board, board_id)
     if board is None:
-        raise NotFound("not_found", "Board not found.")
+        raise NotFound("not_found", "Space not found.")
     if board.is_closed:
-        raise Conflict("conflict", "Board is closed", {"board_id": board_id})
+        raise Conflict("conflict", "Space is closed", {"board_id": board_id})
     return board
 
 
@@ -631,7 +631,7 @@ def unarchive_card(db: Session, *, board_id: int, card_id: int) -> CardMutation:
 
     `position` is untouched, so the card reappears exactly where it was - archived rows keep
     their slot in the neighbour query. If its list is archived the card is appended to the
-    board's first active list instead. Raises `Conflict` (409 "Send a list to the board first")
+    board's first active list instead. Raises `Conflict` (409 "Put a list back first")
     when the board has no active list at all, in which case nothing changes, `NotFound` when the
     card is gone and `Busy` (503) on a lock timeout. Idempotent for an active card.
     """
@@ -641,9 +641,7 @@ def unarchive_card(db: Session, *, board_id: int, card_id: int) -> CardMutation:
             if _load_list(db, card.list_id).is_archived:
                 target = _first_active_list(db, board_id)
                 if target is None:
-                    raise Conflict(
-                        "conflict", "Send a list to the board first", {"list_id": card.list_id}
-                    )
+                    raise Conflict("conflict", "Put a list back first", {"list_id": card.list_id})
                 # No index: `place_in_container` appends after the list's last active card
                 # (the "Append" row of Section 3.6).
                 position, _ = place_in_container(db, Card, "list_id", target.id)

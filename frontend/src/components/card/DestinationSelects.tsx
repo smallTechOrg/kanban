@@ -83,7 +83,7 @@ export function DestinationSelects({
 
   return (
     <div className={styles.selects}>
-      <Field label="Board">
+      <Field label="Space">
         {(control) => (
           <Select
             {...control}
@@ -111,7 +111,7 @@ export function DestinationSelects({
             }}
           >
             {chosenListId === null ? (
-              <option value="">{isPending ? 'Loading…' : 'This board has no lists'}</option>
+              <option value="">{isPending ? 'Loading…' : 'This space has no lists'}</option>
             ) : (
               lists.map((row) => (
                 <option key={row.id} value={String(row.id)}>

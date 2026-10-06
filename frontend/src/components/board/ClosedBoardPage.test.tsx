@@ -41,8 +41,8 @@ describe('ClosedBoardPage', () => {
     renderClosedBoard();
 
     expect(screen.getByRole('heading', { name: 'Trip 2027 is closed' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reopen board' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete board' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reopen space' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete space' })).toBeInTheDocument();
   });
 
   it('reopens the board in place, without leaving the page', async () => {
@@ -50,7 +50,7 @@ describe('ClosedBoardPage', () => {
     const calls = recordCalls();
     renderClosedBoard();
 
-    await user.click(screen.getByRole('button', { name: 'Reopen board' }));
+    await user.click(screen.getByRole('button', { name: 'Reopen space' }));
 
     expect(calls).toEqual(['REOPEN 9']);
     expect(screen.queryByText('Home page')).not.toBeInTheDocument();
@@ -61,8 +61,8 @@ describe('ClosedBoardPage', () => {
     const calls = recordCalls();
     renderClosedBoard();
 
-    await user.click(screen.getByRole('button', { name: 'Delete board' }));
-    expect(await screen.findByText('Delete board?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Delete space' }));
+    expect(await screen.findByText('Delete space?')).toBeInTheDocument();
     expect(calls).toEqual([]);
 
     await user.click(screen.getByRole('button', { name: 'Delete' }));
@@ -75,7 +75,7 @@ describe('ClosedBoardPage', () => {
     const user = userEvent.setup();
     renderClosedBoard();
 
-    await user.click(screen.getByRole('button', { name: 'Back to boards' }));
+    await user.click(screen.getByRole('button', { name: 'Back to spaces' }));
 
     expect(screen.getByText('Home page')).toBeInTheDocument();
   });

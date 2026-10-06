@@ -122,7 +122,7 @@ def _board(db: Session, board_id: int) -> Board:
     """Statement 1: the board row itself."""
     board = db.execute(select(Board).where(Board.id == board_id)).scalar_one_or_none()
     if board is None:  # pragma: no cover - board_access resolved this same row a moment ago
-        raise NotFound("not_found", "Board not found.")
+        raise NotFound("not_found", "Space not found.")
     return board
 
 

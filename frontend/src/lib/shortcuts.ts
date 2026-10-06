@@ -21,7 +21,7 @@ export const DRAG_HANDLE_SELECTOR = '[data-rfd-drag-handle-draggable-id]';
 export type ShortcutScope = 'global' | 'board';
 
 /** The cheat sheet's groups, in the order `KeyboardShortcutsModal` prints them. */
-export type ShortcutGroup = 'Global' | 'Board' | 'Card' | 'Editors' | 'Drag with the keyboard';
+export type ShortcutGroup = 'Global' | 'Space' | 'Card' | 'Editors' | 'Drag with the keyboard';
 
 /**
  * What a key asks the app to do. The handler owns every one of these; this module only names them,
@@ -74,7 +74,7 @@ export const global: readonly Shortcut[] = [
     chips: ['B'],
     action: 'openBoards',
     group: 'Global',
-    description: 'Open the boards popover (recent and starred)',
+    description: 'Open the spaces popover',
   },
   {
     keys: ['?'],
@@ -98,49 +98,49 @@ export const board: readonly Shortcut[] = [
     keys: ['F'],
     chips: ['F'],
     action: 'openFilter',
-    group: 'Board',
+    group: 'Space',
     description: 'Open the Filter popover',
   },
   {
     keys: ['X'],
     chips: ['X'],
     action: 'clearFilters',
-    group: 'Board',
+    group: 'Space',
     description: 'Clear all filters',
   },
   {
     keys: ['W'],
     chips: ['W'],
     action: 'toggleBoardMenu',
-    group: 'Board',
-    description: 'Toggle the board menu drawer',
+    group: 'Space',
+    description: 'Toggle the space menu drawer',
   },
   {
     keys: ['J', 'ArrowDown'],
     chips: ['J', 'Down'],
     action: 'selectNextCard',
-    group: 'Board',
+    group: 'Space',
     description: 'Select the next card in the same list',
   },
   {
     keys: ['K', 'ArrowUp'],
     chips: ['K', 'Up'],
     action: 'selectPreviousCard',
-    group: 'Board',
+    group: 'Space',
     description: 'Select the previous card in the same list',
   },
   {
     keys: ['ArrowLeft'],
     chips: ['Left'],
     action: 'selectListLeft',
-    group: 'Board',
+    group: 'Space',
     description: 'Select the card at the same index in the list to the left',
   },
   {
     keys: ['ArrowRight'],
     chips: ['Right'],
     action: 'selectListRight',
-    group: 'Board',
+    group: 'Space',
     description: 'Select the card at the same index in the list to the right',
   },
   {
@@ -197,7 +197,7 @@ export const board: readonly Shortcut[] = [
     chips: ['1-9'],
     action: 'toggleLabelAtIndex',
     group: 'Card',
-    description: 'Toggle the nth label of the board',
+    description: 'Toggle the nth label of the space',
   },
   {
     keys: [',', '<'],

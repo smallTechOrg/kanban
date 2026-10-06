@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmPopover } from './ConfirmPopover';
 
 const BODY =
-  'All lists, cards and actions will be deleted, and you won\u2019t be able to re-open the board.';
+  'All lists, cards and actions will be deleted, and you won\u2019t be able to re-open the space.';
 
 let anchor: HTMLButtonElement | null = null;
 
@@ -14,7 +14,7 @@ function renderConfirm(onConfirm: () => void, onClose: () => void): void {
   render(
     <ConfirmPopover
       anchor={anchor}
-      title="Delete board?"
+      title="Delete space?"
       body={BODY}
       onConfirm={onConfirm}
       onClose={onClose}
@@ -33,7 +33,7 @@ describe('ConfirmPopover', () => {
     const onConfirm = vi.fn();
     renderConfirm(onConfirm, vi.fn());
 
-    expect(screen.getByRole('dialog')).toHaveAccessibleName('Delete board?');
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Delete space?');
     expect(screen.getByText(BODY)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Delete' }));
@@ -61,7 +61,7 @@ describe('ConfirmPopover', () => {
     render(
       <ConfirmPopover
         anchor={anchor}
-        title="Delete board?"
+        title="Delete space?"
         body={BODY}
         confirmLabel="Delete"
         loading

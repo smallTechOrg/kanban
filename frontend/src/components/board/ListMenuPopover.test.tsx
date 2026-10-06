@@ -167,7 +167,7 @@ describe('ListMenuPopover', () => {
     await openMenu();
 
     await user.click(row('Move list…'));
-    await user.selectOptions(await screen.findByRole('combobox', { name: 'Board' }), 'Personal');
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Space' }), 'Personal');
     await user.click(row('Move'));
 
     expect(calls).toEqual([`POST /lists/${LIST_ID}/move {"index":0,"to_board_id":3}`]);

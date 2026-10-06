@@ -19,7 +19,7 @@ export function NotFoundPage({
     <MessagePanel title={title}>
       <p>{body}</p>
       <Button variant="primary" onClick={() => navigate('/')}>
-        Back to boards
+        Back to spaces
       </Button>
     </MessagePanel>
   );

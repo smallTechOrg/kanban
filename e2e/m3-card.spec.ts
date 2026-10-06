@@ -110,9 +110,9 @@ test('M3 audit: the card modal round-trips every M3 feature to the tile', async 
 
   await test.step('1. create a board with the default lists, add a card', async () => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'Create new board' }).click();
-    const popover = page.getByRole('dialog', { name: 'Create board' });
-    await popover.getByLabel('Board title *').fill(BOARD);
+    await page.getByRole('button', { name: 'Create new space' }).click();
+    const popover = page.getByRole('dialog', { name: 'Create space' });
+    await popover.getByLabel('Space title *').fill(BOARD);
     await popover.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/b\/\d+$/);
     boardPath = new URL(page.url()).pathname;

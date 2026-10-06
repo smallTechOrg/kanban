@@ -6,7 +6,7 @@ import styles from './ConfirmPopover.module.css';
 export interface ConfirmPopoverProps {
   /** The element the popover hangs off — usually the danger button that opened it. */
   anchor: HTMLElement | DOMRect;
-  /** Question form, e.g. "Delete board?" (Sections 2.3.5 and 2.6.4). */
+  /** Question form, e.g. "Delete space?" (Sections 2.3.5 and 2.6.4). */
   title: string;
   body: ReactNode;
   /** Label of the red button; "Delete" by default. */

@@ -17,7 +17,7 @@ const SKELETON_TILES = 6;
 const TAGLINE = "Everything you're on, in one place.";
 
 const BLURB =
-  'A board for the shopping, one for the bills, one for the week ahead. Drag the cards where ' +
+  'A space for the shopping, one for the bills, one for the week ahead. Drag the cards where ' +
   'they belong and tick things off as you go.';
 
 /**
@@ -27,7 +27,7 @@ const BLURB =
 const POINTS: readonly { icon: ReactNode; title: string; text: string }[] = [
   {
     icon: <LayoutGrid aria-hidden="true" />,
-    title: 'A board for each part of life',
+    title: 'A space for each part of life',
     text: 'Shopping, money, chores, the week ahead — whatever you keep track of.',
   },
   {
@@ -38,21 +38,21 @@ const POINTS: readonly { icon: ReactNode; title: string; text: string }[] = [
   {
     icon: <Lock aria-hidden="true" />,
     title: 'Nothing to sign in to',
-    text: 'It runs on your own machine and the boards are yours. No account, ever.',
+    text: 'It runs on your own machine and the spaces are yours. No account, ever.',
   },
 ];
 
 const EMPTY_BLURB =
-  'Boards are where everything you are keeping track of lives. Create your first one to add ' +
+  'Spaces are where everything you are keeping track of lives. Create your first one to add ' +
   'lists and cards.';
 
 /**
  * Section 2.10 words a failed *mutation* ("Couldn't save changes.") but leaves a failed read to
  * the surface that made it. The blurb below is the wrong answer for one — it invites a first
- * board to a user who may already have twelve — so the grid says what happened and offers the
+ * space to a user who may already have twelve — so the grid says what happened and offers the
  * retry, in the same voice.
  */
-const LOAD_ERROR = "Couldn't load your boards.";
+const LOAD_ERROR = "Couldn't load your spaces.";
 
 /** How far apart the tiles rise, and the tile after which they all arrive together. */
 const STAGGER_MS = 40;
@@ -135,7 +135,7 @@ export function HomePage(): ReactElement {
       {!isPending && !isError && all.length === 0 ? <EmptyState message={EMPTY_BLURB} /> : null}
 
       <div className={styles.closed}>
-        <Button onClick={() => setClosedOpen(true)}>View all closed boards</Button>
+        <Button onClick={() => setClosedOpen(true)}>View all closed spaces</Button>
       </div>
 
       {closedOpen ? <ClosedBoardsModal onClose={() => setClosedOpen(false)} /> : null}

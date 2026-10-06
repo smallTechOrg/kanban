@@ -23,13 +23,13 @@ export function ClosedBoardsModal({ onClose }: ClosedBoardsModalProps): ReactEle
   const gradients = meta?.board_gradients ?? {};
 
   return (
-    <Modal title="Closed boards" width={WIDTH} onClose={onClose}>
+    <Modal title="Closed spaces" width={WIDTH} onClose={onClose}>
       {isPending ? (
         <div className={styles.loading}>
-          <Spinner size={24} label="Loading closed boards" />
+          <Spinner size={24} label="Loading closed spaces" />
         </div>
       ) : boards.length === 0 ? (
-        <EmptyState message="No closed boards" />
+        <EmptyState message="No closed spaces" />
       ) : (
         <ul className={styles.rows}>
           {boards.map((board) => (

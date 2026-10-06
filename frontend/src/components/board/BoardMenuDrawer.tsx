@@ -30,8 +30,8 @@ import { BoardLabelsPanel } from './BoardLabelsPanel';
 import { BoardSettingsPanel } from './BoardSettingsPanel';
 import styles from './BoardMenuDrawer.module.css';
 
-/** Section 2.3.4's confirm copy for "Close board…". */
-const CLOSE_BODY = 'You can find and reopen closed boards at the bottom of your boards page.';
+/** Section 2.3.4's confirm copy for "Close space…". */
+const CLOSE_BODY = 'You can find and reopen closed spaces at the bottom of your spaces page.';
 
 /** Section 2.6.3's prompt, reused for the board's own description (Section 2.3.4). */
 const EMPTY_DESCRIPTION = 'Add a more detailed description…';
@@ -41,7 +41,7 @@ type DrawerView = 'menu' | 'about' | 'background' | 'labels' | 'archived' | 'set
 
 const VIEW_TITLE: Record<DrawerView, string> = {
   menu: 'Menu',
-  about: 'About this board',
+  about: 'About this space',
   background: 'Change background',
   labels: 'Labels',
   archived: 'Archived items',
@@ -61,7 +61,7 @@ interface AboutPanelProps {
 }
 
 /**
- * "About this board": the board description, in the same Markdown editor the card description
+ * "About this space": the board description, in the same Markdown editor the card description
  * uses, saved with `PATCH /api/boards/{board_id}`.
  */
 function AboutPanel({ boardId }: AboutPanelProps): ReactElement | null {
@@ -95,7 +95,7 @@ function AboutPanel({ boardId }: AboutPanelProps): ReactElement | null {
         {editing ? (
           <MarkdownEditor
             value={draft}
-            label="Board description"
+            label="Space description"
             placeholder={EMPTY_DESCRIPTION}
             onChange={setDraft}
             onSave={save}
@@ -180,7 +180,7 @@ export function BoardMenuDrawer({
         {view !== 'menu' ? null : (
           <>
             <MenuRow icon={<Info aria-hidden="true" />} onClick={() => setView('about')}>
-              About this board
+              About this space
             </MenuRow>
             <MenuRow icon={<Image aria-hidden="true" />} onClick={() => setView('background')}>
               Change background
@@ -202,7 +202,7 @@ export function BoardMenuDrawer({
                 icon={<XCircle aria-hidden="true" />}
                 onClick={() => setConfirmAnchor(closeRow.current)}
               >
-                Close board…
+                Close space…
               </MenuRow>
             </div>
 
@@ -218,7 +218,7 @@ export function BoardMenuDrawer({
       {confirmAnchor === null ? null : (
         <ConfirmPopover
           anchor={confirmAnchor}
-          title="Close board?"
+          title="Close space?"
           body={CLOSE_BODY}
           confirmLabel="Close"
           loading={closeBoard.isPending}

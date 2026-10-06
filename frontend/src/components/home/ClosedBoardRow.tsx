@@ -7,7 +7,7 @@ import styles from './ClosedBoardsModal.module.css';
 
 /** Section 2.2, the delete confirmation body. Deleting a closed board has no undo. */
 const DELETE_BODY =
-  "All lists, cards and actions will be deleted, and you won't be able to re-open the board. There is no undo.";
+  "All lists, cards and actions will be deleted, and you won't be able to re-open the space. There is no undo.";
 
 export interface ClosedBoardRowProps {
   board: BoardSummary;
@@ -43,7 +43,7 @@ export function ClosedBoardRow({ board, gradients }: ClosedBoardRowProps): React
       {confirmAnchor === null ? null : (
         <ConfirmPopover
           anchor={confirmAnchor}
-          title="Delete board?"
+          title="Delete space?"
           body={DELETE_BODY}
           confirmLabel="Delete"
           loading={remove.isPending}

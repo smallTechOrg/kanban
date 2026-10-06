@@ -241,7 +241,7 @@ def prepare_background(received: ReceivedUpload) -> PreparedBackground:
     if extension is None or image is None:
         received.tmp_path.unlink(missing_ok=True)
         raise UnsupportedMediaType(
-            "unsupported_media_type", "A board background must be a PNG, JPEG or WebP image."
+            "unsupported_media_type", "A space background must be a PNG, JPEG or WebP image."
         )
     return PreparedBackground(
         mime_type=mime_type,

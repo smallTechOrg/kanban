@@ -171,7 +171,7 @@ def attach_label(
         label = db.get(Label, label_id, populate_existing=True)
         if label is None or label.board_id != board_id:
             raise BadRequest(
-                "bad_request", "That label is not on this board.", {"label_ids": [label_id]}
+                "bad_request", "That label is not on this space.", {"label_ids": [label_id]}
             )
         if _attached_row_id(db, card_id=card_id, label_id=label_id) is None:
             db.add(CardLabel(card_id=card_id, label_id=label_id))

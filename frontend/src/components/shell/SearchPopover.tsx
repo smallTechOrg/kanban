@@ -137,7 +137,7 @@ export function SearchPopover(): ReactElement {
             <>
               {boards.length === 0 ? null : (
                 <>
-                  <h3 className={styles.heading}>Boards</h3>
+                  <h3 className={styles.heading}>Spaces</h3>
                   <ul className={styles.list}>
                     {boards.map((board, index) => (
                       <li key={board.id}>

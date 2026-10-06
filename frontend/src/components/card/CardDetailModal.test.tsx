@@ -154,6 +154,6 @@ describe('CardDetailModal', () => {
 
     expect(within(dialog).getByText('This card is archived.')).toBeInTheDocument();
     // An archived card is the one state that offers a way back to the board (Section 2.6.4).
-    expect(within(dialog).getByRole('button', { name: 'Send to board' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Put back' })).toBeInTheDocument();
   });
 });

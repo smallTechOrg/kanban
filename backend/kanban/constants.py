@@ -105,27 +105,31 @@ LIST_COLORS: Final[dict[str, str]] = {
 }
 
 #: Solid board backgrounds (Section 2.9.3), stored raw in `boards.background_value`.
+#: My Day's own palette — nine muted fields, deep enough for the white board header to read on
+#: them, and named for what they look like rather than for a primary colour.
 BOARD_COLORS: Final[dict[str, str]] = {
-    "blue": "#0079BF",
-    "orange": "#D29034",
-    "green": "#519839",
-    "red": "#B04632",
-    "purple": "#89609E",
-    "pink": "#CD5A91",
-    "lime": "#4BBF6B",
-    "sky": "#00AECC",
-    "grey": "#838C91",
+    "iris": "#4C3FB5",
+    "plum": "#6B3F82",
+    "denim": "#35598C",
+    "teal": "#1F6B73",
+    "moss": "#3E6B4B",
+    "olive": "#67703A",
+    "clay": "#B05440",
+    "cocoa": "#7A4A3B",
+    "slate": "#4B5168",
 }
 
 #: The default `boards.background_value` for a freshly created board.
-DEFAULT_BOARD_COLOR: Final[str] = BOARD_COLORS["blue"]
+DEFAULT_BOARD_COLOR: Final[str] = BOARD_COLORS["iris"]
 
 #: Gradient board backgrounds (Section 2.9.3); the preset key is stored in `background_value`.
+#: The four keys are the ones the plan names, so a board that already wears one keeps it; only
+#: the two stops of each have moved onto the palette above.
 BOARD_GRADIENTS: Final[dict[str, str]] = {
-    "gradient-ocean": "linear-gradient(135deg, #0079BF 0%, #5067C5 100%)",
-    "gradient-sunset": "linear-gradient(135deg, #D29034 0%, #B04632 100%)",
-    "gradient-forest": "linear-gradient(135deg, #519839 0%, #1F845A 100%)",
-    "gradient-dusk": "linear-gradient(135deg, #89609E 0%, #CD5A91 100%)",
+    "gradient-ocean": "linear-gradient(135deg, #1F6B73 0%, #35598C 100%)",
+    "gradient-sunset": "linear-gradient(135deg, #B05440 0%, #6B3F82 100%)",
+    "gradient-forest": "linear-gradient(135deg, #3E6B4B 0%, #1F6B73 100%)",
+    "gradient-dusk": "linear-gradient(135deg, #4C3FB5 0%, #6B3F82 100%)",
 }
 
 #: The closed list of `activities.type` values (Section 3.8). `activity.record()` validates

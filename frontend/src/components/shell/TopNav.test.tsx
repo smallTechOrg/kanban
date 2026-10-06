@@ -36,7 +36,7 @@ describe('TopNav', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Create board/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Create space/ })).toBeInTheDocument();
     // M5 made "Create card" real; what the row then does is `CreateMenuPopover`'s own test.
     expect(screen.getByRole('button', { name: /Create card/ })).toBeInTheDocument();
   });
@@ -47,6 +47,6 @@ describe('TopNav', () => {
     // One person's boards are one list, so "Boards" goes home and that is the whole nav.
     expect(screen.queryByRole('button', { name: 'Recent' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Starred' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Boards' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Spaces' })).toBeInTheDocument();
   });
 });

@@ -56,6 +56,16 @@ async function openSidebar(page: Page, button: string, popoverTitle: string): Pr
   return popover;
 }
 
+/**
+ * A locator's box, guarded: `boundingBox()` answers `null` for an element with no layout, and
+ * the clicks below are computed from real coordinates.
+ */
+async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  const box = await locator.boundingBox();
+  if (box === null) throw new Error('the element under test has no layout box');
+  return box;
+}
+
 /** The resolved value of a design token, so a colour assertion never hard-codes a hex. */
 function token(page: Page, name: string): Promise<string> {
   return page.evaluate(
@@ -78,9 +88,9 @@ test('M3: card modal route, labels, description, items, dates, activity', async 
 
   await test.step('1. create a board and one card', async () => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'Create new board' }).click();
-    const popover = page.getByRole('dialog', { name: 'Create board' });
-    await popover.getByLabel('Board title *').fill(BOARD);
+    await page.getByRole('button', { name: 'Create new space' }).click();
+    const popover = page.getByRole('dialog', { name: 'Create space' });
+    await popover.getByLabel('Space title *').fill(BOARD);
     await popover.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/b\/\d+$/);
 
@@ -230,5 +240,29 @@ test('M3: card modal route, labels, description, items, dates, activity', async 
         .getByRole('region', { name: 'Activity' })
         .getByText(`Added this card to ${FIRST_LIST}`),
     ).toBeVisible();
+  });
+
+  await test.step('9. the gaps beside a chip and beside the badges open the card', async () => {
+    // Section 2.5.1 makes the whole tile the click target, and the chip row and the badge row
+    // are as wide as the tile — so the empty half of each row is tile, not row. A reader aiming
+    // just right of a label or a due date is aiming at the card.
+    const boardUrl = cardUrl.replace(/\/c\/\d+$/, '');
+
+    await page.goto(boardUrl);
+    const chip = tileCard(page, CARD).getByRole('button', { name: `Label ${LABEL}`, exact: true });
+    const chipBox = await boxOf(chip);
+    // Right of the chip, and well clear of the pencil in the tile's top-right corner.
+    await page.mouse.click(chipBox.x + chipBox.width + 8, chipBox.y + chipBox.height / 2);
+    await expect(page).toHaveURL(cardUrl);
+    await expect(modal(page)).toBeVisible();
+
+    await page.goto(boardUrl);
+    const badge = tileCard(page, CARD).getByRole('button', { name: /Mark incomplete$/ });
+    const badgeBox = await boxOf(badge);
+    const tileBox = await boxOf(tileCard(page, CARD));
+    // Past the last badge of the row, at the tile's right edge.
+    await page.mouse.click(tileBox.x + tileBox.width - 6, badgeBox.y + badgeBox.height / 2);
+    await expect(page).toHaveURL(cardUrl);
+    await expect(modal(page)).toBeVisible();
   });
 });

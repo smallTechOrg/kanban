@@ -165,18 +165,18 @@ describe('CardModalSidebar', () => {
     await waitFor(() => expect(calls).toEqual([`DELETE ${CARD_ID}`]));
   });
 
-  it('offers "Send to board" only once the card is archived', async () => {
+  it('offers "Put back" only once the card is archived', async () => {
     const user = userEvent.setup();
     const calls = recordWrites();
     open(card({ is_archived: true }));
 
-    await user.click(screen.getByRole('button', { name: 'Send to board' }));
+    await user.click(screen.getByRole('button', { name: 'Put back' }));
     await waitFor(() => expect(calls).toEqual([`UNARCHIVE ${CARD_ID}`]));
   });
 
-  it('hides "Send to board" while the card is on the board', () => {
+  it('hides "Put back" while the card is on the board', () => {
     open();
 
-    expect(screen.queryByRole('button', { name: 'Send to board' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Put back' })).not.toBeInTheDocument();
   });
 });

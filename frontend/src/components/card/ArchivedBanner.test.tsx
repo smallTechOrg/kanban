@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ArchivedBanner } from './ArchivedBanner';
 
 /**
- * Section 2.6.1 gives this band one job: say that the card is archived. "Send to board" and the
+ * Section 2.6.1 gives this band one job: say that the card is archived. "Put back" and the
  * confirmed Delete are `CardModalSidebar`'s rows (Section 2.6.4) and are covered there, so they
  * are deliberately not asserted here - a second copy of them in this file would be a second copy
  * of the rule in the component.

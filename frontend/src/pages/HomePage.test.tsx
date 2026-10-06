@@ -26,7 +26,7 @@ describe('HomePage', () => {
 
     const links = await screen.findAllByRole('link');
     expect(links).toHaveLength(boardGroupsFixture.all.length);
-    expect(screen.getByRole('button', { name: 'Create new board' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Create new space' })).toBeVisible();
 
     for (const name of ['Starred boards', 'Recently viewed', 'Your boards']) {
       expect(screen.queryByRole('heading', { name })).not.toBeInTheDocument();
@@ -46,9 +46,9 @@ describe('HomePage', () => {
     // Section 2.2: the tagline and the three points are the only place an install with no
     // sign-up gets to explain itself.
     expect(await screen.findByText("Everything you're on, in one place.")).toBeInTheDocument();
-    expect(screen.getByText(/A board for the shopping/)).toBeInTheDocument();
+    expect(screen.getByText(/A space for the shopping/)).toBeInTheDocument();
     for (const point of [
-      'A board for each part of life',
+      'A space for each part of life',
       'Tick things off',
       'Nothing to sign in to',
     ]) {
@@ -60,18 +60,18 @@ describe('HomePage', () => {
     serveGroups(EMPTY_GROUPS);
     renderWithProviders(<HomePage />);
 
-    expect(await screen.findByText(/Boards are where everything you are keeping track of/)).
+    expect(await screen.findByText(/Spaces are where everything you are keeping track of/)).
       toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Create new board' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Create new space' })).toBeVisible();
   });
 
   it('opens the closed boards modal from the footer', async () => {
     const user = userEvent.setup();
     renderWithProviders(<HomePage />);
 
-    await user.click(await screen.findByRole('button', { name: 'View all closed boards' }));
+    await user.click(await screen.findByRole('button', { name: 'View all closed spaces' }));
 
-    const dialog = await screen.findByRole('dialog', { name: 'Closed boards' });
+    const dialog = await screen.findByRole('dialog', { name: 'Closed spaces' });
     expect(within(dialog).getByText(closedBoardFixture.name)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Reopen' })).toBeVisible();
   });
@@ -92,12 +92,12 @@ describe('HomePage', () => {
     );
     renderWithProviders(<HomePage />);
 
-    expect(await screen.findByText("Couldn't load your boards.")).toBeInTheDocument();
-    expect(screen.queryByText(/Boards are where everything/)).not.toBeInTheDocument();
+    expect(await screen.findByText("Couldn't load your spaces.")).toBeInTheDocument();
+    expect(screen.queryByText(/Spaces are where everything/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Try again' }));
 
-    expect(await screen.findByText(/Boards are where everything/)).toBeInTheDocument();
-    expect(screen.queryByText("Couldn't load your boards.")).not.toBeInTheDocument();
+    expect(await screen.findByText(/Spaces are where everything/)).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load your spaces.")).not.toBeInTheDocument();
   });
 });

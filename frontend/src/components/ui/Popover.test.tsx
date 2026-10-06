@@ -12,13 +12,13 @@ function Harness(): ReactElement {
   return (
     <>
       <button type="button" ref={triggerRef} onClick={() => setOpen(true)}>
-        Create board
+        Create space
       </button>
       {open && triggerRef.current !== null ? (
-        <Popover anchor={triggerRef.current} title="Create board" onClose={() => setOpen(false)}>
+        <Popover anchor={triggerRef.current} title="Create space" onClose={() => setOpen(false)}>
           {(nav) => (
             <>
-              <input aria-label="Board title" />
+              <input aria-label="Space title" />
               <button
                 type="button"
                 onClick={() =>
@@ -39,12 +39,12 @@ describe('Popover', () => {
   it('focuses the first control and returns focus to the trigger on Escape', async () => {
     const user = userEvent.setup();
     render(<Harness />);
-    const trigger = screen.getByRole('button', { name: 'Create board' });
+    const trigger = screen.getByRole('button', { name: 'Create space' });
 
     await user.click(trigger);
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByLabelText('Board title')).toHaveFocus();
+    expect(screen.getByLabelText('Space title')).toHaveFocus();
 
     await user.keyboard('{Escape}');
 
@@ -56,7 +56,7 @@ describe('Popover', () => {
     const user = userEvent.setup();
     render(<Harness />);
 
-    await user.click(screen.getByRole('button', { name: 'Create board' }));
+    await user.click(screen.getByRole('button', { name: 'Create space' }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
 
     await user.click(document.body);
@@ -68,7 +68,7 @@ describe('Popover', () => {
     const user = userEvent.setup();
     render(<Harness />);
 
-    await user.click(screen.getByRole('button', { name: 'Create board' }));
+    await user.click(screen.getByRole('button', { name: 'Create space' }));
     await screen.findByRole('dialog');
     expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
 
@@ -79,7 +79,7 @@ describe('Popover', () => {
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
 
-    expect(screen.getByLabelText('Board title')).toBeInTheDocument();
+    expect(screen.getByLabelText('Space title')).toBeInTheDocument();
     expect(screen.queryByText('Pick a colour')).not.toBeInTheDocument();
   });
 });

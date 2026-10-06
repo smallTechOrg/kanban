@@ -148,7 +148,7 @@ def write_tx(db: Session, board_ids: Iterable[int] = ()) -> Iterator[WriteCtx]:
                 )
     except OperationalError as exc:
         if is_locked_error(exc):
-            raise Busy("database_busy", "The board is busy, please retry.") from exc
+            raise Busy("database_busy", "The space is busy, please retry.") from exc
         raise
     finally:
         db.info.pop("write_tx", None)

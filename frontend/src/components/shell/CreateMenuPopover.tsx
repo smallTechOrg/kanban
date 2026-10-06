@@ -15,7 +15,7 @@ export interface CreateMenuPopoverProps {
 }
 
 /**
- * The Create menu of Section 2.1.1: "Create board", which swaps `uiStore.openPopover` to
+ * The Create menu of Section 2.1.1: "Create space", which swaps `uiStore.openPopover` to
  * `createBoard` on the same anchor (`CreateBoardPopover` renders that kind, and the nav only
  * records which popover is open, which is what keeps exactly one of them open), and
  * "Create card", which pushes the mini form below onto this popover's own view stack.
@@ -29,10 +29,10 @@ export function CreateMenuPopover({ anchor, onClose }: CreateMenuPopoverProps): 
         <div className={styles.menu}>
           <MenuRow
             icon={<SquareKanban aria-hidden="true" />}
-            helper="A board holds lists of cards."
+            helper="A space holds lists of cards."
             onClick={() => setOpenPopover({ kind: 'createBoard', anchor })}
           >
-            Create board
+            Create space
           </MenuRow>
           <MenuRow
             icon={<CreditCard aria-hidden="true" />}
@@ -118,10 +118,10 @@ function CreateCardForm({ onClose }: { onClose: () => void }): ReactElement {
       </Field>
 
       {boards.length === 0 ? (
-        <p className={styles.empty}>Create a board before you add a card.</p>
+        <p className={styles.empty}>Create a space before you add a card.</p>
       ) : (
         <>
-          <Field label="Board">
+          <Field label="Space">
             {(control) => (
               <Select
                 {...control}
@@ -142,7 +142,7 @@ function CreateCardForm({ onClose }: { onClose: () => void }): ReactElement {
 
           <Field
             label="List"
-            helper={rows.length === 0 ? 'That board has no lists yet.' : undefined}
+            helper={rows.length === 0 ? 'That space has no lists yet.' : undefined}
           >
             {(control) => (
               <Select

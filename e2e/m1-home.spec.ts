@@ -7,11 +7,11 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
  * One serial test, because every step builds on the board the one before it created.
  */
 
-/** `meta.board_colors.green` = #519839, the background the Section 7.2 demo asks for. */
-const GREEN = 'rgb(81, 152, 57)';
+/** `meta.board_colors.moss` = #3E6B4B, the background the Section 7.2 demo asks for. */
+const MOSS = 'rgb(62, 107, 75)';
 
-/** `meta.board_colors.purple` = #89609E, the second board's background. */
-const PURPLE = 'rgb(137, 96, 158)';
+/** `meta.board_colors.plum` = #6B3F82, the second board's background. */
+const PLUM = 'rgb(107, 63, 130)';
 
 /**
  * A fresh board name per run, so the spec also passes against a database that is not empty.
@@ -34,9 +34,9 @@ function tile(page: Page, name: string): Locator {
 }
 
 async function createBoard(page: Page, name: string, swatch: string): Promise<void> {
-  await page.getByRole('button', { name: 'Create new board' }).click();
+  await page.getByRole('button', { name: 'Create new space' }).click();
 
-  const popover = page.getByRole('dialog', { name: 'Create board' });
+  const popover = page.getByRole('dialog', { name: 'Create space' });
   await expect(popover).toBeVisible();
 
   // Section 2.2.1 item 6: Create stays disabled until the title holds a non-space character.
@@ -48,7 +48,7 @@ async function createBoard(page: Page, name: string, swatch: string): Promise<vo
     'true',
   );
 
-  await popover.getByLabel('Board title *').fill(name);
+  await popover.getByLabel('Space title *').fill(name);
   await popover.getByRole('button', { name: 'Create', exact: true }).click();
 
   // Section 2.2.1 item 6: on success it navigates to the new board.
@@ -58,7 +58,7 @@ async function createBoard(page: Page, name: string, swatch: string): Promise<vo
 
 /** Back to `/` through the nav, which is client-side routing, not a page load. */
 async function goHome(page: Page): Promise<void> {
-  await page.locator('header').getByRole('button', { name: 'Boards', exact: true }).click();
+  await page.locator('header').getByRole('button', { name: 'Spaces', exact: true }).click();
   await expect(page).toHaveURL('http://127.0.0.1:8020/');
 }
 
@@ -79,11 +79,11 @@ test('M1: home page and creating boards', async ({ page }) => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
       /^Good (morning|afternoon|evening)$/,
     );
-    for (const heading of ['Starred boards', 'Recently viewed', 'Your boards']) {
+    for (const heading of ['Starred boards', 'Recently viewed', 'Your boards', 'Your spaces']) {
       await expect(page.getByRole('heading', { name: heading })).toHaveCount(0);
     }
-    await expect(page.getByRole('button', { name: 'Create new board' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'View all closed boards' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create new space' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'View all closed spaces' })).toBeVisible();
 
     // Section 2.2: the page is the 1128px centred column (the 1280px viewport is wider), and
     // `BoardsGrid` is `repeat(auto-fill, minmax(194px, 1fr))`. Both break at once if the page
@@ -91,15 +91,15 @@ test('M1: home page and creating boards', async ({ page }) => {
     expect((await page.locator('main').boundingBox())?.width).toBe(1128);
   });
 
-  await test.step('2. create "Sprint 42" on the green background', async () => {
-    await createBoard(page, FIRST_BOARD, 'Green background');
+  await test.step('2. create "Sprint 42" on the moss background', async () => {
+    await createBoard(page, FIRST_BOARD, 'Moss background');
   });
 
   await test.step('3. the tile appears in the grid with that background', async () => {
     await goHome(page);
     const sprint = tile(page, FIRST_BOARD);
     await expect(sprint).toBeVisible();
-    await expect(sprint).toHaveCSS('background-color', GREEN);
+    await expect(sprint).toHaveCSS('background-color', MOSS);
     // One flat list: the board is on the page exactly once, with no star to toggle.
     await expect(page.getByRole('link', { name: FIRST_BOARD, exact: true })).toHaveCount(1);
     await expect(sprint.getByRole('button')).toHaveCount(0);
@@ -109,16 +109,16 @@ test('M1: home page and creating boards', async ({ page }) => {
     await page.reload();
     const sprint = tile(page, FIRST_BOARD);
     await expect(sprint).toBeVisible();
-    await expect(sprint).toHaveCSS('background-color', GREEN);
+    await expect(sprint).toHaveCSS('background-color', MOSS);
   });
 
   await test.step('5. create a second board with a different background', async () => {
-    await createBoard(page, SECOND_BOARD, 'Purple background');
+    await createBoard(page, SECOND_BOARD, 'Plum background');
     await goHome(page);
 
     const design = tile(page, SECOND_BOARD);
     await expect(design).toBeVisible();
-    await expect(design).toHaveCSS('background-color', PURPLE);
+    await expect(design).toHaveCSS('background-color', PLUM);
     // Both of this run's boards sit in the one grid, asserted by name rather than by counting
     // it, which also holds whatever the specs before this one created.
     await expect(page.getByRole('link', { name: FIRST_BOARD, exact: true })).toBeVisible();

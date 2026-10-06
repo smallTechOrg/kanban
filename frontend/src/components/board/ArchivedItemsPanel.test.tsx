@@ -92,19 +92,19 @@ describe('ArchivedItemsPanel', () => {
     expect(await screen.findByText('Write launch announcement')).toBeInTheDocument();
     expect(screen.getByText('Draft the brief')).toBeInTheDocument();
     expect(
-      within(row('Draft the brief')).getByRole('button', { name: 'Send to board' }),
+      within(row('Draft the brief')).getByRole('button', { name: 'Put back' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Switch to lists' })).toBeInTheDocument();
   });
 
-  it('restores a card with "Send to board" and the row leaves the panel', async () => {
+  it('restores a card with "Put back" and the row leaves the panel', async () => {
     const user = userEvent.setup();
     const calls = serveArchive();
     renderWithProviders(<ArchivedItemsPanel boardId={BOARD_ID} />);
 
     await screen.findByText('Write launch announcement');
     await user.click(
-      within(row('Write launch announcement')).getByRole('button', { name: 'Send to board' }),
+      within(row('Write launch announcement')).getByRole('button', { name: 'Put back' }),
     );
 
     await waitFor(() => {
@@ -147,7 +147,7 @@ describe('ArchivedItemsPanel', () => {
     expect(await screen.findByText('Doing')).toBeInTheDocument();
     expect(screen.queryByText('Write launch announcement')).not.toBeInTheDocument();
 
-    await user.click(within(row('Doing')).getByRole('button', { name: 'Send to board' }));
+    await user.click(within(row('Doing')).getByRole('button', { name: 'Put back' }));
 
     await waitFor(() => {
       expect(calls).toEqual(['POST /lists/12/unarchive']);

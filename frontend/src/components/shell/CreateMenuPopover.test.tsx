@@ -57,7 +57,7 @@ describe('CreateMenuPopover', () => {
     expect(await screen.findByRole('option', { name: 'To Do' })).toBeInTheDocument();
     await vi.waitFor(() => expect(asked).toEqual(['3']));
 
-    await user.selectOptions(screen.getByLabelText('Board'), OTHER_BOARD);
+    await user.selectOptions(screen.getByLabelText('Space'), OTHER_BOARD);
 
     await vi.waitFor(() => expect(asked).toEqual(['3', '5']));
     expect(screen.getByLabelText('List')).toHaveValue('11');

@@ -103,9 +103,9 @@ test('M5: responsive breakpoints and a touch drag on a phone viewport', async ({
   await test.step('1. create a board with the default lists', async () => {
     await page.setViewportSize(TABLET);
     await page.goto('/');
-    await page.getByRole('button', { name: 'Create new board' }).click();
-    const popover = page.getByRole('dialog', { name: 'Create board' });
-    await popover.getByLabel('Board title *').fill(BOARD);
+    await page.getByRole('button', { name: 'Create new space' }).click();
+    const popover = page.getByRole('dialog', { name: 'Create space' });
+    await popover.getByLabel('Space title *').fill(BOARD);
     await popover.getByRole('button', { name: 'Create', exact: true }).click();
 
     await expect(page).toHaveURL(/\/b\/\d+$/);
@@ -126,18 +126,18 @@ test('M5: responsive breakpoints and a touch drag on a phone viewport', async ({
     await expect.poll(() => cardTitles(page, FIRST_LIST)).toEqual([...CARDS]);
   });
 
-  await test.step('3. 768-1023px: the nav keeps Boards and Create', async () => {
-    await expect(header(page).getByRole('button', { name: 'Boards', exact: true })).toBeVisible();
+  await test.step('3. 768-1023px: the nav keeps Spaces and Create', async () => {
+    await expect(header(page).getByRole('button', { name: 'Spaces', exact: true })).toBeVisible();
     // The Create menu is a nav control Section 2.9.4 keeps at every width.
     await expect(header(page).getByRole('button', { name: 'Create' })).toBeVisible();
   });
 
   await test.step('4. 768-1023px: Home is the greeting over one grid', async () => {
-    await header(page).getByRole('button', { name: 'Boards', exact: true }).click();
+    await header(page).getByRole('button', { name: 'Spaces', exact: true }).click();
     await expect(page).toHaveURL('http://127.0.0.1:8020/');
 
     const greeting = await box(page.getByRole('heading', { level: 1 }));
-    const grid = await box(page.getByRole('button', { name: 'Create new board' }));
+    const grid = await box(page.getByRole('button', { name: 'Create new space' }));
 
     // The boards start below the greeting rather than beside a sidebar: the home page is one
     // column at every width now (Section 2.9.4). The greeting itself therefore sits at the

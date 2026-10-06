@@ -130,7 +130,7 @@ def _destination_list(db: Session, *, list_id: int, board_id: int, to_list_id: i
         raise BadRequest("bad_request", "Pick a different list to move the cards to.")
     target = db.get(List, to_list_id, populate_existing=True)
     if target is None or target.board_id != board_id or target.is_archived:
-        raise BadRequest("bad_request", "That list is not an active list of this board.")
+        raise BadRequest("bad_request", "That list is not an active list of this space.")
     return target
 
 
@@ -465,7 +465,7 @@ def unarchive_cards(
         select(Card.id).where(Card.id.in_(card_ids), Card.board_id != board_id)
     ).first()
     if foreign is not None:
-        raise BadRequest("bad_request", "Those cards are not on this board.")
+        raise BadRequest("bad_request", "Those cards are not on this space.")
     with write_tx(db, [board_id]) as ctx:
         _locked_list(db, list_id=list_id, board_id=board_id)
         cards = (

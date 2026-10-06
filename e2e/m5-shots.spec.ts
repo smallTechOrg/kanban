@@ -12,9 +12,9 @@ test('M5: release screenshots of the board menu and the background picker', asyn
   await page.goto('/');
 
   // A board with the default lists, plus a couple of cards so the canvas is not bare.
-  await page.getByRole('button', { name: 'Create new board' }).click();
-  const popover = page.getByRole('dialog', { name: 'Create board' });
-  await popover.getByLabel('Board title').fill(BOARD);
+  await page.getByRole('button', { name: 'Create new space' }).click();
+  const popover = page.getByRole('dialog', { name: 'Create space' });
+  await popover.getByLabel('Space title').fill(BOARD);
   await popover.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('heading', { name: BOARD })).toBeVisible();
 

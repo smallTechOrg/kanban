@@ -158,7 +158,7 @@ def test_patch_accepts_a_gradient_and_rejects_a_lone_background_field(
     )
     rejected = api.patch(
         f"/api/boards/{board['id']}",
-        json={"background_value": BOARD_COLORS["green"]},
+        json={"background_value": BOARD_COLORS["moss"]},
         headers=CSRF_HEADERS,
     )
 

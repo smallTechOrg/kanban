@@ -87,25 +87,25 @@ function labelTarget(data: ActivityData): string {
  */
 const RENDERERS: Readonly<Record<string, Renderer>> = {
   // --------------------------------------------------------------------------- board
-  'board.created': () => 'Created this board',
-  'board.renamed': ({ data }) => withFrom('Renamed this board', text(data, 'from')),
-  'board.description_changed': () => 'Updated the description of this board',
-  'board.background_changed': () => 'Changed the background of this board',
-  'board.closed': () => 'Closed this board',
-  'board.reopened': () => 'Re-opened this board',
+  'board.created': () => 'Created this space',
+  'board.renamed': ({ data }) => withFrom('Renamed this space', text(data, 'from')),
+  'board.description_changed': () => 'Updated the description of this space',
+  'board.background_changed': () => 'Changed the background of this space',
+  'board.closed': () => 'Closed this space',
+  'board.reopened': () => 'Re-opened this space',
 
   // ---------------------------------------------------------------------------- list
-  'list.created': ({ data }) => `Added list ${text(data, 'list_name')} to this board`,
+  'list.created': ({ data }) => `Added list ${text(data, 'list_name')} to this space`,
   'list.renamed': ({ data }) => withFrom(`Renamed list ${text(data, 'to')}`, text(data, 'from')),
   'list.moved': ({ data }) => `Moved list ${text(data, 'list_name')}`,
   'list.moved_out': ({ data }) =>
-    `Moved list ${text(data, 'list_name')} to board ${text(data, 'other_board_name')}`,
+    `Moved list ${text(data, 'list_name')} to space ${text(data, 'other_board_name')}`,
   'list.moved_in': ({ data }) =>
-    `Moved list ${text(data, 'list_name')} from board ${text(data, 'other_board_name')}`,
+    `Moved list ${text(data, 'list_name')} from space ${text(data, 'other_board_name')}`,
   'list.copied': ({ data }) =>
     `Copied list ${text(data, 'list_name')} from ${text(data, 'source_list_name')}`,
   'list.archived': ({ data }) => `Archived list ${text(data, 'list_name')}`,
-  'list.unarchived': ({ data }) => `Sent list ${text(data, 'list_name')} to the board`,
+  'list.unarchived': ({ data }) => `Put list ${text(data, 'list_name')} back`,
   'list.color_changed': ({ data }) =>
     text(data, 'color') === ''
       ? `Removed the color from list ${text(data, 'list_name')}`
@@ -124,7 +124,7 @@ const RENDERERS: Readonly<Record<string, Renderer>> = {
   'card.moved': ({ data }) =>
     `Moved this card from ${text(data, 'from_list_name')} to ${text(data, 'to_list_name')}`,
   'card.archived': () => 'Archived this card',
-  'card.unarchived': () => 'Sent this card to the board',
+  'card.unarchived': () => 'Put this card back',
   'card.deleted': ({ data }) =>
     `Deleted card ${text(data, 'card_title')} from ${text(data, 'list_name')}`,
   // One row covers both date columns (Section 4.5), so it also has to read as a sentence when

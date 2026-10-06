@@ -8,11 +8,11 @@ import styles from './ClosedBoardPage.module.css';
 
 /** Section 2.3.5, the body copy of the card. */
 const BODY =
-  'This board is closed. Reopen it to see and edit its lists and cards, or delete it permanently.';
+  'This space is closed. Reopen it to see and edit its lists and cards, or delete it permanently.';
 
 /** The same warning `ClosedBoardsModal` shows, because it is the same irreversible write. */
 const DELETE_BODY =
-  "All lists, cards and actions will be deleted, and you won't be able to re-open the board. There is no undo.";
+  "All lists, cards and actions will be deleted, and you won't be able to re-open the space. There is no undo.";
 
 export interface ClosedBoardPageProps {
   board: BoardSummary;
@@ -46,25 +46,25 @@ export function ClosedBoardPage({ board }: ClosedBoardPageProps): ReactElement {
           loading={reopen.isPending}
           onClick={() => reopen.mutate()}
         >
-          Reopen board
+          Reopen space
         </Button>
         <Button
           variant="danger"
           fullWidth
           onClick={(event) => setConfirmAnchor(event.currentTarget)}
         >
-          Delete board
+          Delete space
         </Button>
 
         <Button variant="link" onClick={() => navigate('/')}>
-          Back to boards
+          Back to spaces
         </Button>
       </div>
 
       {confirmAnchor === null ? null : (
         <ConfirmPopover
           anchor={confirmAnchor}
-          title="Delete board?"
+          title="Delete space?"
           body={DELETE_BODY}
           confirmLabel="Delete"
           loading={remove.isPending}

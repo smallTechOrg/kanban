@@ -171,10 +171,10 @@ test.describe.configure({ mode: 'serial' });
 test('M2: board page, composers, mouse drag-and-drop, list menu', async ({ page }) => {
   await test.step('1. create a board with the default lists', async () => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'Create new board' }).click();
-    const popover = page.getByRole('dialog', { name: 'Create board' });
+    await page.getByRole('button', { name: 'Create new space' }).click();
+    const popover = page.getByRole('dialog', { name: 'Create space' });
     await expect(popover.getByLabel('Start with default lists')).toBeChecked();
-    await popover.getByLabel('Board title *').fill(BOARD);
+    await popover.getByLabel('Space title *').fill(BOARD);
     await popover.getByRole('button', { name: 'Create', exact: true }).click();
 
     await expect(page).toHaveURL(/\/b\/\d+$/);

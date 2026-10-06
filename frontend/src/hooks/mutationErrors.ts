@@ -14,7 +14,7 @@ import { ApiError } from '@/api/client';
 export function errorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     if (error.status === 409) return error.message;
-    if (error.status === 503) return 'The board is busy, please retry.';
+    if (error.status === 503) return 'The space is busy, please retry.';
   }
   return fallback;
 }

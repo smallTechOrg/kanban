@@ -87,7 +87,7 @@ export function CardModalSidebar({ card }: CardModalSidebarProps): ReactElement 
       <h3 className={styles.heading}>Actions</h3>
       {card.is_archived ? (
         <SidebarButton
-          label="Send to board"
+          label="Put back"
           icon={<Undo2 aria-hidden="true" />}
           onClick={() => unarchiveCard.mutate()}
         />

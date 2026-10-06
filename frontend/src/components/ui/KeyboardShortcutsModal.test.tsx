@@ -9,7 +9,7 @@ describe('KeyboardShortcutsModal', () => {
     render(<KeyboardShortcutsModal onClose={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeInTheDocument();
-    for (const group of ['Global', 'Board', 'Card', 'Editors', 'Drag with the keyboard']) {
+    for (const group of ['Global', 'Space', 'Card', 'Editors', 'Drag with the keyboard']) {
       expect(screen.getByRole('heading', { name: group })).toBeInTheDocument();
     }
     // The sheet is generated from the handler's own tables, so it cannot drift from the app.

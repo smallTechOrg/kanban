@@ -32,7 +32,7 @@ describe('BoardsPopover', () => {
 
     expect(await screen.findByRole('button', { name: A_BOARD })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: ANOTHER })).toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: 'Boards' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Spaces' })).toBeInTheDocument();
 
     // There is no Recent or Starred group to tell apart, and no star to toggle.
     expect(screen.queryByRole('heading', { name: 'Recent' })).not.toBeInTheDocument();
@@ -45,7 +45,7 @@ describe('BoardsPopover', () => {
     renderPopover();
 
     await screen.findByRole('button', { name: A_BOARD });
-    await user.type(screen.getByRole('textbox', { name: 'Filter boards' }), 'road');
+    await user.type(screen.getByRole('textbox', { name: 'Filter spaces' }), 'road');
 
     expect(screen.getByRole('button', { name: A_BOARD })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: ANOTHER })).not.toBeInTheDocument();
@@ -56,9 +56,9 @@ describe('BoardsPopover', () => {
     renderPopover();
 
     await screen.findByRole('button', { name: A_BOARD });
-    await user.type(screen.getByRole('textbox', { name: 'Filter boards' }), 'zzz');
+    await user.type(screen.getByRole('textbox', { name: 'Filter spaces' }), 'zzz');
 
-    expect(screen.getByText('No boards yet')).toBeInTheDocument();
+    expect(screen.getByText('No spaces yet')).toBeInTheDocument();
     expect(boardGroupsFixture.all.length).toBeGreaterThan(0);
   });
 });

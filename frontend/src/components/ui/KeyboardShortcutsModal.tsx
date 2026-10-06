@@ -11,7 +11,7 @@ export interface KeyboardShortcutsModalProps {
 /** Section 2.8's groups, in the order the sheet prints them. */
 const GROUPS: readonly ShortcutGroup[] = [
   'Global',
-  'Board',
+  'Space',
   'Card',
   'Editors',
   'Drag with the keyboard',
