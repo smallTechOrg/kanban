@@ -1,0 +1,30 @@
+.display {
+  display: block;
+  width: 100%;
+  padding: 4px 8px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+  transition: background var(--t-hover);
+}
+
+.display:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.display:disabled {
+  cursor: default;
+}
+
+.placeholder {
+  color: var(--text-muted);
+}
+
+.input {
+  padding: 4px 8px;
+  font: inherit;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--focus);
+}

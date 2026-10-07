@@ -1,0 +1,141 @@
+/*
+ * Section 2.5.2 (the 16px bar on a tile, and its text mode) and Section 2.6.3 (the 32px pill
+ * of the modal's badge row and both label popovers). The two colours are inline styles from
+ * GET /api/meta; nothing here names a colour of its own.
+ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  border: 0;
+  font-weight: 500;
+}
+
+.tile {
+  min-width: 40px;
+  height: 16px;
+  padding: 0;
+  font-size: var(--fs-meta);
+  line-height: 16px;
+  border-radius: 4px;
+  transition: width var(--t-popover);
+}
+
+.tileText {
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.large {
+  min-width: 48px;
+  height: var(--sidebar-btn-h);
+  padding: 0 12px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  border-radius: var(--radius-sm);
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The colourblind-friendly mode of Section 2.6.5. One class per palette slot, so the ten
+ * label keys wear ten different diagonal patterns; the stripe itself is mixed from the chip's
+ * own text colour, which keeps this file free of a colour literal.
+ */
+.stripe0,
+.stripe1,
+.stripe2,
+.stripe3,
+.stripe4,
+.stripe5,
+.stripe6,
+.stripe7,
+.stripe8,
+.stripe9 {
+  background-repeat: repeat;
+}
+
+.stripe0 {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 4px,
+    color-mix(in srgb, currentcolor 30%, transparent) 4px 8px
+  );
+}
+
+.stripe1 {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 4px,
+    color-mix(in srgb, currentcolor 30%, transparent) 4px 8px
+  );
+}
+
+.stripe2 {
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 3px,
+    color-mix(in srgb, currentcolor 30%, transparent) 3px 6px
+  );
+}
+
+.stripe3 {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 3px,
+    color-mix(in srgb, currentcolor 30%, transparent) 3px 6px
+  );
+}
+
+.stripe4 {
+  background-image: repeating-linear-gradient(
+    22deg,
+    transparent 0 5px,
+    color-mix(in srgb, currentcolor 30%, transparent) 5px 10px
+  );
+}
+
+.stripe5 {
+  background-image: repeating-linear-gradient(
+    112deg,
+    transparent 0 5px,
+    color-mix(in srgb, currentcolor 30%, transparent) 5px 10px
+  );
+}
+
+.stripe6 {
+  background-image: repeating-linear-gradient(
+    67deg,
+    transparent 0 2px,
+    color-mix(in srgb, currentcolor 30%, transparent) 2px 6px
+  );
+}
+
+.stripe7 {
+  background-image: repeating-linear-gradient(
+    157deg,
+    transparent 0 2px,
+    color-mix(in srgb, currentcolor 30%, transparent) 2px 6px
+  );
+}
+
+.stripe8 {
+  background-image: repeating-radial-gradient(
+    circle,
+    color-mix(in srgb, currentcolor 30%, transparent) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+.stripe9 {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 2px,
+    color-mix(in srgb, currentcolor 30%, transparent) 2px 4px
+  );
+}

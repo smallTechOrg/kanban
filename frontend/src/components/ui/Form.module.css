@@ -1,0 +1,79 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.helper {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}
+
+.error {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+  color: var(--danger);
+}
+
+/* Section 2.9.1 "Inputs": 36px, --page-bg, 2px border, white on focus. */
+.control {
+  width: 100%;
+  min-height: var(--input-h);
+  padding: 8px 12px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+  background: var(--page-bg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: background var(--t-hover);
+}
+
+.control::placeholder {
+  color: var(--text-muted);
+}
+
+.control:focus {
+  background: var(--surface);
+  border-color: var(--focus);
+  outline: none;
+}
+
+.control:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.invalid {
+  border-color: var(--danger);
+}
+
+.select {
+  appearance: none;
+  background-image: none;
+  cursor: pointer;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.checkbox input {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  accent-color: var(--primary);
+  cursor: pointer;
+}

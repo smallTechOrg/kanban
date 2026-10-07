@@ -1,0 +1,53 @@
+/*
+ * Section 2.4.2: padding 10px 8px 10px 12px, 4px gaps, items aligned to the top so a
+ * two-line title does not push the buttons down. The whole header is the list's drag handle.
+ */
+.header {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 8px 10px 12px;
+  /* A hairline under the header separates it from the cards without a second surface. */
+  border-bottom: 1px solid var(--list-border);
+  margin-bottom: 8px;
+  cursor: grab;
+}
+
+.header:active {
+  cursor: grabbing;
+}
+
+.heading {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+/* Two-line clamp on the display button; the editor inherits the same 14px 600 font. */
+.title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/*
+ * The count is a pill rather than a bare number in the gutter: it is the one number on the
+ * column and it has to survive turning into "matched/total" while a filter is on (2.4.2).
+ */
+.count {
+  flex: none;
+  min-width: 20px;
+  padding: 2px 7px;
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--hover);
+  border-radius: var(--radius-pill);
+}

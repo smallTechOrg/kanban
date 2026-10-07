@@ -1,0 +1,131 @@
+/*
+ * Section 2.3.4's "Change background" panel, at the 339px drawer's 315px of inner width:
+ * four 64x40 gradient thumbnails on one row (4x64 + 3x8 = 280) over a 3x3 grid of 96x64
+ * tiles (3x96 + 2x8 = 304), and the same grid for the Custom tab's Upload tile and library.
+ */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: 6px 12px;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.activeTab {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.tabPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gradients {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The 3x3 grid of Section 2.3.4; the Custom tab reuses it for its Upload tile and library. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 96px);
+  gap: 8px;
+}
+
+.swatch {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text-inverse);
+  background-position: center;
+  background-size: cover;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: opacity var(--t-hover);
+}
+
+.swatch:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.swatch:disabled {
+  cursor: default;
+}
+
+.gradient {
+  width: 64px;
+  height: 40px;
+}
+
+.tile {
+  width: 96px;
+  height: 64px;
+}
+
+/* The dashed "add" affordance, the one tile with no background of its own. */
+.upload {
+  flex-direction: column;
+  color: var(--text-muted);
+  background: var(--hover);
+  border: 1px dashed var(--border);
+}
+
+.upload:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--pressed);
+  opacity: 1;
+}
+
+.icon {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.empty {
+  margin: 0;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}
+
+/* The real file input: opened by the Upload tile, and never a second tab stop of its own. */
+.fileInput {
+  display: none;
+}
+
+/* Below 768px the drawer is full width, so the grid stretches with it (Section 2.9.4). */
+@media (max-width: 767px) {
+  .tiles {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  }
+
+  .tile {
+    width: 100%;
+  }
+}

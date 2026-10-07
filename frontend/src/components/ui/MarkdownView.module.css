@@ -1,0 +1,131 @@
+/*
+ * Rendered Markdown inside a card or board description (Section 5.7). Body text is the
+ * 14px/20px of Section 2.9.1; every block keeps the same rhythm so both read alike.
+ */
+.markdown {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown blockquote,
+.markdown pre,
+.markdown table {
+  margin: 0 0 8px;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 16px 0 8px;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  line-height: var(--lh-body);
+}
+
+.markdown h1 {
+  font-size: var(--fs-title);
+}
+
+/*
+ * The global reset strips every list marker (`global.css`), which is right for the menus and
+ * card lists the app builds out of `ul`, and wrong here: a Markdown bullet list would render as
+ * bare indented lines and an ordered list would lose its numbers altogether.
+ */
+.markdown ul,
+.markdown ol {
+  padding-left: 24px;
+}
+
+.markdown ul {
+  list-style: disc;
+}
+
+.markdown ol {
+  list-style: decimal;
+}
+
+/* A GFM task list carries its own checkbox, so the bullet beside it would be a second marker. */
+.markdown li:has(> input[type='checkbox']) {
+  list-style: none;
+}
+
+.markdown li {
+  margin-bottom: 4px;
+}
+
+/* GFM task lists: the boxes mirror the source text, so they are inert (MarkdownView). */
+.markdown li input[type='checkbox'] {
+  margin-right: 6px;
+}
+
+.markdown a {
+  color: var(--link);
+  text-decoration: underline;
+}
+
+.markdown code {
+  padding: 2px 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--fs-meta);
+  background: var(--hover);
+  border-radius: var(--radius-sm);
+}
+
+.markdown pre {
+  padding: 8px 12px;
+  overflow-x: auto;
+  background: var(--hover);
+  border-radius: var(--radius-sm);
+}
+
+.markdown pre code {
+  padding: 0;
+  background: none;
+}
+
+.markdown blockquote {
+  padding-left: 12px;
+  color: var(--text-muted);
+  border-left: 3px solid var(--border);
+}
+
+.markdown table {
+  border-collapse: collapse;
+}
+
+.markdown th,
+.markdown td {
+  padding: 4px 8px;
+  text-align: left;
+  border: 1px solid var(--border);
+}
+
+.markdown th {
+  font-weight: 600;
+  background: var(--hover);
+}
+
+.markdown img {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+}
+
+.markdown hr {
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}

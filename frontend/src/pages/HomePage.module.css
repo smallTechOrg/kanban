@@ -1,0 +1,153 @@
+/*
+ * Section 2.2: 1128px centred, 40px 16px padding, one column.
+ *
+ * `width: 100%` is load-bearing: `AppShell` lays the routed page out as a column flex item,
+ * and an `auto` cross-axis margin beats `stretch`, so without it the page shrink-wraps its
+ * content and `BoardsGrid` fits two tiles per row instead of filling the 1128px.
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 1128px;
+  margin: 0 auto;
+  padding: 40px 16px;
+}
+
+/* The greeting block that replaces the section headings (Section 2.2). */
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.greeting {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 600;
+  line-height: 28px;
+  color: var(--text);
+}
+
+.date {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 20px;
+  color: var(--text-muted);
+}
+
+/*
+ * Section 2.2: the tagline, 8px under the date and the largest line on the page. It is a `p`
+ * rather than a heading because the greeting is this page's `h1` and a document has one.
+ */
+.tagline {
+  margin: 8px 0 0;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 34px;
+  color: var(--text);
+}
+
+.blurb {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--fs-body);
+  line-height: 22px;
+  color: var(--text-muted);
+}
+
+/*
+ * The three "what this is" points (Section 2.2): one row on a wide page, stacking as the
+ * viewport narrows. `auto-fit` rather than `auto-fill` so two columns never leave an empty
+ * third track, and `list-style: none` is already the reset in `global.css`.
+ */
+.points {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.point {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: start;
+  padding: 12px;
+  background: var(--list-bg);
+  border-radius: var(--radius-sm);
+  animation: rise var(--t-rise) both;
+}
+
+.pointIcon {
+  display: flex;
+  grid-row: span 2;
+  padding-top: 2px;
+  color: var(--text-muted);
+}
+
+.pointIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pointTitle {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--text);
+}
+
+.pointText {
+  font-size: var(--fs-meta);
+  line-height: 16px;
+  color: var(--text-muted);
+}
+
+.closed {
+  display: flex;
+}
+
+/*
+ * Section 2.2: the page arrives rather than appearing. One 8px lift with a fade, staggered per
+ * tile by the inline `animation-delay` `HomePage` computes, and `both` so a tile waiting for its
+ * delay is already invisible instead of flashing at full opacity first. `global.css` flattens
+ * every animation under `prefers-reduced-motion`, so this needs no media query of its own.
+ */
+.rise {
+  animation: rise var(--t-rise) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Section 2.10: 194x96 placeholders with a 1.2s shimmer while the boards load. */
+.skeleton {
+  height: 96px;
+  background: var(--list-bg);
+  border-radius: var(--radius-sm);
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}

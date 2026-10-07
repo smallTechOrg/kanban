@@ -1,0 +1,94 @@
+/* Section 2.6.3: the card's items — header row, progress, item rows, composer. */
+.section {
+  margin-bottom: 24px;
+}
+
+/* Section 2.6.3: a lifted item takes the list-drag shadow and no tilt. */
+.dragging {
+  background: var(--modal-bg);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card-drag);
+}
+
+.header {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  min-height: 32px;
+  margin-bottom: 4px;
+}
+
+/* The handle is the icon + name half of the row, so the buttons stay ordinary buttons. */
+.handle {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.handle:hover {
+  cursor: grab;
+}
+
+.icon {
+  flex: 0 0 var(--icon-size);
+  margin-top: 6px;
+  color: var(--icon);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.nameInput {
+  width: 100%;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+.headerActions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.items {
+  min-height: 8px;
+  margin: 4px 0;
+}
+
+.footer {
+  padding-left: 24px;
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.composerInput {
+  border-radius: var(--radius-sm);
+}
+
+.composerFooter {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.pasteBody {
+  margin-bottom: 8px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}
+
+.pasteSecond {
+  margin-top: 4px;
+}

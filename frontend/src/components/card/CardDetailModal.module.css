@@ -1,0 +1,64 @@
+/*
+ * Section 2.6.1: the 768px dialog is the `Modal` primitive (overlay, focus trap, scroll lock);
+ * this file owns what is inside it — the close button, the loading bar and the two columns.
+ */
+.close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: var(--z-card-overlay);
+}
+
+/* Section 2.10: a 2px indeterminate bar at the dialog top until the detail resolves. */
+.loading {
+  position: absolute;
+  z-index: var(--z-card-overlay);
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  overflow: hidden;
+  border-radius: var(--popover-radius) var(--popover-radius) 0 0;
+}
+
+.loading::after {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--primary);
+  animation: slide 1.2s ease-in-out infinite;
+  content: '';
+}
+
+@keyframes slide {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+.columns {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* Holds the main column's width while the payload is in flight, so nothing reflows on arrival. */
+.mainPlaceholder {
+  flex: 1 1 552px;
+  min-height: 120px;
+}
+
+/* Section 2.6.1: below 768px the sidebar stacks under the main column. */
+@media (max-width: 767px) {
+  .columns {
+    flex-direction: column;
+  }
+
+  .mainPlaceholder {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}

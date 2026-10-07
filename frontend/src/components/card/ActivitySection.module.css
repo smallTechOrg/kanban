@@ -1,0 +1,30 @@
+/* Section 2.6.3: icon + h3 "Activity", then the feed under it. */
+.section {
+  margin-bottom: 8px;
+}
+
+.header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 32px;
+  margin-bottom: 8px;
+}
+
+.icon {
+  flex: 0 0 var(--icon-size);
+  color: var(--icon);
+}
+
+.heading {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+.body {
+  padding-left: 24px;
+}

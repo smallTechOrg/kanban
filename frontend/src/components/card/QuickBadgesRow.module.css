@@ -1,0 +1,80 @@
+/* Section 2.6.3: flex-wrap row, 16px/24px gaps, 8px above and 24px below. */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin: 8px 0 24px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+
+.values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-height: 32px;
+}
+
+/* The 32px grey square "+" that opens the labels popover (Section 2.6.3). */
+.add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--icon);
+  background: var(--hover);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.add:hover {
+  background: var(--pressed);
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  accent-color: var(--primary);
+  border: 2px solid var(--border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+/* The status pill after the Dates button (Section 2.6.3). */
+.pill {
+  padding: 0 4px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  line-height: 20px;
+  border-radius: var(--radius-sm);
+}
+
+.overdue {
+  color: var(--text-inverse);
+  background: var(--danger);
+}
+
+.soon {
+  color: var(--text);
+  background: var(--due-soon);
+}
+
+.complete {
+  color: var(--text-inverse);
+  background: var(--success);
+}

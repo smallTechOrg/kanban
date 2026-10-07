@@ -1,0 +1,6 @@
+.body {
+  margin-bottom: 12px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}

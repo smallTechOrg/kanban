@@ -1,0 +1,27 @@
+/* Section 2.6.1: a 40px hatched band above the card modal's header. */
+.banner {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 40px 0 24px;
+  background-color: var(--archived-bg);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 8px,
+    var(--archived-stripe) 8px 16px
+  );
+}
+
+.icon {
+  flex: none;
+  color: var(--text);
+}
+
+.text {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text);
+}

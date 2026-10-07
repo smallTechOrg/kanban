@@ -1,0 +1,60 @@
+/*
+ * Section 2.4.1: 272px fixed, the list background or its colour, radius --list-radius,
+ * header and footer fixed while the card region scrolls. The column may not grow past the
+ * canvas, so it caps at 100% of the canvas height.
+ */
+.column {
+  display: flex;
+  flex-direction: column;
+  width: var(--list-w);
+  max-height: 100%;
+  border: 1px solid var(--list-border);
+  border-radius: var(--list-radius);
+  box-shadow: var(--shadow-list);
+}
+
+/* "Add card" from the list menu opens the composer above the first tile (2.4.3). */
+.topComposer {
+  flex: none;
+  padding: 0 4px 8px;
+}
+
+.footer {
+  flex: none;
+}
+
+/*
+ * Section 2.4.4: the collapsed card composer. It is drawn as the outline of the card it would
+ * add - a dashed hairline on the same 10px radius - rather than as the plain muted text row
+ * the reference leaves in the footer, so the slot reads as "a card goes here".
+ */
+.addCard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 8px);
+  min-height: var(--sidebar-btn-h);
+  margin: 0 4px 8px;
+  padding: 4px 8px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+  border: 1px dashed var(--card-border-hover);
+  border-radius: var(--card-radius);
+  transition:
+    background var(--t-hover),
+    border-color var(--t-hover),
+    color var(--t-hover);
+}
+
+.addCard:hover {
+  color: var(--text);
+  background: var(--surface);
+  border-style: solid;
+  border-color: var(--card-border-hover);
+}
+
+.plus {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}

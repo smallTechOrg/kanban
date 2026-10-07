@@ -1,0 +1,75 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--sidebar-btn-h);
+  padding: 6px 12px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+  /* My Day's buttons are pills, not the plan's 3px corners (Section 2.9.1). */
+  border-radius: var(--radius-pill);
+  transition: background var(--t-hover);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.primary {
+  color: var(--text-inverse);
+  background: var(--primary);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.primary:active:not(:disabled) {
+  background: var(--primary-active);
+}
+
+.default {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.default:hover:not(:disabled) {
+  background: var(--pressed);
+}
+
+.danger {
+  color: var(--text-inverse);
+  background: var(--danger-btn);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--danger-btn-hover);
+}
+
+.link {
+  min-height: auto;
+  padding: 0;
+  color: var(--text-muted);
+  text-decoration: underline;
+}
+
+.link:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.transparentWhite {
+  font-weight: 700;
+  color: var(--text-inverse);
+  background: var(--tw-btn);
+}
+
+.transparentWhite:hover:not(:disabled) {
+  background: var(--tw-btn-hover);
+}

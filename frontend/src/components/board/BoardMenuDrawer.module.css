@@ -1,0 +1,116 @@
+/*
+ * Section 2.3.4: 339px wide, white, the full height below the nav and the board header, sliding
+ * in from the right in 0.2s with a shadow cast leftwards over the canvas.
+ *
+ * `position: fixed` rather than the plan's `absolute`: the board page is not a positioned
+ * ancestor, and `top`/`bottom` have to be measured from the viewport so the drawer does not
+ * scroll with the canvas.
+ */
+.drawer {
+  position: fixed;
+  top: calc(var(--nav-h) + var(--board-header-h));
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-drawer);
+  display: flex;
+  flex-direction: column;
+  width: var(--drawer-w);
+  max-width: 100vw;
+  background: var(--surface);
+  box-shadow: var(--shadow-drawer);
+  transform: translateX(100%);
+  transition: transform var(--t-drawer);
+}
+
+.open {
+  transform: translateX(0);
+}
+
+/* 40px header: the back chevron, the centred title, the close X (2.3.4). */
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-height: var(--drawer-header-h);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.headerSide {
+  display: flex;
+  flex: none;
+  width: var(--sidebar-btn-h);
+}
+
+.title {
+  flex: 1;
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  line-height: var(--lh-body);
+  color: var(--text);
+  text-align: center;
+}
+
+.body {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.divider {
+  height: 1px;
+  margin: 8px 0;
+  background: var(--border);
+  border: 0;
+}
+
+/* The About panel. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionHeader {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionTitle {
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* Section 2.6.3's grey click-to-edit box, at drawer width. */
+.emptyBox {
+  min-height: 56px;
+  padding: 8px 12px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+  text-align: left;
+  background: var(--hover);
+  border-radius: var(--radius-sm);
+}
+
+.emptyBox:hover {
+  background: var(--pressed);
+}
+
+/* Below 768px the drawer takes the whole width it is allowed (2.9.4). */
+@media (max-width: 767px) {
+  .drawer {
+    width: 100vw;
+  }
+}

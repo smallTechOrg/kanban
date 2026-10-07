@@ -1,0 +1,6 @@
+/* Section 2.6.5: the three stacked selects of "Select destination". */
+.selects {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

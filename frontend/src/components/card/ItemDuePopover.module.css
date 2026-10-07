@@ -1,0 +1,11 @@
+/* Section 2.6.5: the "Change due date" panel — calendar, the date/time pair, Save, Remove. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pair {
+  display: flex;
+  gap: 8px;
+}

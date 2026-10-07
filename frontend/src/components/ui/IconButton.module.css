@@ -1,0 +1,48 @@
+.button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--sidebar-btn-h);
+  height: var(--sidebar-btn-h);
+  color: var(--icon);
+  /* A pill on a square box is a circle: the icon buttons round off with the text ones. */
+  border-radius: var(--radius-pill);
+  transition: background var(--t-hover);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.button:active:not(:disabled) {
+  background: var(--pressed);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The dense 28x28 variant of Section 2.1.2. */
+.sm {
+  width: 28px;
+  height: 28px;
+}
+
+.white {
+  color: var(--text-inverse);
+}
+
+.white:hover:not(:disabled) {
+  background: var(--tw-btn);
+}
+
+.white:active:not(:disabled) {
+  background: var(--tw-btn-hover);
+}
+
+.button > svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}

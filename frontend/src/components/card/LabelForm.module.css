@@ -1,0 +1,49 @@
+/* Section 2.6.5: the create / edit label view, in a popover view or a drawer panel. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* "Select a color": the 12px 600 muted heading of a panel section. */
+.subheading {
+  margin: 4px 0 0;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+
+/* The preview chip, on the modal's own grey band. */
+.preview {
+  display: flex;
+  align-items: center;
+  padding: 16px 12px;
+  background: var(--modal-bg);
+  border-radius: var(--radius-sm);
+}
+
+/* 30 swatches: ten colour keys across three tone rows, five to a row (Section 2.6.5). */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+
+.swatch {
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.swatch:hover {
+  opacity: 0.8;
+}
+
+.swatch:focus-visible,
+.swatchSelected {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
