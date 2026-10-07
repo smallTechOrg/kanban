@@ -8,6 +8,9 @@
   align-items: flex-start;
   gap: 4px;
   padding: 10px 8px 10px 12px;
+  /* A hairline under the header separates it from the cards without a second surface. */
+  border-bottom: 1px solid var(--list-border);
+  margin-bottom: 8px;
   cursor: grab;
 }
 
@@ -32,10 +35,19 @@
   overflow: hidden;
 }
 
+/*
+ * The count is a pill rather than a bare number in the gutter: it is the one number on the
+ * column and it has to survive turning into "matched/total" while a filter is on (2.4.2).
+ */
 .count {
   flex: none;
-  padding: 4px 0;
+  min-width: 20px;
+  padding: 2px 7px;
   font-size: var(--fs-meta);
-  line-height: var(--lh-body);
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
   color: var(--text-muted);
+  background: var(--hover);
+  border-radius: var(--radius-pill);
 }

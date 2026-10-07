@@ -33,7 +33,9 @@
   flex-direction: column;
   gap: 8px;
   padding: 8px;
-  background: var(--list-bg);
+  /* The open composer is the column it is about to add, so it wears the column's panel. */
+  background: var(--list-surface);
+  border: 1px solid var(--list-border);
   border-radius: var(--list-radius);
   box-shadow: var(--shadow-list);
 }

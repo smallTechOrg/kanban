@@ -61,14 +61,14 @@ export function labelStyle(key: string, tone: LabelTone, palette: LabelPalette):
 export type ListPalette = Record<string, string>;
 
 /**
- * The background of a list column: the server's hex for `lists.color`, or the default grey
- * column when the list has no colour or carries a key this server does not publish
- * (Section 2.4.1). The `--list-bg` token is the only value that is not a palette entry,
+ * The background of a list column: the server's hex for `lists.color`, or the default
+ * translucent panel when the list has no colour or carries a key this server does not publish
+ * (Section 2.4.1). The `--list-surface` token is the only value that is not a palette entry,
  * which is why the fallback is named rather than literal.
  */
 export function listBackground(key: string | null, palette: ListPalette): string {
-  if (key === null) return 'var(--list-bg)';
-  return palette[key] ?? 'var(--list-bg)';
+  if (key === null) return 'var(--list-surface)';
+  return palette[key] ?? 'var(--list-surface)';
 }
 
 /**

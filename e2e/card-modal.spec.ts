@@ -242,10 +242,10 @@ test('M3: card modal route, labels, description, items, dates, activity', async 
     ).toBeVisible();
   });
 
-  await test.step('9. the gaps beside a chip and beside the badges open the card', async () => {
-    // Section 2.5.1 makes the whole tile the click target, and the chip row and the badge row
-    // are as wide as the tile — so the empty half of each row is tile, not row. A reader aiming
-    // just right of a label or a due date is aiming at the card.
+  await test.step('9. every part of the tile that is not a control opens the card', async () => {
+    // Section 2.5.1 makes the whole tile the click target, and the chip row, the badge row and
+    // the item list are all as wide as the tile — so the empty half of each is tile, not row. A
+    // reader aiming just right of a label, a due date or a ticked item is aiming at the card.
     const boardUrl = cardUrl.replace(/\/c\/\d+$/, '');
 
     await page.goto(boardUrl);
@@ -262,6 +262,16 @@ test('M3: card modal route, labels, description, items, dates, activity', async 
     const tileBox = await boxOf(tileCard(page, CARD));
     // Past the last badge of the row, at the tile's right edge.
     await page.mouse.click(tileBox.x + tileBox.width - 6, badgeBox.y + badgeBox.height / 2);
+    await expect(page).toHaveURL(cardUrl);
+    await expect(modal(page)).toBeVisible();
+
+    await page.goto(boardUrl);
+    // A ticked item row. It dims itself with `opacity`, which paints it as its own stacking
+    // context in the same layer as the anchor stretched over the tile — and after it — so this
+    // band of the card used to swallow the click outright, text and all.
+    const done = tileCard(page, CARD).locator(`li[aria-label="${ITEMS[0]} (done)"]`);
+    const doneBox = await boxOf(done);
+    await page.mouse.click(doneBox.x + doneBox.width / 2, doneBox.y + doneBox.height / 2);
     await expect(page).toHaveURL(cardUrl);
     await expect(modal(page)).toBeVisible();
   });

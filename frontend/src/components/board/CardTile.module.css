@@ -11,22 +11,31 @@
   margin-bottom: var(--card-gap);
   padding: 8px 12px;
   background: var(--surface);
+  /*
+   * A hairline, not the reference's drop shadow: the column is a translucent panel now, and a
+   * stack of shadowed white rectangles on it is the one thing that still read as a clone. The
+   * shadow comes back for the card that is being dragged, where depth means "lifted".
+   */
+  border: 1px solid var(--card-border);
   border-radius: var(--card-radius);
-  box-shadow: var(--shadow-card);
   cursor: pointer;
+  transition:
+    background var(--t-hover),
+    border-color var(--t-hover);
 }
 
 /*
- * Hover deepens the shadow and nothing else. A 1px lift was the obvious thing to add here and
- * it broke the drag: `@hello-pangea/dnd` measures every tile with `getBoundingClientRect()`
- * when an item is lifted, so a tile that moves because the pointer happens to be over it is a
- * tile whose measured box is a pixel away from where the library believes it is. That was
- * enough for the cross-list keyboard drag of `e2e/board-dnd.spec.ts` to find no destination
- * and silently stay put. Nothing on a tile may change its geometry on hover.
+ * Hover darkens the hairline and tints the fill, and changes no geometry. A 1px lift was the
+ * obvious thing to add here and it broke the drag: `@hello-pangea/dnd` measures every tile
+ * with `getBoundingClientRect()` when an item is lifted, so a tile that moves because the
+ * pointer happens to be over it is a tile whose measured box is a pixel away from where the
+ * library believes it is. That was enough for the cross-list keyboard drag of
+ * `e2e/board-dnd.spec.ts` to find no destination and silently stay put. Nothing on a tile may
+ * change its geometry on hover - a border that was not there before included.
  */
 .tile:hover {
   background: var(--modal-bg);
-  box-shadow: var(--shadow-popover);
+  border-color: var(--card-border-hover);
 }
 
 /*
@@ -62,6 +71,7 @@
 
 .tile[data-is-dragging='true'] {
   rotate: 3deg;
+  border-color: transparent;
   box-shadow: var(--shadow-card-drag);
   cursor: grabbing;
 }
@@ -109,6 +119,7 @@
 .title {
   display: block;
   font-size: var(--fs-body);
+  font-weight: 500;
   line-height: var(--lh-body);
   color: var(--text);
   overflow-wrap: anywhere;
@@ -117,15 +128,21 @@
 /*
  * Section 2.5.1: the card's items, listed under the title with the ticks the modal shows.
  *
- * No `position` and no `z-index`, unlike the chips and the badges: these rows are text rather
- * than controls, so they stay under the anchor's stretched `::after` and a click on one opens
- * the card. A checked row is struck through and dimmed; its name still wraps like the title.
+ * These rows are text rather than controls, so a click on one opens the card like a click
+ * anywhere else on the tile. Saying that needs `pointer-events: none`, not just the absence of
+ * a `z-index`: `.checked` below dims itself with `opacity`, and an element with an opacity
+ * under 1 is painted as though it created a stacking context at `z-index: 0` - which puts it
+ * in the same layer as the anchor's stretched `::after`, and after it in document order, so a
+ * ticked row was painted over the anchor and swallowed every click aimed at that band of the
+ * card. The rows let the pointer through to the anchor underneath instead, the way the chip
+ * row and the badge row do for their own gaps.
  */
 .items {
   display: flex;
   flex-direction: column;
   gap: 2px;
   margin-top: 6px;
+  pointer-events: none;
 }
 
 .item {

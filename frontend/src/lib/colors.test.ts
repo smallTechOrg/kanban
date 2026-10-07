@@ -68,12 +68,12 @@ describe('listBackground', () => {
     expect(listBackground('green', lists)).toBe('rgb(186, 243, 219)');
   });
 
-  it('falls back to the default grey column without a colour', () => {
-    expect(listBackground(null, lists)).toBe('var(--list-bg)');
+  it('falls back to the default column panel without a colour', () => {
+    expect(listBackground(null, lists)).toBe('var(--list-surface)');
   });
 
-  it('falls back to the default grey column for a key this server does not publish', () => {
-    expect(listBackground('chartreuse', lists)).toBe('var(--list-bg)');
+  it('falls back to the default column panel for a key this server does not publish', () => {
+    expect(listBackground('chartreuse', lists)).toBe('var(--list-surface)');
   });
 });
 

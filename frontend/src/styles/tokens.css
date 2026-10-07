@@ -32,6 +32,18 @@
   --surface: #ffffff;
   --modal-bg: #f4f2f9;
   --list-bg: #edeaf4;
+  /*
+   * A column on a board is a bright translucent panel over the board's own colour, not the
+   * opaque grey Trello stacks its cards in; `--list-bg` stays for the lists drawn on a page
+   * (the archived rows, the create-board tile, the home skeletons), where there is nothing to
+   * show through. No `backdrop-filter` here: a filtered element becomes the containing block
+   * for its fixed-position descendants, and the card the drag library lifts is one.
+   */
+  --list-surface: rgba(255, 255, 255, 0.76);
+  --list-border: rgba(255, 255, 255, 0.5);
+  /* Cards are drawn with a hairline rather than Trello's drop shadow (Section 2.5.1). */
+  --card-border: #e5e2ee;
+  --card-border-hover: #c9c2dd;
   --hover: #241f470f;
   --pressed: #241f4726;
   /* The selected-row tint shared by the Home sidebar (2.2), search results (2.1.2) and the
@@ -166,6 +178,10 @@
   --surface: #221f2e;
   --page-bg: #1a1824;
   --list-bg: #15131d;
+  --list-surface: rgba(21, 19, 29, 0.74);
+  --list-border: rgba(255, 255, 255, 0.08);
+  --card-border: #39344a;
+  --card-border-hover: #4d4765;
   --modal-bg: #2c2839;
   --text: #cdc8dd;
   --text-muted: #a9a3bd;
